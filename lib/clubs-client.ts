@@ -1,0 +1,102 @@
+import { Club } from '@/types/club'
+
+// Mock data for client-side components
+function getMockClubs(): Club[] {
+  return [
+    {
+      id: '1',
+      name: 'Debate Club',
+      category: 'Academic',
+      description: 'Develop public speaking and critical thinking skills through competitive debate.',
+      advisor: 'Ms. Johnson',
+      studentLeader: 'Alex Chen',
+      meetingTime: 'Tuesdays 3:30 PM',
+      meetingFrequency: 'Weekly',
+      location: 'Room 201',
+      contact: 'debate@school.edu',
+      socialMedia: '@schooldebate',
+      active: true,
+      gradeLevel: '9-12',
+      keywords: ['speaking', 'competition', 'academic'],
+    },
+    {
+      id: '2',
+      name: 'Robotics Team',
+      category: 'STEM',
+      description: 'Build and program robots for competitions and projects.',
+      advisor: 'Mr. Smith',
+      studentLeader: 'Sarah Kim',
+      meetingTime: 'Wednesdays 4:00 PM',
+      meetingFrequency: '1st and 3rd weeks of the month',
+      location: 'Tech Lab',
+      contact: 'robotics@school.edu',
+      socialMedia: '@schoolrobotics',
+      active: true,
+      gradeLevel: '9-12',
+      keywords: ['engineering', 'programming', 'competition'],
+    },
+    {
+      id: '3',
+      name: 'Art Society',
+      category: 'Arts',
+      description: 'Explore various art forms and showcase student creativity.',
+      advisor: 'Ms. Davis',
+      studentLeader: 'Maya Patel',
+      meetingTime: 'Thursdays 3:45 PM',
+      meetingFrequency: '2nd and 4th weeks of the month',
+      location: 'Art Studio',
+      contact: 'art@school.edu',
+      socialMedia: '@schoolart',
+      active: true,
+      gradeLevel: '9-12',
+      keywords: ['creativity', 'visual arts', 'exhibition'],
+    },
+    {
+      id: '4',
+      name: 'Environmental Club',
+      category: 'Service',
+      description: 'Promote environmental awareness and sustainability initiatives.',
+      advisor: 'Mr. Green',
+      studentLeader: 'Jordan Lee',
+      meetingTime: 'Mondays 3:30 PM',
+      meetingFrequency: 'Once per quarter',
+      location: 'Room 105',
+      contact: 'environment@school.edu',
+      socialMedia: '@schoolgreen',
+      active: true,
+      gradeLevel: '9-12',
+      keywords: ['sustainability', 'environment', 'service'],
+    },
+    {
+      id: '5',
+      name: 'Chess Club',
+      category: 'Academic',
+      description: 'Learn and play chess, participate in tournaments.',
+      advisor: 'Ms. Wilson',
+      studentLeader: 'David Park',
+      meetingTime: 'Fridays 3:30 PM',
+      meetingFrequency: '4th week only',
+      location: 'Library',
+      contact: 'chess@school.edu',
+      socialMedia: '@schoolchess',
+      active: false,
+      gradeLevel: '9-12',
+      keywords: ['strategy', 'games', 'tournament'],
+    },
+  ]
+}
+
+// This will be used for client-side components
+export async function getClubs(): Promise<Club[]> {
+  try {
+    const response = await fetch('/api/clubs')
+    if (!response.ok) {
+      throw new Error('Failed to fetch clubs')
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching clubs from API:', error)
+    // Fallback to mock data
+    return getMockClubs()
+  }
+}
