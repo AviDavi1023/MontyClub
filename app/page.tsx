@@ -3,6 +3,10 @@ import { Header } from '@/components/Header'
 import { ClubsList } from '@/components/ClubsList'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
