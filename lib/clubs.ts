@@ -74,14 +74,27 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
         })
       }
 
+      console.log('[DEBUG] Announcements map:', map);
+      
       // Merge announcements where club id matches (try numeric/string variants)
       clubs.forEach((c) => {
         const idStr = String(c.id).trim()
         const idNum = String(Number(c.id))
+        console.log(`[DEBUG] Processing club ${c.name} (ID: ${c.id}):`, {
+          idStr,
+          idNum,
+          hasStrAnnouncement: !!map[idStr],
+          hasNumAnnouncement: !!map[idNum],
+          strAnnouncement: map[idStr],
+          numAnnouncement: map[idNum]
+        });
+        
         if (map[idStr] && map[idStr].trim() !== '') {
           c.announcement = map[idStr].trim()
+          console.log(`[DEBUG] Set announcement for ${c.name} (str match):`, c.announcement);
         } else if (map[idNum] && map[idNum].trim() !== '') {
           c.announcement = map[idNum].trim()
+          console.log(`[DEBUG] Set announcement for ${c.name} (num match):`, c.announcement);
         }
       })
     } catch (err) {

@@ -103,7 +103,17 @@ export async function getClubs(): Promise<Club[]> {
     if (!response.ok) {
       throw new Error('Failed to fetch clubs')
     }
-    return await response.json()
+    const data = await response.json();
+    console.log('[DEBUG] Clubs data from API:', {
+      totalClubs: data.length,
+      clubsWithAnnouncements: data.filter((c: any) => c.announcement).length,
+      announcements: data.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        announcement: c.announcement
+      }))
+    });
+    return data
   } catch (error) {
     console.error('Error fetching clubs from API:', error)
     // Fallback to mock data

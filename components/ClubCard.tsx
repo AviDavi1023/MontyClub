@@ -9,7 +9,12 @@ interface ClubCardProps {
 }
 
 export function ClubCard({ club }: ClubCardProps) {
-  // No meeting-today badge for now (feature removed)
+  // Debug log when club card renders
+  console.log(`[DEBUG] ClubCard rendering for ${club.name}:`, {
+    id: club.id,
+    hasAnnouncement: !!club.announcement,
+    announcement: club.announcement
+  });
 
   return (
     <Link href={`/clubs/${club.id}`} className="block">
