@@ -59,10 +59,29 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     // Merge admin-managed announcements (if any) from runtime-store (Supabase, KV, or FS)
     try {
       const { readData } = require('@/lib/runtime-store')
-      const map = await readData('announcements', {})
+      const mapRaw = await readData('announcements', {})
+      const map: Record<string, string> = {}
+      // Normalize keys to strings and trim values
+      if (mapRaw && typeof mapRaw === 'object') {
+        Object.keys(mapRaw).forEach((k) => {
+          try {
+            const v = (mapRaw as any)[k]
+            if (typeof v === 'string' && v.trim() !== '') map[String(k).trim()] = v.trim()
+            else if (v !== null && typeof v !== 'undefined') map[String(k).trim()] = String(v)
+          } catch (e) {
+            // ignore malformed entries
+          }
+        })
+      }
+
+      // Merge announcements where club id matches (try numeric/string variants)
       clubs.forEach((c) => {
-        if (map && typeof map[c.id] === 'string' && map[c.id].trim() !== '') {
-          c.announcement = map[c.id].trim()
+        const idStr = String(c.id).trim()
+        const idNum = String(Number(c.id))
+        if (map[idStr] && map[idStr].trim() !== '') {
+          c.announcement = map[idStr].trim()
+        } else if (map[idNum] && map[idNum].trim() !== '') {
+          c.announcement = map[idNum].trim()
         }
       })
     } catch (err) {

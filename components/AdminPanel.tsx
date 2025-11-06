@@ -140,6 +140,12 @@ export function AdminPanel() {
       } catch (e) {
         // ignore
       }
+      // localStorage fallback for cross-browser/tab notification
+      try {
+        localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       console.error('Error saving announcement:', err)
       alert('Could not save announcement')
@@ -166,6 +172,9 @@ export function AdminPanel() {
       } catch (e) {
         // ignore
       }
+      try {
+        localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
+      } catch (e) {}
     } catch (err) {
       console.error('Error clearing announcement:', err)
       alert('Could not clear announcement')

@@ -52,9 +52,25 @@ export function ClubsList() {
       }
     }
 
+    // localStorage fallback (storage events fire across tabs/browsers)
+    const onStorage = (e: StorageEvent) => {
+      try {
+        if (!e.key) return
+        if (e.key === 'montyclub:announcementsUpdated') {
+          loadClubs()
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorage)
+    }
+
     return () => {
       isMountedRef.current = false
       if (bc) bc.close()
+      if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage)
     }
   }, [])
 
