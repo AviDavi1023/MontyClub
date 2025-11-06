@@ -111,8 +111,15 @@ export async function getClubs(): Promise<Club[]> {
         id: c.id,
         name: c.name,
         announcement: c.announcement
-      }))
+      })),
+      club2Details: data.find((c: any) => c.id === "2")  // Specifically log club 2's full details
     });
+    
+    // Log raw club 2 data to see all properties
+    const club2 = data.find((c: any) => c.id === "2");
+    if (club2) {
+      console.log('[DEBUG] Full Club 2 data:', JSON.stringify(club2, null, 2));
+    }
     return data
   } catch (error) {
     console.error('Error fetching clubs from API:', error)
