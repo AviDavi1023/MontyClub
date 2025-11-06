@@ -90,8 +90,16 @@ function getMockClubs(): Club[] {
 export async function getClubs(): Promise<Club[]> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-    // Ensure we always fetch fresh data (avoid stale caches)
-    const response = await fetch(`${baseUrl}/api/clubs`, { cache: 'no-store' })
+    // Add timestamp to URL to bust cache and ensure no-cache headers
+    const timestamp = new Date().getTime()
+    const response = await fetch(`${baseUrl}/api/clubs?_=${timestamp}`, { 
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
     if (!response.ok) {
       throw new Error('Failed to fetch clubs')
     }

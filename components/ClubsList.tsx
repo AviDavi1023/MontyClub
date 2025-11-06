@@ -12,6 +12,7 @@ export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(true)
+  const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [filters, setFilters] = useState<ClubFilters>({
     search: '',
     category: [],
@@ -24,8 +25,12 @@ export function ClubsList() {
   const isMountedRef = useRef(true)
   async function loadClubs() {
     try {
+      setLoading(true)  // Show loading state while refreshing
       const data = await getClubs()
-      if (isMountedRef.current) setClubs(data)
+      if (isMountedRef.current) {
+        setClubs(data)
+        setUpdateCounter(prev => prev + 1)  // Increment counter to force re-render
+      }
     } catch (error) {
       console.error('Error loading clubs:', error)
     } finally {
@@ -75,6 +80,8 @@ export function ClubsList() {
   }, [])
 
   const filteredClubs = useMemo(() => {
+    // Clear console to help spot new data loads
+    console.log('Filtering clubs, update counter:', updateCounter)
     // Build a frequency map using normalized labels to group variants (e.g. "1st & 3rd weeks")
     const freqMap = new Map<string, { count: number; repr: string }>()
     clubs.forEach((club) => {
