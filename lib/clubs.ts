@@ -55,19 +55,16 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     const [, ...dataRows] = rows
     const clubs = parseExcelData(dataRows)
 
-    // Merge admin-managed announcements (if any) from data/announcements.json so that
-    // admin edits override spreadsheet values without requiring a re-upload.
+
+    // Merge admin-managed announcements (if any) from runtime-store (Supabase, KV, or FS)
     try {
-      const annPath = path.join(process.cwd(), 'data', 'announcements.json')
-      if (fs.existsSync(annPath)) {
-        const raw = await fs.promises.readFile(annPath, 'utf-8')
-        const map = JSON.parse(raw || '{}') as Record<string, string>
-        clubs.forEach((c) => {
-          if (map && typeof map[c.id] === 'string' && map[c.id].trim() !== '') {
-            c.announcement = map[c.id].trim()
-          }
-        })
-      }
+      const { readData } = require('@/lib/runtime-store')
+      const map = await readData('announcements', {})
+      clubs.forEach((c) => {
+        if (map && typeof map[c.id] === 'string' && map[c.id].trim() !== '') {
+          c.announcement = map[c.id].trim()
+        }
+      })
     } catch (err) {
       console.warn('Could not merge announcements:', err)
     }
