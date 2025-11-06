@@ -2,20 +2,32 @@ import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
 import fs from 'fs'
 import path from 'path'
+import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 export async function fetchClubsFromExcel(): Promise<Club[]> {
   try {
-    const filePath = path.join(process.cwd(), 'clubData.xlsx')
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.warn('clubData.xlsx not found, using mock data')
-      return getMockClubs()
+    // Prefer runtime store (KV or FS) for the clubData.xlsx blob
+    let buffer: Buffer | null = null
+    try {
+      buffer = await runtimeReadFile('clubData.xlsx')
+    } catch (e) {
+      console.warn('runtimeReadFile failed:', (e as any)?.message || e)
     }
 
-    // Read the Excel file using ExcelJS
+    const filePath = path.join(process.cwd(), 'clubData.xlsx')
+    if (!buffer) {
+      if (!fs.existsSync(filePath)) {
+        console.warn('clubData.xlsx not found, using mock data')
+        return getMockClubs()
+      }
+      buffer = await fs.promises.readFile(filePath)
+    }
+
+    // Read the Excel file using ExcelJS from buffer
     const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.readFile(filePath)
+  // ExcelJS expects a Node Buffer. Ensure we have one.
+  const nodeBuffer = Buffer.isBuffer(buffer) ? (buffer as Buffer) : Buffer.from(buffer as any)
+  await workbook.xlsx.load(nodeBuffer as any)
     
     const worksheet = workbook.worksheets[0] // Use first worksheet
     

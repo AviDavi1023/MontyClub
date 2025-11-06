@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
+import { writeFile as fsWriteFile } from 'fs/promises'
 import { join } from 'path'
+import { writeFile as runtimeWriteFile } from '@/lib/runtime-store'
 
 function isRunningInReadOnlyEnv() {
-  // Vercel typically mounts the function as read-only; a heuristic is to try to write to the project root
   return !!process.env.VERCEL
 }
 
@@ -29,20 +29,25 @@ export async function POST(request: Request) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    // In production serverless environments the filesystem is read-only. Return a helpful
-    // message rather than attempting to persist, or attempt and report failure.
-    if (isRunningInReadOnlyEnv()) {
-      // Optionally we could store in-memory (lost on redeploy). For now, inform the admin.
-      return NextResponse.json({
-        error: 'Uploads are disabled in this deployment (read-only filesystem). Please upload the Excel file to the repository directly.'
-      }, { status: 501 })
+    // Try to persist using runtime store (KV preferred). If KV is configured this will
+    // persist on Vercel. Otherwise, attempt local filesystem write (dev).
+    try {
+      const res = await runtimeWriteFile('clubData.xlsx', buffer)
+      if (res.persisted === 'kv') {
+        return NextResponse.json({ message: 'File uploaded successfully (stored in KV)' })
+      }
+      if (res.persisted === 'fs') {
+        return NextResponse.json({ message: 'File uploaded successfully (stored on disk)' })
+      }
+      // persisted to memory fallback
+      return NextResponse.json({ message: 'File uploaded to in-memory store (non-durable in this environment)' })
+    } catch (err) {
+      console.error('Upload persistence failed, attempting filesystem write fallback:', err)
+      // Last resort: try writing directly to disk (may fail on Vercel)
+      const path = join(process.cwd(), 'clubData.xlsx')
+      await fsWriteFile(path, buffer)
+      return NextResponse.json({ message: 'File uploaded (fs fallback)' })
     }
-
-    // Write to the clubData.xlsx in the root directory (local/dev)
-    const path = join(process.cwd(), 'clubData.xlsx')
-    await writeFile(path, buffer)
-
-    return NextResponse.json({ message: 'File uploaded successfully' })
   } catch (error) {
     console.error('Error uploading file:', error)
     return NextResponse.json(
