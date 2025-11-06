@@ -88,7 +88,16 @@ const mockClubs = [
 ]
 
 export async function generateStaticParams() {
-  return mockClubs.map((club) => ({ id: club.id }))
+  // Import the function directly to get club data during build
+  try {
+    const { fetchClubsFromExcel } = require('@/lib/clubs')
+    const clubs = await fetchClubsFromExcel()
+    return clubs.map((club: any) => ({ id: club.id }))
+  } catch (error) {
+    console.warn('Error fetching clubs for static params:', error)
+    // Fallback to mock data if fetch fails
+    return mockClubs.map((club) => ({ id: club.id }))
+  }
 }
 
 export default async function ClubPage({ params }: { params: { id: string } }) {
