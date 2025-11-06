@@ -23,6 +23,12 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
 
       {/* Club Header */}
       <div className="card">
+        {club.announcement && (
+          <div className="mb-4 flex items-center gap-3 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-3 rounded">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3" /></svg>
+            <div>{club.announcement}</div>
+          </div>
+        )}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -39,7 +45,7 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
                 }`}
               >
-                {club.active ? 'Active' : 'Inactive'}
+                {club.active ? 'Open' : 'Closed'}
               </span>
             </div>
           </div>
@@ -71,13 +77,13 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Users className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-white">Grade Level</h3>
-                <p className="text-gray-600 dark:text-gray-400">{club.gradeLevel}</p>
+              <div className="flex items-start gap-3">
+                <Users className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Notes</h3>
+                  <p className="text-gray-600 dark:text-gray-400">{club.notes || '—'}</p>
+                </div>
               </div>
-            </div>
           </div>
 
           <div className="space-y-4">

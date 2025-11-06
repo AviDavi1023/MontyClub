@@ -1,36 +1,49 @@
 import Link from 'next/link'
 import { Club } from '@/types/club'
-import { Calendar, MapPin, Users, Mail } from 'lucide-react'
+import { Calendar, MapPin, Users } from 'lucide-react'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
+import { Megaphone } from 'lucide-react'
 
 interface ClubCardProps {
   club: Club
 }
 
 export function ClubCard({ club }: ClubCardProps) {
+  // No meeting-today badge for now (feature removed)
+
   return (
     <Link href={`/clubs/${club.id}`} className="block">
       <div className="card hover:shadow-md transition-shadow duration-200">
         <div className="flex items-start justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-2">
-            {club.name}
-          </h3>
+          <div className="flex items-start gap-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-2">
+              {club.name}
+            </h3>
+          </div>
+
           <span
-            className={`px-2 py-1 text-xs font-medium rounded-full transition-colors ${
+            className={`px-2 py-1 text-xs font-medium rounded-full ${
               club.active
-                ? 'bg-green-100/80 text-green-800 dark:bg-green-900/90 dark:text-green-200 ring-1 ring-green-200 dark:ring-green-800'
-                : 'bg-gray-100/80 text-gray-800 dark:bg-gray-700/90 dark:text-gray-200 ring-1 ring-gray-200 dark:ring-gray-600'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
             }`}
           >
-            {club.active ? 'Active' : 'Inactive'}
+            {club.active ? 'Open' : 'Closed'}
           </span>
         </div>
+
+        {club.announcement && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2 rounded">
+            <Megaphone className="h-4 w-4" />
+            <span className="line-clamp-2">{club.announcement}</span>
+          </div>
+        )}
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
           {club.description}
         </p>
 
-        <div className="space-y-2.5 text-sm text-gray-500 dark:text-gray-400">
+        <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-accent-blue dark:text-accent-blue/80" />
             <div className="flex flex-col">
@@ -40,19 +53,19 @@ export function ClubCard({ club }: ClubCardProps) {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-accent-pink dark:text-accent-pink/80" />
             <span>{club.location}</span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-accent-purple dark:text-accent-purple/80" />
             <span>{club.category}</span>
           </div>
         </div>
 
-        {club.keywords.length > 0 && (
+        {club.keywords && club.keywords.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {club.keywords.slice(0, 3).map((keyword, idx) => (
               <span

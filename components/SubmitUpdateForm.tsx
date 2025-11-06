@@ -7,9 +7,7 @@ export function SubmitUpdateForm() {
   const [formData, setFormData] = useState({
     clubName: '',
     updateType: '',
-    currentInfo: '',
     suggestedChange: '',
-    meetingFrequency: '',
     contactEmail: '',
     additionalNotes: '',
   })
@@ -63,9 +61,7 @@ export function SubmitUpdateForm() {
             setFormData({
               clubName: '',
               updateType: '',
-              currentInfo: '',
               suggestedChange: '',
-              meetingFrequency: '',
               contactEmail: '',
               additionalNotes: '',
             })
@@ -110,29 +106,16 @@ export function SubmitUpdateForm() {
         >
           <option value="">Select update type</option>
           <option value="info-correction">Information Correction</option>
+          <option value="name-change">Club Name Change</option>
           <option value="meeting-time">Meeting Time Change</option>
+          <option value="meeting-frequency">Meeting Frequency Change</option>
           <option value="location-change">Location Change</option>
           <option value="contact-update">Contact Information Update</option>
           <option value="advisor-change">Advisor Change</option>
-          <option value="status-change">Active/Inactive Status</option>
+          <option value="status-change">Status Change (Open/Closed)</option>
           <option value="new-club">New Club Addition</option>
           <option value="other">Other</option>
         </select>
-      </div>
-
-      <div>
-        <label htmlFor="currentInfo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Current Information
-        </label>
-        <textarea
-          id="currentInfo"
-          name="currentInfo"
-          value={formData.currentInfo}
-          onChange={handleChange}
-          rows={3}
-          className="input-field"
-          placeholder="Describe the current information that needs to be updated"
-        />
       </div>
 
       <div>
@@ -148,21 +131,6 @@ export function SubmitUpdateForm() {
           rows={3}
           className="input-field"
           placeholder="Describe the change you'd like to see"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="meetingFrequency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Meeting Frequency (optional)
-        </label>
-        <input
-          type="text"
-          id="meetingFrequency"
-          name="meetingFrequency"
-          value={formData.meetingFrequency}
-          onChange={handleChange}
-          className="input-field"
-          placeholder="e.g. Weekly, 1st & 3rd weeks of the month, Once per quarter"
         />
       </div>
 

@@ -18,7 +18,6 @@ export function ClubsList() {
     meetingDay: [],
     meetingFrequency: [],
     status: '',
-    gradeLevel: '',
   })
 
   useEffect(() => {
@@ -37,6 +36,24 @@ export function ClubsList() {
   }, [])
 
   const filteredClubs = useMemo(() => {
+    // Build a frequency map using normalized labels to group variants (e.g. "1st & 3rd weeks")
+    const freqMap = new Map<string, { count: number; repr: string }>()
+    clubs.forEach((club) => {
+      const raw = (club.meetingFrequency || '').trim()
+      if (!raw) return
+      const norm = formatMeetingFrequency(raw) || raw
+      const key = norm.toLowerCase().trim()
+      if (freqMap.has(key)) {
+        freqMap.get(key)!.count += 1
+      } else {
+        freqMap.set(key, { count: 1, repr: norm })
+      }
+    })
+
+    const outlierKeys = Array.from(freqMap.entries())
+      .filter(([, v]) => v.count === 1)
+      .map(([k]) => k)
+
     return clubs.filter(club => {
       // Search filter
       if (filters.search) {
@@ -52,10 +69,20 @@ export function ClubsList() {
           club.location,
         ]
 
-        const combined = fields.map(f => (f || '')).join(' ').toLowerCase()
-        const keywordsMatch = club.keywords && club.keywords.some(keyword => keyword.toLowerCase().includes(searchLower))
+        // Split the text into words and check if any word starts with the search term
+        const words = fields
+          .map(f => (f || '').toLowerCase())
+          .join(' ')
+          .split(/\s+/)
+          .filter(Boolean)
 
-        const matchesSearch = combined.includes(searchLower) || keywordsMatch
+        const keywordsMatch = club.keywords && 
+          club.keywords.some(keyword => 
+            keyword.toLowerCase().split(/\s+/).some(word => word.startsWith(searchLower))
+          )
+
+        const wordStartsMatch = words.some(word => word.startsWith(searchLower))
+        const matchesSearch = wordStartsMatch || keywordsMatch
 
         if (!matchesSearch) return false
       }
@@ -83,27 +110,32 @@ export function ClubsList() {
         ? filters.meetingFrequency
         : (filters.meetingFrequency ? [filters.meetingFrequency] : [])
       if (selectedFreqs && selectedFreqs.length > 0) {
-        const clubFreqRaw = (club.meetingFrequency || '')
-        const clubFreqNorm = (formatMeetingFrequency(clubFreqRaw) || clubFreqRaw || '').toLowerCase()
+        const clubFreqRaw = (club.meetingFrequency || '').trim()
+        const clubFreqNormLabel = (formatMeetingFrequency(clubFreqRaw) || clubFreqRaw || '')
+        const clubFreqKey = clubFreqNormLabel.toLowerCase().trim()
+        const clubFreqNorm = clubFreqNormLabel.toLowerCase()
+
         const matchedFreq = selectedFreqs.some((f) => {
-          const fLower = String(f).toLowerCase()
-          return clubFreqNorm.includes(fLower) || (club.meetingTime || '').toLowerCase().includes(fLower)
+          const fStr = String(f)
+          if (fStr === 'Other') {
+            // 'Other' matches any outlier (frequency normalized value used by only one club)
+            return outlierKeys.includes(clubFreqKey)
+          }
+          const fLower = fStr.toLowerCase().trim()
+          // Match by normalized equality, substring, or meetingTime text
+          return clubFreqKey === fLower || clubFreqNorm.includes(fLower) || (club.meetingTime || '').toLowerCase().includes(fLower)
         })
         if (!matchedFreq) return false
       }
 
       // Status filter
       if (filters.status) {
-        const isActive = filters.status === 'active'
-        if (club.active !== isActive) {
-          return false
-        }
+        // status values are 'open' or 'closed'
+        if (filters.status === 'open' && !club.active) return false
+        if (filters.status === 'closed' && club.active) return false
       }
 
-      // Grade level filter
-      if (filters.gradeLevel && club.gradeLevel !== filters.gradeLevel) {
-        return false
-      }
+      // (Grade level removed — all clubs are for all grades)
 
       return true
     })
@@ -114,9 +146,35 @@ export function ClubsList() {
     return uniqueCategories.sort()
   }, [clubs])
 
-  const gradeLevels = useMemo(() => {
-    const uniqueGrades = [...new Set(clubs.map(club => club.gradeLevel))].filter(Boolean)
-    return uniqueGrades.sort()
+  const frequencies = useMemo(() => {
+    // Build frequency map using normalized labels so variants group together
+    const freqMap = new Map<string, { count: number; repr: string }>()
+    clubs.forEach((club) => {
+      const raw = (club.meetingFrequency || '').trim()
+      if (!raw) return
+      const norm = formatMeetingFrequency(raw) || raw
+      const key = norm.toLowerCase().trim()
+      if (freqMap.has(key)) {
+        freqMap.get(key)!.count += 1
+      } else {
+        freqMap.set(key, { count: 1, repr: norm })
+      }
+    })
+
+    const frequent = Array.from(freqMap.entries())
+      .filter(([, v]) => v.count > 1)
+      .map(([, v]) => v.repr)
+      .sort()
+
+    const outliers = Array.from(freqMap.entries())
+      .filter(([, v]) => v.count === 1)
+      .map(([, v]) => v.repr)
+
+    if (outliers.length > 0) {
+      return [...frequent, 'Other']
+    }
+
+    return frequent
   }, [clubs])
 
   const clearFilters = () => {
@@ -126,7 +184,6 @@ export function ClubsList() {
       meetingDay: [],
       meetingFrequency: [],
       status: '',
-      gradeLevel: '',
     })
   }
 
@@ -178,7 +235,7 @@ export function ClubsList() {
             filters={filters}
             setFilters={setFilters}
             categories={categories}
-            gradeLevels={gradeLevels}
+            frequencies={frequencies}
             onClear={clearFilters}
           />
         )}

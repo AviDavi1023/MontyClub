@@ -18,3 +18,18 @@ export function formatMeetingFrequency(freq?: string) {
 }
 
 export default formatMeetingFrequency
+
+// Parse weekday names from a free-text meeting time string. Returns normalized weekday names
+export function parseMeetingDays(meetingTime?: string): string[] {
+  if (!meetingTime) return []
+  const s = String(meetingTime).toLowerCase()
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const found: string[] = []
+  for (const d of days) {
+    if (s.includes(d) || s.includes(d + 's')) {
+      // Title-case for display
+      found.push(d.charAt(0).toUpperCase() + d.slice(1))
+    }
+  }
+  return found
+}

@@ -6,26 +6,17 @@ interface FilterPanelProps {
   filters: ClubFilters
   setFilters: (filters: ClubFilters) => void
   categories: string[]
-  gradeLevels: string[]
+  frequencies: string[]
+  otherFrequencies?: string[]
   onClear: () => void
 }
 
-export function FilterPanel({ filters, setFilters, categories, gradeLevels, onClear }: FilterPanelProps) {
+export function FilterPanel({ filters, setFilters, categories, frequencies, otherFrequencies = [], onClear }: FilterPanelProps) {
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  const frequencies = [
-    'Weekly',
-    'Bi-weekly',
-    '1st & 3rd weeks',
-    '2nd & 4th weeks',
-    'Once per quarter',
-    '4th week only',
-    '3rd week only',
-    'Monthly',
-  ]
 
   return (
     <div className="card">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Category Filter (multi-select checkboxes) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -111,21 +102,33 @@ export function FilterPanel({ filters, setFilters, categories, gradeLevels, onCl
             {frequencies.map(freq => {
               const selected = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.includes(freq) : filters.meetingFrequency === freq
               return (
-                <label key={freq} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={(e) => {
-                      const prev = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.slice() : (filters.meetingFrequency ? [filters.meetingFrequency] : [])
-                      if (e.target.checked) {
-                        setFilters({ ...filters, meetingFrequency: [...prev, freq] })
-                      } else {
-                        setFilters({ ...filters, meetingFrequency: prev.filter((c) => c !== freq) })
-                      }
-                    }}
-                  />
-                  <span>{freq}</span>
-                </label>
+                <div key={freq} className="relative group">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={(e) => {
+                        const prev = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.slice() : (filters.meetingFrequency ? [filters.meetingFrequency] : [])
+                        if (e.target.checked) {
+                          setFilters({ ...filters, meetingFrequency: [...prev, freq] })
+                        } else {
+                          setFilters({ ...filters, meetingFrequency: prev.filter((c) => c !== freq) })
+                        }
+                      }}
+                    />
+                    <span>{freq}</span>
+                    {freq === 'Other' && otherFrequencies && otherFrequencies.length > 0 && (
+                      <div className="hidden group-hover:block absolute left-full ml-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10 w-64">
+                        <p className="font-semibold mb-1">Includes:</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {otherFrequencies.map((f, i) => (
+                            <li key={i}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </label>
+                </div>
               )
             })}
             <div>
@@ -151,29 +154,12 @@ export function FilterPanel({ filters, setFilters, categories, gradeLevels, onCl
             className="input-field"
           >
             <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
           </select>
         </div>
 
-        {/* Grade Level Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Grade Level
-          </label>
-          <select
-            value={filters.gradeLevel}
-            onChange={(e) => setFilters({ ...filters, gradeLevel: e.target.value })}
-            className="input-field"
-          >
-            <option value="">All Grades</option>
-            {gradeLevels.map(grade => (
-              <option key={grade} value={grade}>
-                {grade}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* (Grade level removed — all clubs are for all grades) */}
       </div>
     </div>
   )

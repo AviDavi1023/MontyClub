@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Lock, Unlock, RefreshCw, Settings, Database } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 
@@ -12,6 +12,10 @@ export function AdminPanel() {
   const [password, setPassword] = useState('')
   const [clubs, setClubs] = useState<Club[]>([])
   const [updates, setUpdates] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<Record<string, string>>({})
+  const [showAnnouncementsPanel, setShowAnnouncementsPanel] = useState(false)
+  const [savingAnnouncements, setSavingAnnouncements] = useState<Record<string, boolean>>({})
+  const announcementsRef = useRef<HTMLDivElement | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -83,8 +87,71 @@ export function AdminPanel() {
     if (isAuthenticated) {
       refreshData()
       fetchUpdates()
+      fetchAnnouncements()
     }
   }, [isAuthenticated])
+
+  // When the announcements panel opens, scroll it into view and keep a fixed height
+  useEffect(() => {
+    if (showAnnouncementsPanel) {
+      // give the DOM a tick then scroll
+      setTimeout(() => {
+        announcementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }, 100)
+    }
+  }, [showAnnouncementsPanel])
+
+  const fetchAnnouncements = async () => {
+    try {
+      const resp = await fetch('/api/announcements')
+      if (!resp.ok) throw new Error('Failed to fetch announcements')
+      const data = await resp.json()
+      setAnnouncements(data || {})
+    } catch (err) {
+      console.error('Error fetching announcements:', err)
+    }
+  }
+
+  const saveAnnouncement = async (id: string, text: string) => {
+    try {
+      setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
+      const resp = await fetch(`/api/announcements/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcement: text || '' }),
+      })
+      if (!resp.ok) throw new Error('Failed to save announcement')
+      const updated = await resp.json()
+      setAnnouncements(prev => ({ ...prev, [id]: updated.announcement || '' }))
+      alert('Announcement saved')
+    } catch (err) {
+      console.error('Error saving announcement:', err)
+      alert('Could not save announcement')
+    } finally {
+      setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  const clearAnnouncement = async (id: string) => {
+    if (!confirm('Clear announcement for this club?')) return
+    try {
+      setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
+      const resp = await fetch(`/api/announcements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement: '' }) })
+      if (!resp.ok) throw new Error('Failed to clear')
+      await resp.json()
+      setAnnouncements(prev => {
+        const copy = { ...prev }
+        delete copy[id]
+        return copy
+      })
+      alert('Announcement cleared')
+    } catch (err) {
+      console.error('Error clearing announcement:', err)
+      alert('Could not clear announcement')
+    } finally {
+      setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
+    }
+  }
 
   if (!isAuthenticated) {
     return (
@@ -303,7 +370,7 @@ export function AdminPanel() {
           Quick Actions
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a
             href="/submit-update"
             className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -320,12 +387,221 @@ export function AdminPanel() {
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">
               Excel File
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Edit club data in clubData.xlsx
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Upload a new club data Excel file
+              </p>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={async (e) => {
+                    if (!e.target.files?.[0]) return
+                    
+                    const file = e.target.files[0]
+                    if (!file.name.endsWith('.xlsx')) {
+                      alert('Please upload an Excel (.xlsx) file')
+                      return
+                    }
+
+                    const formData = new FormData()
+                    formData.append('file', file)
+
+                    try {
+                      setLoading(true)
+                      const response = await fetch('/api/upload-excel', {
+                        method: 'POST',
+                        body: formData,
+                      })
+
+                      if (!response.ok) {
+                        throw new Error('Upload failed')
+                      }
+
+                      await refreshData() // Refresh the club data after successful upload
+                      alert('File uploaded successfully!')
+                    } catch (error) {
+                      console.error('Error uploading file:', error)
+                      alert('Failed to upload file. Please try again.')
+                    } finally {
+                      setLoading(false)
+                      // Clear the input
+                      e.target.value = ''
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 dark:text-gray-400
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-medium
+                    file:bg-primary-50 file:text-primary-700
+                    dark:file:bg-primary-900/20 dark:file:text-primary-300
+                    hover:file:bg-primary-100 dark:hover:file:bg-primary-900/30
+                    file:cursor-pointer
+                  "
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Drag and drop or click to select a file
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Manage club announcements without re-uploading Excel</p>
+            <div className="mt-3">
+              <button
+                onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
+                className="btn-primary"
+              >
+                <Megaphone className="h-4 w-4 mr-2" />
+                {showAnnouncementsPanel ? 'Close Announcements' : 'Manage Announcements'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {showAnnouncementsPanel && (
+        <div ref={announcementsRef} className="card h-80 md:h-96 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Announcements Manager</h2>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Search a club, edit its announcement, and save — no Excel upload needed.</div>
+          </div>
+
+          <AnnounceEditor
+            clubs={clubs}
+            announcements={announcements}
+            setAnnouncements={setAnnouncements}
+            saveAnnouncement={async (id: string, text: string) => {
+              await saveAnnouncement(id, text)
+              // refresh clubs so the gallery reflects updated announcement values
+              await refreshData()
+            }}
+            clearAnnouncement={async (id: string) => {
+              await clearAnnouncement(id)
+              await refreshData()
+            }}
+            savingAnnouncements={savingAnnouncements}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Small helper component for searching/selecting a club and editing its announcement
+function AnnounceEditor({
+  clubs,
+  announcements,
+  setAnnouncements,
+  saveAnnouncement,
+  clearAnnouncement,
+  savingAnnouncements,
+}: {
+  clubs: Club[]
+  announcements: Record<string, string>
+  setAnnouncements: (v: Record<string, string>) => void
+  saveAnnouncement: (id: string, text: string) => Promise<void>
+  clearAnnouncement: (id: string) => Promise<void>
+  savingAnnouncements: Record<string, boolean>
+}) {
+  const [query, setQuery] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+
+  const matches = clubs
+    .filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 10)
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Club</label>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Type club name to search..."
+          className="input-field"
+        />
+        {query && (
+          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+            {matches.length === 0 && <div className="text-sm text-gray-500">No matches</div>}
+            {matches.map(m => (
+              <button
+                key={m.id}
+                onClick={() => {
+                  setSelectedId(m.id)
+                  // initialize a local draft for the selected club so edits don't
+                  // immediately overwrite the saved announcements object and so
+                  // we can clear the input after saving
+                  setDrafts(prev => ({ ...prev, [m.id]: announcements[m.id] ?? '' }))
+                  if (!(m.id in announcements)) {
+                    setAnnouncements({ ...announcements, [m.id]: '' })
+                  }
+                }}
+                className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="font-medium">{m.name}</div>
+                <div className="text-xs text-gray-500">{m.category} — {m.meetingTime}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedId && (
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <div className="mb-2">
+            <h3 className="font-medium text-gray-900 dark:text-white">{clubs.find(c => c.id === selectedId)?.name}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{clubs.find(c => c.id === selectedId)?.category}</p>
+          </div>
+
+          <textarea
+            value={drafts[selectedId] ?? announcements[selectedId] ?? ''}
+            onChange={(e) => setDrafts(prev => ({ ...prev, [selectedId]: e.target.value }))}
+            placeholder="Enter short announcement (e.g. 'No club today')"
+            className="input-field w-full mb-3"
+          />
+
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (!selectedId) return
+                const text = drafts[selectedId] ?? announcements[selectedId] ?? ''
+                await saveAnnouncement(selectedId, text)
+                // clear the local draft so the textarea is emptied after save
+                setDrafts(prev => ({ ...prev, [selectedId]: '' }))
+              }}
+              disabled={!!savingAnnouncements[selectedId]}
+              className="btn-primary"
+            >
+              {savingAnnouncements[selectedId] ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedId) return
+                await clearAnnouncement(selectedId)
+                // clear any local draft as well
+                setDrafts(prev => {
+                  const copy = { ...prev }
+                  delete copy[selectedId]
+                  return copy
+                })
+              }}
+              className="btn-secondary"
+            >
+              Clear
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="btn-secondary"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

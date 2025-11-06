@@ -12,7 +12,10 @@ export interface Club {
   contact: string
   socialMedia: string
   active: boolean
-  gradeLevel: string
+  // Notes are free-text and shown only on the club detail page (dates, announcements, application info, etc.)
+  notes?: string
+  // Optional short announcement or reminder (displayed prominently on cards/details)
+  announcement?: string
   keywords: string[]
 }
 
@@ -24,5 +27,4 @@ export interface ClubFilters {
   // Allow filtering by meeting frequency (e.g. 'Weekly', '1st & 3rd weeks')
   meetingFrequency?: string | string[]
   status: string
-  gradeLevel: string
 }

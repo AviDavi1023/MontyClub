@@ -41,7 +41,26 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
 
     // Parse the data (skip header row)
     const [, ...dataRows] = rows
-    return parseExcelData(dataRows)
+    const clubs = parseExcelData(dataRows)
+
+    // Merge admin-managed announcements (if any) from data/announcements.json so that
+    // admin edits override spreadsheet values without requiring a re-upload.
+    try {
+      const annPath = path.join(process.cwd(), 'data', 'announcements.json')
+      if (fs.existsSync(annPath)) {
+        const raw = await fs.promises.readFile(annPath, 'utf-8')
+        const map = JSON.parse(raw || '{}') as Record<string, string>
+        clubs.forEach((c) => {
+          if (map && typeof map[c.id] === 'string' && map[c.id].trim() !== '') {
+            c.announcement = map[c.id].trim()
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('Could not merge announcements:', err)
+    }
+
+    return clubs
   } catch (error) {
     console.error('Error reading Excel file:', error)
     return getMockClubs()
@@ -82,11 +101,21 @@ function parseExcelData(rows: any[][]): Club[] {
     location: cellToString(row[7]),
     contact: cellToString(row[8]),
     socialMedia: cellToString(row[9]),
+    // Accept both legacy 'active' and new 'open' wording (and truthy values)
     active: cellToString(row[10]).toLowerCase() === 'active' || 
-            cellToString(row[10]).toLowerCase() === 'true' || 
+      cellToString(row[10]).toLowerCase() === 'open' || 
+      cellToString(row[10]).toLowerCase() === 'true' || 
             row[10] === 1 || row[10] === '1',
-    gradeLevel: cellToString(row[11]),
-    keywords: row[12] ? cellToString(row[12]).split(',').map((k: string) => k.trim()).filter((k: string) => k) : [],
+    // Notes are expected to be in the same column where gradeLevel used to be (column 12, index 11)
+    // We also support an 'announcement' extracted from the notes if the notes include
+    // a line prefixed with ANNOUNCE:, ANNOUNCEMENT:, ALERT:, or AN:
+    notes: (() => {
+      const raw = cellToString(row[11])
+      return raw
+    })(),
+    // Announcements are taken from column Q (index 16) when present
+    announcement: row[16] ? cellToString(row[16]).trim() : '',
+  keywords: row[12] ? cellToString(row[12]).split(',').map((k: string) => k.trim()).filter((k: string) => k) : [],
   })).filter(club => club.name) // Filter out empty rows
 }
 
@@ -102,10 +131,10 @@ export function getMockClubs(): Club[] {
       meetingTime: 'Tuesdays 3:30 PM',
       meetingFrequency: 'Weekly',
       location: 'Room 201',
+      notes: 'Runs weekly; check announcements for tournament dates.',
       contact: 'debate@school.edu',
       socialMedia: '@schooldebate',
       active: true,
-      gradeLevel: '9-12',
       keywords: ['speaking', 'competition', 'academic'],
     },
     {
@@ -118,10 +147,10 @@ export function getMockClubs(): Club[] {
       meetingTime: 'Wednesdays 4:00 PM',
       meetingFrequency: '1st and 3rd weeks of the month',
       location: 'Tech Lab',
+      notes: 'Tryouts in September; competition season in winter.',
       contact: 'robotics@school.edu',
       socialMedia: '@schoolrobotics',
       active: true,
-      gradeLevel: '9-12',
       keywords: ['engineering', 'programming', 'competition'],
     },
     {
@@ -134,10 +163,10 @@ export function getMockClubs(): Club[] {
       meetingTime: 'Thursdays 3:45 PM',
       meetingFrequency: '2nd and 4th weeks of the month',
       location: 'Art Studio',
+      notes: 'Gallery night planned for November 12.',
       contact: 'art@school.edu',
       socialMedia: '@schoolart',
       active: true,
-      gradeLevel: '9-12',
       keywords: ['creativity', 'visual arts', 'exhibition'],
     },
     {
@@ -150,10 +179,10 @@ export function getMockClubs(): Club[] {
       meetingTime: 'Mondays 3:30 PM',
       meetingFrequency: 'Once per quarter',
       location: 'Room 105',
+      notes: 'Planting event on 10/15; sign up required.',
       contact: 'environment@school.edu',
       socialMedia: '@schoolgreen',
       active: true,
-      gradeLevel: '9-12',
       keywords: ['sustainability', 'environment', 'service'],
     },
     {
@@ -166,10 +195,10 @@ export function getMockClubs(): Club[] {
       meetingTime: 'Fridays 3:30 PM',
       meetingFrequency: '4th week only',
       location: 'Library',
+      notes: 'Casual play; tournaments announced when available.',
       contact: 'chess@school.edu',
       socialMedia: '@schoolchess',
       active: false,
-      gradeLevel: '9-12',
       keywords: ['strategy', 'games', 'tournament'],
     },
   ]
