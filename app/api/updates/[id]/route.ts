@@ -1,28 +1,12 @@
 import { NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { readData, writeData } from '@/lib/runtime-store'
 
-async function ensureDataFile() {
-  const dir = path.join(process.cwd(), 'data')
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir)
-  }
-
-  const file = path.join(dir, 'updates.json')
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, '[]')
-  }
-
-  return file
-}
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
     const { id } = params
     const body = await request.json()
-    const file = await ensureDataFile()
-    const content = await fs.promises.readFile(file, 'utf-8')
-    const arr = JSON.parse(content)
+    const arr = (await readData('updates', [])) || []
 
     const idx = arr.findIndex((e: any) => String(e.id) === String(id))
     if (idx === -1) {
@@ -34,8 +18,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (typeof body.reviewed !== 'undefined') allowed.reviewed = !!body.reviewed
 
     arr[idx] = { ...arr[idx], ...allowed }
-
-    await fs.promises.writeFile(file, JSON.stringify(arr, null, 2), 'utf-8')
+    await writeData('updates', arr)
 
     return NextResponse.json(arr[idx])
   } catch (error) {
@@ -47,9 +30,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
     const { id } = params
-    const file = await ensureDataFile()
-    const content = await fs.promises.readFile(file, 'utf-8')
-    let arr = JSON.parse(content)
+    let arr = (await readData('updates', [])) || []
 
     const idx = arr.findIndex((e: any) => String(e.id) === String(id))
     if (idx === -1) {
@@ -57,7 +38,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     const removed = arr.splice(idx, 1)[0]
-    await fs.promises.writeFile(file, JSON.stringify(arr, null, 2), 'utf-8')
+    await writeData('updates', arr)
 
     return NextResponse.json(removed)
   } catch (error) {

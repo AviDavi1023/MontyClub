@@ -1,20 +1,14 @@
 import { NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { readData, writeData } from '@/lib/runtime-store'
 
 async function ensureAnnouncementsFile() {
-  const dir = path.join(process.cwd(), 'data')
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir)
-  const file = path.join(dir, 'announcements.json')
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify({}))
-  return file
+  // left for compatibility; runtime-store handles file creation
+  return null
 }
 
 export async function GET() {
   try {
-    const file = await ensureAnnouncementsFile()
-    const content = await fs.promises.readFile(file, 'utf-8')
-    const data = JSON.parse(content)
+    const data = await readData('announcements', {})
     return NextResponse.json(data)
   } catch (err) {
     console.error('Error reading announcements:', err)
@@ -29,11 +23,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
-    const file = await ensureAnnouncementsFile()
-    const content = await fs.promises.readFile(file, 'utf-8')
-    const current = JSON.parse(content)
+    const current = await readData('announcements', {})
     const updated = { ...current, ...body }
-    await fs.promises.writeFile(file, JSON.stringify(updated, null, 2), 'utf-8')
+    await writeData('announcements', updated)
     return NextResponse.json(updated)
   } catch (err) {
     console.error('Error writing announcements:', err)
