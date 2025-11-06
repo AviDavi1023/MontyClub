@@ -10,10 +10,14 @@ interface ClubCardProps {
 
 export function ClubCard({ club }: ClubCardProps) {
   // Debug log when club card renders
+  const hasAnnouncement = typeof club.announcement === 'string' && club.announcement.trim() !== '';
   console.log(`[DEBUG] ClubCard rendering for ${club.name}:`, {
     id: club.id,
-    hasAnnouncement: !!club.announcement,
-    announcement: club.announcement
+    hasAnnouncement,
+    announcement: club.announcement,
+    announcementType: typeof club.announcement,
+    announcementLength: club.announcement ? club.announcement.length : 0,
+    announcementTrimmed: club.announcement ? club.announcement.trim() : ''
   });
 
   return (
@@ -37,12 +41,18 @@ export function ClubCard({ club }: ClubCardProps) {
           </span>
         </div>
 
-        {club.announcement && (
+        {(typeof club.announcement === 'string' && club.announcement.trim() !== '') && (
           <div className="mb-3 flex items-center gap-2 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2 rounded">
             <Megaphone className="h-4 w-4" />
             <span className="line-clamp-2">{club.announcement}</span>
           </div>
         )}
+        {/* Debug: Always show announcement status */}
+        <div className="hidden">
+          Debug: has announcement: {String(!!club.announcement)}, 
+          announcement: {String(club.announcement)}, 
+          type: {typeof club.announcement}
+        </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
           {club.description}
