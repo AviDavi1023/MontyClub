@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, Filter, X } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
@@ -20,19 +20,42 @@ export function ClubsList() {
     status: '',
   })
 
+  // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
+  const isMountedRef = useRef(true)
+  async function loadClubs() {
+    try {
+      const data = await getClubs()
+      if (isMountedRef.current) setClubs(data)
+    } catch (error) {
+      console.error('Error loading clubs:', error)
+    } finally {
+      if (isMountedRef.current) setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    async function loadClubs() {
-      try {
-        const data = await getClubs()
-        setClubs(data)
-      } catch (error) {
-        console.error('Error loading clubs:', error)
-      } finally {
-        setLoading(false)
+    loadClubs()
+
+    // Listen for cross-tab updates (admin changes)
+    let bc: BroadcastChannel | null = null
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bc = new BroadcastChannel('montyclub')
+      bc.onmessage = (ev) => {
+        try {
+          const data = ev.data
+          if (data && data.type === 'announcements-updated') {
+            loadClubs()
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     }
 
-    loadClubs()
+    return () => {
+      isMountedRef.current = false
+      if (bc) bc.close()
+    }
   }, [])
 
   const filteredClubs = useMemo(() => {

@@ -18,6 +18,16 @@ export function AdminPanel() {
   const announcementsRef = useRef<HTMLDivElement | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const bcRef = useRef<BroadcastChannel | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bcRef.current = new BroadcastChannel('montyclub')
+    }
+    return () => {
+      bcRef.current?.close()
+    }
+  }, [])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,6 +134,12 @@ export function AdminPanel() {
       const updated = await resp.json()
       setAnnouncements(prev => ({ ...prev, [id]: updated.announcement || '' }))
       alert('Announcement saved')
+      // notify other tabs/windows
+      try {
+        bcRef.current?.postMessage({ type: 'announcements-updated', id })
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       console.error('Error saving announcement:', err)
       alert('Could not save announcement')
@@ -145,6 +161,11 @@ export function AdminPanel() {
         return copy
       })
       alert('Announcement cleared')
+      try {
+        bcRef.current?.postMessage({ type: 'announcements-updated', id })
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       console.error('Error clearing announcement:', err)
       alert('Could not clear announcement')
@@ -477,10 +498,12 @@ export function AdminPanel() {
               await saveAnnouncement(id, text)
               // refresh clubs so the gallery reflects updated announcement values
               await refreshData()
+              try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
             }}
             clearAnnouncement={async (id: string) => {
               await clearAnnouncement(id)
               await refreshData()
+              try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
             }}
             savingAnnouncements={savingAnnouncements}
           />
