@@ -7,11 +7,10 @@ interface FilterPanelProps {
   setFilters: (filters: ClubFilters) => void
   categories: string[]
   frequencies: string[]
-  otherFrequencies?: string[]
   onClear: () => void
 }
 
-export function FilterPanel({ filters, setFilters, categories, frequencies, otherFrequencies = [], onClear }: FilterPanelProps) {
+export function FilterPanel({ filters, setFilters, categories, frequencies, onClear }: FilterPanelProps) {
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
@@ -102,33 +101,21 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, othe
             {frequencies.map(freq => {
               const selected = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.includes(freq) : filters.meetingFrequency === freq
               return (
-                <div key={freq} className="relative group">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={(e) => {
-                        const prev = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.slice() : (filters.meetingFrequency ? [filters.meetingFrequency] : [])
-                        if (e.target.checked) {
-                          setFilters({ ...filters, meetingFrequency: [...prev, freq] })
-                        } else {
-                          setFilters({ ...filters, meetingFrequency: prev.filter((c) => c !== freq) })
-                        }
-                      }}
-                    />
-                    <span>{freq}</span>
-                    {freq === 'Other' && otherFrequencies && otherFrequencies.length > 0 && (
-                      <div className="hidden group-hover:block absolute left-full ml-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10 w-64">
-                        <p className="font-semibold mb-1">Includes:</p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          {otherFrequencies.map((f, i) => (
-                            <li key={i}>{f}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </label>
-                </div>
+                <label key={freq} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={(e) => {
+                      const prev = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.slice() : (filters.meetingFrequency ? [filters.meetingFrequency] : [])
+                      if (e.target.checked) {
+                        setFilters({ ...filters, meetingFrequency: [...prev, freq] })
+                      } else {
+                        setFilters({ ...filters, meetingFrequency: prev.filter((c) => c !== freq) })
+                      }
+                    }}
+                  />
+                  <span>{freq}</span>
+                </label>
               )
             })}
             <div>
