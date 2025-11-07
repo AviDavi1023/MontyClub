@@ -60,8 +60,6 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     try {
       const { readData } = require('@/lib/runtime-store')
       const mapRaw = await readData('announcements', {})
-      console.log('[DEBUG] Raw announcements from runtime store:', mapRaw);
-      
       const map: Record<string, string> = {}
       // Normalize keys to strings and trim values
       if (mapRaw && typeof mapRaw === 'object') {
@@ -80,43 +78,13 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
       
       // Merge announcements where club id matches (try numeric/string variants)
       clubs.forEach((c) => {
-        // Try multiple ID formats
         const idStr = String(c.id).trim()
         const idNum = String(Number(c.id))
-        const idNumNoDecimal = String(parseInt(c.id))
-        
-        console.log(`[DEBUG] Processing club ${c.name} (ID: ${c.id}):`, {
-          originalId: c.id,
-          idStr,
-          idNum,
-          idNumNoDecimal,
-          hasStrAnnouncement: !!map[idStr],
-          hasNumAnnouncement: !!map[idNum],
-          hasNumNoDecimalAnnouncement: !!map[idNumNoDecimal],
-          strAnnouncement: map[idStr],
-          numAnnouncement: map[idNum],
-          numNoDecimalAnnouncement: map[idNumNoDecimal],
-          availableKeys: Object.keys(map)
-        });
-        
-        // Try all possible ID formats
-        if (map[idStr]?.trim()) {
+        if (map[idStr] && map[idStr].trim() !== '') {
           c.announcement = map[idStr].trim()
-          console.log(`[DEBUG] Set announcement for ${c.name} (str match):`, c.announcement);
-        } else if (map[idNum]?.trim()) {
+        } else if (map[idNum] && map[idNum].trim() !== '') {
           c.announcement = map[idNum].trim()
-          console.log(`[DEBUG] Set announcement for ${c.name} (num match):`, c.announcement);
-        } else if (map[idNumNoDecimal]?.trim()) {
-          c.announcement = map[idNumNoDecimal].trim()
-          console.log(`[DEBUG] Set announcement for ${c.name} (num no decimal match):`, c.announcement);
         }
-        
-        // Log final state
-        console.log(`[DEBUG] Final state for ${c.name}:`, {
-          id: c.id,
-          hasAnnouncement: !!c.announcement,
-          announcement: c.announcement
-        });
       })
     } catch (err) {
       console.warn('Could not merge announcements:', err)

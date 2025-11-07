@@ -104,22 +104,7 @@ export async function getClubs(): Promise<Club[]> {
       throw new Error('Failed to fetch clubs')
     }
     const data = await response.json();
-    console.log('[DEBUG] Clubs data from API:', {
-      totalClubs: data.length,
-      clubsWithAnnouncements: data.filter((c: any) => c.announcement).length,
-      announcements: data.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        announcement: c.announcement
-      })),
-      club2Details: data.find((c: any) => c.id === "2")  // Specifically log club 2's full details
-    });
-    
-    // Log raw club 2 data to see all properties
-    const club2 = data.find((c: any) => c.id === "2");
-    if (club2) {
-      console.log('[DEBUG] Full Club 2 data:', JSON.stringify(club2, null, 2));
-    }
+    return data
     return data
   } catch (error) {
     console.error('Error fetching clubs from API:', error)
