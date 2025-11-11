@@ -32,3 +32,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to save announcements' }, { status: 500 })
   }
 }
+
+// Bulk delete announcements: DELETE /api/announcements with JSON body { ids: string[] }
+export async function DELETE(request: Request) {
+  try {
+    let payload: any = null
+    try {
+      // Some environments may send an empty body for DELETE; handle gracefully
+      payload = await request.json()
+    } catch (_e) {
+      payload = null
+    }
+
+    if (!payload || !Array.isArray(payload.ids)) {
+      return NextResponse.json({ error: 'Invalid payload, expected { ids: string[] }' }, { status: 400 })
+    }
+
+    const ids = payload.ids
+      .filter((x: any) => typeof x === 'string')
+      .map((x: string) => x.trim())
+      .filter((x: string) => x.length > 0)
+
+    if (ids.length === 0) {
+      return NextResponse.json({ deleted: [], total: 0 })
+    }
+
+    const current = await readData('announcements', {})
+    const beforeKeys = new Set(Object.keys(current || {}))
+    const updated = { ...(current || {}) }
+
+    let deletedCount = 0
+    const actuallyDeleted: string[] = []
+    for (const id of ids) {
+      if (Object.prototype.hasOwnProperty.call(updated, id)) {
+        delete (updated as any)[id]
+        deletedCount += 1
+        actuallyDeleted.push(id)
+      }
+    }
+
+    // Only write if something changed
+    if (deletedCount > 0) {
+      await writeData('announcements', updated)
+    }
+
+    return NextResponse.json({ deleted: actuallyDeleted, total: deletedCount })
+  } catch (err) {
+    console.error('Error bulk-deleting announcements:', err)
+    return NextResponse.json({ error: 'Failed to delete announcements' }, { status: 500 })
+  }
+}

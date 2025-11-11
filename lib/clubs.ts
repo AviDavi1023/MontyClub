@@ -74,7 +74,9 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
         })
       }
 
-      console.log('[DEBUG] Announcements map:', map);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG] Announcements map:', map)
+      }
       
       // Merge announcements where club id matches (try numeric/string variants)
       clubs.forEach((c) => {

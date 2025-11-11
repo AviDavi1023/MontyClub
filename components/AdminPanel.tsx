@@ -577,30 +577,36 @@ export function AdminPanel() {
             clubs={clubs}
             announcements={announcements}
             onDelete={async (ids: string[]) => {
-              // Use existing clearAnnouncement logic but suppress per-item toasts
-              let successCount = 0
+              // Call new bulk delete API for atomic removal
+              if (ids.length === 0) return
               try {
-                for (const id of ids) {
-                  // mark bulk flag so clearAnnouncement won't emit individual toast
-                  setSavingAnnouncements(prev => ({ ...prev, [`bulk-${id}`]: true }))
-                  try {
-                    await clearAnnouncement(id)
-                    successCount++
-                  } catch (e) {
-                    console.error('Bulk delete error for', id, e)
-                  } finally {
-                    // remove bulk flag
-                    setSavingAnnouncements(prev => {
-                      const copy = { ...prev }
-                      delete copy[`bulk-${id}`]
-                      return copy
-                    })
-                  }
-                }
+                const resp = await fetch('/api/announcements', {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids }),
+                })
+                if (!resp.ok) throw new Error('Bulk delete failed')
+                const result = await resp.json()
+                const deletedIds: string[] = result.deleted || []
+
+                // Update local state
+                setAnnouncements(prev => {
+                  const copy = { ...prev }
+                  deletedIds.forEach(id => { delete copy[id] })
+                  return copy
+                })
+
+                // Notify other tabs and same tab
+                deletedIds.forEach(id => {
+                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                  try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
+                })
+
                 await refreshData()
-                showToast(`${successCount} of ${ids.length} announcement${ids.length !== 1 ? 's' : ''} deleted successfully`)
-              } catch (err) {
-                console.error('Bulk deletion failed:', err)
+                showToast(`Deleted ${deletedIds.length} announcement${deletedIds.length !== 1 ? 's' : ''}`)
+              } catch (e) {
+                console.error('Bulk deletion failed:', e)
                 showToast('Failed to delete announcements', 'error')
               }
             }}
