@@ -10,11 +10,16 @@ interface ClubDetailProps {
 }
 
 export function ClubDetail({ club, allClubs }: ClubDetailProps) {
+  // Get search params from window.location.search
+  let searchParams = ''
+  if (typeof window !== 'undefined') {
+    searchParams = window.location.search
+  }
   return (
     <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
       {/* Back Button */}
       <Link
-        href="/"
+        href={`/${searchParams}`}
         className="inline-flex items-center gap-2 text-sm sm:text-base text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -25,7 +30,11 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
       <div className="card">
         {club.announcement && (
           <div className="mb-3 sm:mb-4 flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2.5 sm:p-3 rounded">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3" /></svg>
+            {/* Use Megaphone icon from Lucide React for consistency */}
+            <span className="flex-shrink-0 mt-0.5">
+              {/* @ts-ignore-next-line: dynamic import for icon */}
+              {require('lucide-react').Megaphone({ className: 'h-4 w-4 sm:h-5 sm:w-5' })}
+            </span>
             <div>{club.announcement}</div>
           </div>
         )}

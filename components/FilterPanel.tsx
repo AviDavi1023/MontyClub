@@ -18,9 +18,18 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4">
         {/* Category Filter (multi-select checkboxes) */}
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Category
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+              Category
+            </label>
+            <button
+              onClick={() => setFilters({ ...filters, category: [] })}
+              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {categories.map(category => {
               const selected = Array.isArray(filters.category) ? filters.category.includes(category) : filters.category === category
@@ -43,23 +52,23 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                 </label>
               )
             })}
-            <div className="pt-1">
-              <button
-                onClick={() => setFilters({ ...filters, category: [] })}
-                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
-                type="button"
-              >
-                Clear
-              </button>
-            </div>
           </div>
         </div>
 
         {/* Meeting Day Filter (multi-select checkboxes) */}
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Meeting Day
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+              Meeting Day
+            </label>
+            <button
+              onClick={() => setFilters({ ...filters, meetingDay: [] })}
+              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {meetingDays.map(day => {
               const selected = Array.isArray(filters.meetingDay) ? filters.meetingDay.includes(day) : filters.meetingDay === day
@@ -82,23 +91,23 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                 </label>
               )
             })}
-            <div className="pt-1">
-              <button
-                onClick={() => setFilters({ ...filters, meetingDay: [] })}
-                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
-                type="button"
-              >
-                Clear
-              </button>
-            </div>
           </div>
         </div>
 
         {/* Meeting Frequency Filter (multi-select) */}
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Meeting Frequency
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+              Meeting Frequency
+            </label>
+            <button
+              onClick={() => setFilters({ ...filters, meetingFrequency: [] })}
+              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {frequencies.map(freq => {
               const selected = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.includes(freq) : filters.meetingFrequency === freq
@@ -121,15 +130,6 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                 </label>
               )
             })}
-            <div className="pt-1">
-              <button
-                onClick={() => setFilters({ ...filters, meetingFrequency: [] })}
-                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
-                type="button"
-              >
-                Clear
-              </button>
-            </div>
           </div>
         </div>
 

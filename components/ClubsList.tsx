@@ -14,13 +14,25 @@ export function ClubsList() {
   // Start with filters hidden on mobile, visible on desktop
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
-  const [filters, setFilters] = useState<ClubFilters>({
-    search: '',
-    category: [],
-    meetingDay: [],
-    meetingFrequency: [],
-    status: '',
-  })
+  // Read filters from URL query params on mount
+  function parseFiltersFromQuery(): ClubFilters {
+    if (typeof window === 'undefined') return {
+      search: '',
+      category: [],
+      meetingDay: [],
+      meetingFrequency: [],
+      status: '',
+    }
+    const params = new URLSearchParams(window.location.search)
+    return {
+      search: params.get('search') || '',
+      category: params.getAll('category'),
+      meetingDay: params.getAll('meetingDay'),
+      meetingFrequency: params.getAll('meetingFrequency'),
+      status: params.get('status') || '',
+    }
+  }
+  const [filters, setFilters] = useState<ClubFilters>(parseFiltersFromQuery())
 
   // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
   const isMountedRef = useRef(true)
@@ -42,7 +54,7 @@ export function ClubsList() {
   useEffect(() => {
     loadClubs()
 
-    // Listen for cross-tab updates (admin changes)
+    // Only reload clubs when a change is made (cross-tab or same-tab update)
     let bc: BroadcastChannel | null = null
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       bc = new BroadcastChannel('montyclub')
@@ -66,25 +78,6 @@ export function ClubsList() {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
     }
 
-    // Refetch when tab becomes visible again (user returns to page)
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadClubs()
-      }
-    }
-    const onFocus = () => loadClubs()
-    const onPageShow = () => loadClubs()
-    if (typeof window !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibility)
-      window.addEventListener('focus', onFocus)
-      window.addEventListener('pageshow', onPageShow)
-    }
-
-    // Background polling (safety net if events missed)
-    const interval = setInterval(() => {
-      loadClubs()
-    }, 60000) // 60s
-
     // localStorage fallback (storage events fire across tabs/browsers)
     const onStorage = (e: StorageEvent) => {
       try {
@@ -106,11 +99,7 @@ export function ClubsList() {
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
         window.removeEventListener('storage', onStorage)
-        document.removeEventListener('visibilitychange', onVisibility)
-        window.removeEventListener('focus', onFocus)
-        window.removeEventListener('pageshow', onPageShow)
       }
-      clearInterval(interval)
     }
   }, [])
 
@@ -258,14 +247,38 @@ export function ClubsList() {
     return frequent
   }, [clubs])
 
+  // Update URL query params when filters change
+  function updateQueryParams(newFilters: ClubFilters) {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams()
+    if (newFilters.search) params.set('search', newFilters.search)
+  const categories = Array.isArray(newFilters.category) ? newFilters.category : (newFilters.category ? [newFilters.category] : [])
+  categories.forEach((c: string) => params.append('category', c))
+  const meetingDays = Array.isArray(newFilters.meetingDay) ? newFilters.meetingDay : (newFilters.meetingDay ? [newFilters.meetingDay] : [])
+  meetingDays.forEach((d: string) => params.append('meetingDay', d))
+  const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
+  meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
+    if (newFilters.status) params.set('status', newFilters.status)
+    const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
+    window.history.replaceState({}, '', newUrl)
+  }
+
   const clearFilters = () => {
-    setFilters({
+    const cleared = {
       search: '',
       category: [],
       meetingDay: [],
       meetingFrequency: [],
       status: '',
-    })
+    }
+    setFilters(cleared)
+    updateQueryParams(cleared)
+  }
+
+  // Wrap setFilters to also update query params
+  function setFiltersAndUpdate(newFilters: ClubFilters) {
+    setFilters(newFilters)
+    updateQueryParams(newFilters)
   }
 
   const hasActiveFilters = Object.values(filters).some((value) => {
@@ -314,7 +327,7 @@ export function ClubsList() {
         {showFilters && (
           <FilterPanel
             filters={filters}
-            setFilters={setFilters}
+            setFilters={setFiltersAndUpdate}
             categories={categories}
             frequencies={frequencies}
             onClear={clearFilters}

@@ -9,8 +9,13 @@ interface ClubCardProps {
 }
 
 export function ClubCard({ club }: ClubCardProps) {
+  // Get current search/filter params from window.location.search
+  let searchParams = ''
+  if (typeof window !== 'undefined') {
+    searchParams = window.location.search
+  }
   return (
-    <Link href={`/clubs/${club.id}`} className="block">
+    <Link href={`/clubs/${club.id}${searchParams}`} className="block">
       <div className="card hover:shadow-md transition-shadow duration-200 p-4 sm:p-6">
         <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
           <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
