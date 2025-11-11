@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone, Trash2 } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
+import { Toast, ToastContainer } from '@/components/Toast'
 
 const ADMIN_PASSWORD = 'admin123' // In production, use environment variables
 
@@ -19,6 +20,16 @@ export function AdminPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const bcRef = useRef<BroadcastChannel | null>(null)
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = `${Date.now()}-${Math.random()}`
+    setToasts((prev) => [...prev, { id, message, type }])
+  }
+
+  const closeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -72,9 +83,10 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to update')
       const updated = await resp.json()
       setUpdates(prev => prev.map(u => (String(u.id) === String(id) ? updated : u)))
+      showToast(`Marked as ${!current ? 'reviewed' : 'unreviewed'}`)
     } catch (err) {
       console.error('Error toggling reviewed:', err)
-      alert('Could not update status')
+      showToast('Could not update status', 'error')
     }
   }
 
@@ -87,9 +99,10 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to delete')
       const removed = await resp.json()
       setUpdates(prev => prev.filter(u => String(u.id) !== String(id)))
+      showToast('Update request deleted')
     } catch (err) {
       console.error('Error deleting update:', err)
-      alert('Could not delete update')
+      showToast('Could not delete update', 'error')
     }
   }
 
@@ -144,7 +157,7 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to save announcement')
       const updated = await resp.json()
       setAnnouncements(prev => ({ ...prev, [id]: updated.announcement || '' }))
-      alert('Announcement saved')
+      showToast('Announcement saved successfully')
       // notify other tabs/windows
       try {
         bcRef.current?.postMessage({ type: 'announcements-updated', id })
@@ -159,7 +172,7 @@ export function AdminPanel() {
       }
     } catch (err) {
       console.error('Error saving announcement:', err)
-      alert('Could not save announcement')
+      showToast('Could not save announcement', 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
     }
@@ -177,7 +190,7 @@ export function AdminPanel() {
         delete copy[id]
         return copy
       })
-      alert('Announcement cleared')
+      showToast('Announcement cleared successfully')
       try {
         bcRef.current?.postMessage({ type: 'announcements-updated', id })
       } catch (e) {
@@ -188,7 +201,7 @@ export function AdminPanel() {
       } catch (e) {}
     } catch (err) {
       console.error('Error clearing announcement:', err)
-      alert('Could not clear announcement')
+      showToast('Could not clear announcement', 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
     }
@@ -244,6 +257,8 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+      
       {/* Admin Controls */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
@@ -460,10 +475,10 @@ export function AdminPanel() {
                       }
 
                       await refreshData() // Refresh the club data after successful upload
-                      alert('File uploaded successfully!')
+                      showToast('File uploaded successfully!')
                     } catch (error) {
                       console.error('Error uploading file:', error)
-                      alert('Failed to upload file. Please try again.')
+                      showToast('Failed to upload file. Please try again.', 'error')
                     } finally {
                       setLoading(false)
                       // Clear the input
@@ -549,6 +564,29 @@ export function AdminPanel() {
               window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
             }}
             savingAnnouncements={savingAnnouncements}
+            showToast={showToast}
+          />
+          
+          {/* Bulk Delete Section */}
+          <BulkDeleteAnnouncements
+            clubs={clubs}
+            announcements={announcements}
+            onDelete={async (ids: string[]) => {
+              try {
+                for (const id of ids) {
+                  await clearAnnouncement(id)
+                }
+                await refreshData()
+                showToast(`${ids.length} announcement${ids.length > 1 ? 's' : ''} deleted successfully`)
+                // Notify all tabs
+                ids.forEach(id => {
+                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                })
+              } catch (err) {
+                showToast('Failed to delete some announcements', 'error')
+              }
+            }}
           />
             </div>
           </div>
@@ -566,6 +604,7 @@ function AnnounceEditor({
   saveAnnouncement,
   clearAnnouncement,
   savingAnnouncements,
+  showToast,
 }: {
   clubs: Club[]
   announcements: Record<string, string>
@@ -573,6 +612,7 @@ function AnnounceEditor({
   saveAnnouncement: (id: string, text: string) => Promise<void>
   clearAnnouncement: (id: string) => Promise<void>
   savingAnnouncements: Record<string, boolean>
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void
 }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -686,6 +726,112 @@ function AnnounceEditor({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Bulk delete announcements component
+function BulkDeleteAnnouncements({
+  clubs,
+  announcements,
+  onDelete,
+}: {
+  clubs: Club[]
+  announcements: Record<string, string>
+  onDelete: (ids: string[]) => Promise<void>
+}) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+
+  const clubsWithAnnouncements = clubs.filter(club => announcements[club.id])
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds)
+    if (newSet.has(id)) {
+      newSet.delete(id)
+    } else {
+      newSet.add(id)
+    }
+    setSelectedIds(newSet)
+  }
+
+  const toggleAll = () => {
+    if (selectedIds.size === clubsWithAnnouncements.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(clubsWithAnnouncements.map(c => c.id)))
+    }
+  }
+
+  const handleDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} announcement${selectedIds.size > 1 ? 's' : ''}?`)) return
+    
+    setDeleting(true)
+    try {
+      await onDelete(Array.from(selectedIds))
+      setSelectedIds(new Set())
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (clubsWithAnnouncements.length === 0) {
+    return (
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white mb-3">Current Announcements</h3>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">No active announcements</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">
+          Current Announcements ({clubsWithAnnouncements.length})
+        </h3>
+        <div className="flex gap-2">
+          <button
+            onClick={toggleAll}
+            className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+          >
+            {selectedIds.size === clubsWithAnnouncements.length ? 'Deselect All' : 'Select All'}
+          </button>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn-secondary text-xs sm:text-sm flex items-center gap-1 disabled:opacity-50"
+            >
+              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+              Delete ({selectedIds.size})
+            </button>
+          )}
+        </div>
+      </div>
+      
+      <div className="space-y-2 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+        {clubsWithAnnouncements.map(club => (
+          <label
+            key={club.id}
+            className="flex items-start gap-3 p-2 hover:bg-white dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+          >
+            <input
+              type="checkbox"
+              checked={selectedIds.has(club.id)}
+              onChange={() => toggleSelection(club.id)}
+              className="mt-0.5 flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-gray-900 dark:text-white">{club.name}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
+                {announcements[club.id]}
+              </div>
+            </div>
+          </label>
+        ))}
+      </div>
     </div>
   )
 }
