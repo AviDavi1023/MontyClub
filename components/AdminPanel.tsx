@@ -104,10 +104,21 @@ export function AdminPanel() {
   // When the announcements panel opens, scroll it into view and keep a fixed height
   useEffect(() => {
     if (showAnnouncementsPanel) {
-      // give the DOM a tick then scroll
-      setTimeout(() => {
-        announcementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-      }, 100)
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden'
+      
+      // Handle escape key to close modal
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setShowAnnouncementsPanel(false)
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+      
+      return () => {
+        document.body.style.overflow = 'unset'
+        document.removeEventListener('keydown', handleEscape)
+      }
     }
   }, [showAnnouncementsPanel])
 
@@ -491,13 +502,34 @@ export function AdminPanel() {
       </div>
 
       {showAnnouncementsPanel && (
-        <div ref={announcementsRef} className="card sticky bottom-4 z-10 shadow-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Announcements Manager</h2>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Search a club, edit its announcement, and save.</p>
-          </div>
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-in fade-in duration-200"
+            onClick={() => setShowAnnouncementsPanel(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div 
+              ref={announcementsRef} 
+              className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto animate-in zoom-in-95 fade-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Announcements Manager</h2>
+                <button
+                  onClick={() => setShowAnnouncementsPanel(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 absolute top-4 right-4 sm:static"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Search a club, edit its announcement, and save.</p>
 
-          <AnnounceEditor
+              <AnnounceEditor
             clubs={clubs}
             announcements={announcements}
             setAnnouncements={setAnnouncements}
@@ -514,7 +546,9 @@ export function AdminPanel() {
             }}
             savingAnnouncements={savingAnnouncements}
           />
-        </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
