@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone, Trash2 } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone, Trash2, UserPlus, Users } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
-
-const ADMIN_PASSWORD = 'admin123' // In production, use environment variables
+import { UserManagement } from '@/components/UserManagement'
 
 export function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showUserManagement, setShowUserManagement] = useState(false)
   const [clubs, setClubs] = useState<Club[]>([])
   const [updates, setUpdates] = useState<any[]>([])
   const [announcements, setAnnouncements] = useState<Record<string, string>>({})
@@ -41,14 +43,51 @@ export function AdminPanel() {
     }
   }, [])
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true)
-      setError('')
-    } else {
-      setError('Invalid password')
+    setError('')
+    setLoading(true)
+
+    try {
+      // First, ensure default admin exists (for first-time setup)
+      await fetch('/api/auth/init', { method: 'POST' })
+
+      // Attempt login
+      const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json()
+        setError(data.error || 'Invalid credentials')
+        setLoading(false)
+        return
+      }
+
+      const data = await resp.json()
+      if (data.success) {
+        setIsAuthenticated(true)
+        setCurrentUser(data.user.username)
+        setError('')
+        setPassword('')
+      } else {
+        setError('Invalid credentials')
+      }
+    } catch (err) {
+      console.error('Login error:', err)
+      setError('Login failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const handleLogout = () => {
+    setIsAuthenticated(false)
+    setCurrentUser(null)
+    setUsername('')
+    setPassword('')
   }
 
   const refreshData = async () => {
@@ -218,14 +257,30 @@ export function AdminPanel() {
         <div className="text-center mb-6">
           <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Admin Access Required
+            Admin Login
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Enter the admin password to access the management panel.
+            Sign in to access the management panel
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input-field"
+              placeholder="Enter username"
+              required
+              autoComplete="username"
+            />
+          </div>
+
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Password
@@ -236,8 +291,9 @@ export function AdminPanel() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input-field"
-              placeholder="Enter admin password"
+              placeholder="Enter password"
               required
+              autoComplete="current-password"
             />
           </div>
 
@@ -245,15 +301,18 @@ export function AdminPanel() {
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           )}
 
-          <button type="submit" className="btn-primary w-full">
+          <button type="submit" className="btn-primary w-full" disabled={loading}>
             <Unlock className="h-4 w-4 mr-2" />
-            Access Admin Panel
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            <strong>Demo Password:</strong> admin123
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <strong>First-time setup:</strong> Default admin account will be created automatically. Use username: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin</code> and password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123</code>
+          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+            After logging in, change the password and create additional admin accounts.
           </p>
         </div>
       </div>
@@ -266,16 +325,30 @@ export function AdminPanel() {
       {/* Admin Controls */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Admin Controls
-          </h2>
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="btn-secondary"
-          >
-            <Lock className="h-4 w-4 mr-2" />
-            Logout
-          </button>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Admin Controls
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Logged in as: <span className="font-medium">{currentUser}</span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowUserManagement(!showUserManagement)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Manage Users</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="btn-secondary"
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -519,6 +592,11 @@ export function AdminPanel() {
           </div>
         </div>
       </div>
+
+      {/* User Management */}
+      {showUserManagement && (
+        <UserManagement currentUser={currentUser!} showToast={showToast} />
+      )}
 
       {showAnnouncementsPanel && (
         <>
