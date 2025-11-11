@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { fetchClubsFromExcel } from '@/lib/clubs'
 
+// Ensure this route is always dynamic and never statically cached
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const clubs = await fetchClubsFromExcel()

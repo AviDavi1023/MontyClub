@@ -89,26 +89,23 @@ function getMockClubs(): Club[] {
 // This will be used for client-side components
 export async function getClubs(): Promise<Club[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-    // Add timestamp to URL to bust cache and ensure no-cache headers
-    const timestamp = new Date().getTime()
-    const response = await fetch(`${baseUrl}/api/clubs?_=${timestamp}`, { 
+    // Always use relative URL so it works in any environment (and on vercel preview)
+    const ts = Date.now()
+    const response = await fetch(`/api/clubs?_=${ts}`, {
+      method: 'GET',
+      // Ensure no caching at the fetch / browser layer
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
-      }
+      },
     })
-    if (!response.ok) {
-      throw new Error('Failed to fetch clubs')
-    }
-    const data = await response.json();
-    return data
+    if (!response.ok) throw new Error(`Failed to fetch clubs: ${response.status}`)
+    const data: Club[] = await response.json()
     return data
   } catch (error) {
-    console.error('Error fetching clubs from API:', error)
-    // Fallback to mock data
+    console.error('Error fetching clubs from API (falling back to mock):', error)
     return getMockClubs()
   }
 }

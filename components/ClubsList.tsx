@@ -66,6 +66,25 @@ export function ClubsList() {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
     }
 
+    // Refetch when tab becomes visible again (user returns to page)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadClubs()
+      }
+    }
+    const onFocus = () => loadClubs()
+    const onPageShow = () => loadClubs()
+    if (typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility)
+      window.addEventListener('focus', onFocus)
+      window.addEventListener('pageshow', onPageShow)
+    }
+
+    // Background polling (safety net if events missed)
+    const interval = setInterval(() => {
+      loadClubs()
+    }, 60000) // 60s
+
     // localStorage fallback (storage events fire across tabs/browsers)
     const onStorage = (e: StorageEvent) => {
       try {
@@ -87,7 +106,11 @@ export function ClubsList() {
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
         window.removeEventListener('storage', onStorage)
+        document.removeEventListener('visibilitychange', onVisibility)
+        window.removeEventListener('focus', onFocus)
+        window.removeEventListener('pageshow', onPageShow)
       }
+      clearInterval(interval)
     }
   }, [])
 
