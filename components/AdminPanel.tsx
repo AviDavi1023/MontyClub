@@ -19,11 +19,13 @@ export function AdminPanel() {
   const [showAnnouncementsPanel, setShowAnnouncementsPanel] = useState(false)
   const [savingAnnouncements, setSavingAnnouncements] = useState<Record<string, boolean>>({})
   const announcementsRef = useRef<HTMLDivElement | null>(null)
+  const userManagementRef = useRef<HTMLDivElement | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const bcRef = useRef<BroadcastChannel | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmClearId, setConfirmClearId] = useState<string | null>(null)
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(true)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -41,6 +43,23 @@ export function AdminPanel() {
     return () => {
       bcRef.current?.close()
     }
+  }, [])
+
+  // Check if this is first-time setup
+  useEffect(() => {
+    const checkFirstTime = async () => {
+      try {
+        const resp = await fetch('/api/admin/users')
+        if (resp.ok) {
+          const data = await resp.json()
+          setIsFirstTimeSetup(!data.users || data.users.length === 0)
+        }
+      } catch (err) {
+        // If error, assume first time
+        setIsFirstTimeSetup(true)
+      }
+    }
+    checkFirstTime()
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -88,6 +107,18 @@ export function AdminPanel() {
     setCurrentUser(null)
     setUsername('')
     setPassword('')
+  }
+
+  const toggleUserManagement = () => {
+    const newState = !showUserManagement
+    setShowUserManagement(newState)
+    
+    // Scroll to user management section when opening
+    if (newState) {
+      setTimeout(() => {
+        userManagementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
   }
 
   const refreshData = async () => {
@@ -307,14 +338,16 @@ export function AdminPanel() {
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            <strong>First-time setup:</strong> Default admin account will be created automatically. Use username: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin</code> and password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123</code>
-          </p>
-          <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-            After logging in, change the password and create additional admin accounts.
-          </p>
-        </div>
+        {isFirstTimeSetup && (
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>First-time setup:</strong> Default admin account will be created automatically. Use username: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin</code> and password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123</code>
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+              After logging in, change the password and create additional admin accounts.
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -335,7 +368,7 @@ export function AdminPanel() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowUserManagement(!showUserManagement)}
+              onClick={toggleUserManagement}
               className="btn-secondary flex items-center gap-2"
             >
               <Users className="h-4 w-4" />
@@ -595,7 +628,9 @@ export function AdminPanel() {
 
       {/* User Management */}
       {showUserManagement && (
-        <UserManagement currentUser={currentUser!} showToast={showToast} />
+        <div ref={userManagementRef}>
+          <UserManagement currentUser={currentUser!} showToast={showToast} />
+        </div>
       )}
 
       {showAnnouncementsPanel && (
