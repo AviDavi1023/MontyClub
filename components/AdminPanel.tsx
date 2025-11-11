@@ -478,25 +478,23 @@ export function AdminPanel() {
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Manage club announcements without re-uploading Excel</p>
-            <div className="mt-3">
-              <button
-                onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
-                className="btn-primary"
-              >
-                <Megaphone className="h-4 w-4 mr-2" />
-                {showAnnouncementsPanel ? 'Close Announcements' : 'Manage Announcements'}
-              </button>
-            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Manage club announcements without re-uploading Excel</p>
+            <button
+              onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
+              className="btn-primary w-full sm:w-auto"
+            >
+              <Megaphone className="h-4 w-4 mr-2" />
+              {showAnnouncementsPanel ? 'Close Announcements' : 'Manage Announcements'}
+            </button>
           </div>
         </div>
       </div>
 
       {showAnnouncementsPanel && (
-        <div ref={announcementsRef} className="card h-80 md:h-96 overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Announcements Manager</h2>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Search a club, edit its announcement, and save — no Excel upload needed.</div>
+        <div ref={announcementsRef} className="card sticky bottom-4 z-10 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Announcements Manager</h2>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Search a club, edit its announcement, and save.</p>
           </div>
 
           <AnnounceEditor
@@ -541,6 +539,7 @@ function AnnounceEditor({
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [showDropdown, setShowDropdown] = useState(false)
 
   const matches = clubs
     .filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
@@ -549,21 +548,27 @@ function AnnounceEditor({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Club</label>
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Club</label>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setShowDropdown(true)
+          }}
+          onFocus={() => setShowDropdown(true)}
           placeholder="Type club name to search..."
-          className="input-field"
+          className="input-field text-sm sm:text-base"
         />
-        {query && (
-          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-            {matches.length === 0 && <div className="text-sm text-gray-500">No matches</div>}
+        {query && showDropdown && (
+          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2">
+            {matches.length === 0 && <div className="text-xs sm:text-sm text-gray-500 p-2">No matches</div>}
             {matches.map(m => (
               <button
                 key={m.id}
                 onClick={() => {
                   setSelectedId(m.id)
+                  setShowDropdown(false)  // Hide dropdown after selection
+                  setQuery(m.name)  // Set query to selected club name
                   // initialize a local draft for the selected club so edits don't
                   // immediately overwrite the saved announcements object and so
                   // we can clear the input after saving
@@ -572,10 +577,10 @@ function AnnounceEditor({
                     setAnnouncements({ ...announcements, [m.id]: '' })
                   }
                 }}
-                className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
-                <div className="font-medium">{m.name}</div>
-                <div className="text-xs text-gray-500">{m.category} — {m.meetingTime}</div>
+                <div className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">{m.name}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{m.category} — {m.meetingTime}</div>
               </button>
             ))}
           </div>
@@ -585,7 +590,7 @@ function AnnounceEditor({
       {selectedId && (
         <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <div className="mb-2">
-            <h3 className="font-medium text-gray-900 dark:text-white">{clubs.find(c => c.id === selectedId)?.name}</h3>
+            <h3 className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">{clubs.find(c => c.id === selectedId)?.name}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">{clubs.find(c => c.id === selectedId)?.category}</p>
           </div>
 
@@ -593,10 +598,11 @@ function AnnounceEditor({
             value={drafts[selectedId] ?? announcements[selectedId] ?? ''}
             onChange={(e) => setDrafts(prev => ({ ...prev, [selectedId]: e.target.value }))}
             placeholder="Enter short announcement (e.g. 'No club today')"
-            className="input-field w-full mb-3"
+            className="input-field w-full mb-3 text-sm sm:text-base min-h-[80px]"
+            rows={3}
           />
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={async () => {
                 if (!selectedId) return
@@ -606,7 +612,7 @@ function AnnounceEditor({
                 setDrafts(prev => ({ ...prev, [selectedId]: '' }))
               }}
               disabled={!!savingAnnouncements[selectedId]}
-              className="btn-primary"
+              className="btn-primary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               {savingAnnouncements[selectedId] ? 'Saving...' : 'Save'}
             </button>
@@ -621,13 +627,17 @@ function AnnounceEditor({
                   return copy
                 })
               }}
-              className="btn-secondary"
+              className="btn-secondary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               Clear
             </button>
             <button
-              onClick={() => setSelectedId(null)}
-              className="btn-secondary"
+              onClick={() => {
+                setSelectedId(null)
+                setQuery('')  // Clear search when closing
+                setShowDropdown(false)
+              }}
+              className="btn-secondary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               Close
             </button>
