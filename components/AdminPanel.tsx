@@ -21,6 +21,7 @@ export function AdminPanel() {
   const [error, setError] = useState('')
   const bcRef = useRef<BroadcastChannel | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [confirmClearId, setConfirmClearId] = useState<string | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -179,7 +180,6 @@ export function AdminPanel() {
   }
 
   const clearAnnouncement = async (id: string) => {
-    if (!confirm('Clear announcement for this club?')) return
     try {
       setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
       const resp = await fetch(`/api/announcements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement: '' }) })
@@ -190,7 +190,10 @@ export function AdminPanel() {
         delete copy[id]
         return copy
       })
-      showToast('Announcement cleared successfully')
+      // Don't show toast for individual clears during bulk delete
+      if (!savingAnnouncements[`bulk-${id}`]) {
+        showToast('Announcement cleared successfully')
+      }
       try {
         bcRef.current?.postMessage({ type: 'announcements-updated', id })
       } catch (e) {
@@ -201,7 +204,9 @@ export function AdminPanel() {
       } catch (e) {}
     } catch (err) {
       console.error('Error clearing announcement:', err)
-      showToast('Could not clear announcement', 'error')
+      if (!savingAnnouncements[`bulk-${id}`]) {
+        showToast('Could not clear announcement', 'error')
+      }
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
     }
@@ -565,6 +570,7 @@ export function AdminPanel() {
             }}
             savingAnnouncements={savingAnnouncements}
             showToast={showToast}
+            onRequestClear={(id: string) => setConfirmClearId(id)}
           />
           
           {/* Bulk Delete Section */}
@@ -572,19 +578,43 @@ export function AdminPanel() {
             clubs={clubs}
             announcements={announcements}
             onDelete={async (ids: string[]) => {
+              let successCount = 0
               try {
                 for (const id of ids) {
-                  await clearAnnouncement(id)
+                  try {
+                    const resp = await fetch(`/api/announcements/${id}`, { 
+                      method: 'PATCH', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify({ announcement: '' }) 
+                    })
+                    if (!resp.ok) throw new Error('Failed to clear')
+                    await resp.json()
+                    
+                    setAnnouncements(prev => {
+                      const copy = { ...prev }
+                      delete copy[id]
+                      return copy
+                    })
+                    
+                    successCount++
+                    
+                    try {
+                      bcRef.current?.postMessage({ type: 'announcements-updated', id })
+                    } catch (e) {
+                      // ignore
+                    }
+                    try {
+                      localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
+                    } catch (e) {}
+                    window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                  } catch (err) {
+                    console.error('Error clearing announcement:', err)
+                  }
                 }
                 await refreshData()
-                showToast(`${ids.length} announcement${ids.length > 1 ? 's' : ''} deleted successfully`)
-                // Notify all tabs
-                ids.forEach(id => {
-                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
-                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-                })
+                showToast(`${successCount} of ${ids.length} announcement${ids.length > 1 ? 's' : ''} deleted successfully`)
               } catch (err) {
-                showToast('Failed to delete some announcements', 'error')
+                showToast('Failed to delete announcements', 'error')
               }
             }}
           />
@@ -592,6 +622,43 @@ export function AdminPanel() {
           </div>
         </>
       )}
+
+      {/* Clear Announcement Confirmation Dialog */}
+      {confirmClearId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Clear Announcement
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to clear this announcement? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmClearId(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const id = confirmClearId
+                  setConfirmClearId(null)
+                  await clearAnnouncement(id)
+                  await refreshData()
+                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   )
 }
@@ -605,6 +672,7 @@ function AnnounceEditor({
   clearAnnouncement,
   savingAnnouncements,
   showToast,
+  onRequestClear,
 }: {
   clubs: Club[]
   announcements: Record<string, string>
@@ -613,6 +681,7 @@ function AnnounceEditor({
   clearAnnouncement: (id: string) => Promise<void>
   savingAnnouncements: Record<string, boolean>
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void
+  onRequestClear: (id: string) => void
 }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -699,15 +768,9 @@ function AnnounceEditor({
               {savingAnnouncements[selectedId] ? 'Saving...' : 'Save'}
             </button>
             <button
-              onClick={async () => {
+              onClick={() => {
                 if (!selectedId) return
-                await clearAnnouncement(selectedId)
-                // clear any local draft as well
-                setDrafts(prev => {
-                  const copy = { ...prev }
-                  delete copy[selectedId]
-                  return copy
-                })
+                onRequestClear(selectedId)
               }}
               className="btn-secondary text-sm sm:text-base flex-1 sm:flex-initial"
             >
@@ -763,9 +826,11 @@ function BulkDeleteAnnouncements({
     }
   }
 
+  const [showConfirm, setShowConfirm] = useState(false)
+
   const handleDelete = async () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Delete ${selectedIds.size} announcement${selectedIds.size > 1 ? 's' : ''}?`)) return
+    setShowConfirm(false)
     
     setDeleting(true)
     try {
@@ -800,7 +865,7 @@ function BulkDeleteAnnouncements({
           </button>
           {selectedIds.size > 0 && (
             <button
-              onClick={handleDelete}
+              onClick={() => setShowConfirm(true)}
               disabled={deleting}
               className="btn-secondary text-xs sm:text-sm flex items-center gap-1 disabled:opacity-50"
             >
@@ -832,6 +897,34 @@ function BulkDeleteAnnouncements({
           </label>
         ))}
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Confirm Deletion
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete {selectedIds.size} announcement{selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
