@@ -58,6 +58,14 @@ export function ClubsList() {
       }
     }
 
+    // Listen for same-tab updates (custom event)
+    const onAnnouncementUpdate = () => {
+      loadClubs()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('announcements-updated', onAnnouncementUpdate)
+    }
+
     // localStorage fallback (storage events fire across tabs/browsers)
     const onStorage = (e: StorageEvent) => {
       try {
@@ -76,7 +84,10 @@ export function ClubsList() {
     return () => {
       isMountedRef.current = false
       if (bc) bc.close()
-      if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('announcements-updated', onAnnouncementUpdate)
+        window.removeEventListener('storage', onStorage)
+      }
     }
   }, [])
 

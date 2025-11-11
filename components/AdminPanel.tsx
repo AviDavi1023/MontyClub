@@ -538,11 +538,15 @@ export function AdminPanel() {
               // refresh clubs so the gallery reflects updated announcement values
               await refreshData()
               try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+              // Also dispatch a custom event for same-tab updates
+              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
             }}
             clearAnnouncement={async (id: string) => {
               await clearAnnouncement(id)
               await refreshData()
               try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+              // Also dispatch a custom event for same-tab updates
+              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
             }}
             savingAnnouncements={savingAnnouncements}
           />
@@ -644,6 +648,10 @@ function AnnounceEditor({
                 await saveAnnouncement(selectedId, text)
                 // clear the local draft so the textarea is emptied after save
                 setDrafts(prev => ({ ...prev, [selectedId]: '' }))
+                // Deselect the club and reset search
+                setSelectedId(null)
+                setQuery('')
+                setShowDropdown(false)
               }}
               disabled={!!savingAnnouncements[selectedId]}
               className="btn-primary text-sm sm:text-base flex-1 sm:flex-initial"
