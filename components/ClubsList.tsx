@@ -11,7 +11,8 @@ import { FilterPanel } from '@/components/FilterPanel'
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
-  const [showFilters, setShowFilters] = useState(true)
+  // Start with filters hidden on mobile, visible on desktop
+  const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [filters, setFilters] = useState<ClubFilters>({
     search: '',
@@ -249,27 +250,27 @@ export function ClubsList() {
   return (
     <div className="space-y-6">
       {/* Search and Filter Controls */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
             <input
               type="text"
-              placeholder="Search clubs by name, description, or keywords..."
+              placeholder="Search clubs..."
               value={filters.search}
               onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              className="input-field pl-10"
+              className="input-field pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
             />
           </div>
           
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center justify-center gap-2 text-sm sm:text-base whitespace-nowrap py-2.5 sm:py-2"
           >
-            <Filter className="h-5 w-5" />
-            Filters
+            <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span>Filters</span>
             {hasActiveFilters && (
-              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                 {Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== '').length}
               </span>
             )}
@@ -288,34 +289,34 @@ export function ClubsList() {
       </div>
 
       {/* Results */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-gray-600 dark:text-gray-400">
-            {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''} found
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+            {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
           
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1"
+              className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1"
             >
-              <X className="h-4 w-4" />
-              Clear filters
+              <X className="h-3 w-3 sm:h-4 sm:w-4" />
+              Clear
             </button>
           )}
         </div>
 
         {filteredClubs.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">
-              No clubs found matching your criteria
+          <div className="text-center py-12 px-4">
+            <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">
+              No clubs found
             </p>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+            <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm mt-2">
               Try adjusting your search or filters
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredClubs.map(club => (
               <ClubCard key={club.id} club={club} />
             ))}

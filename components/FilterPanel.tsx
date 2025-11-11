@@ -14,18 +14,18 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
-    <div className="card">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="card p-4 sm:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4">
         {/* Category Filter (multi-select checkboxes) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Category
           </label>
-          <div className="space-y-2 max-h-40 overflow-y-auto p-2 border border-transparent rounded">
+          <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {categories.map(category => {
               const selected = Array.isArray(filters.category) ? filters.category.includes(category) : filters.category === category
               return (
-                <label key={category} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <label key={category} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-1 rounded">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -37,18 +37,19 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                         setFilters({ ...filters, category: prev.filter((c) => c !== category) })
                       }
                     }}
+                    className="flex-shrink-0"
                   />
-                  <span>{category}</span>
+                  <span className="truncate">{category}</span>
                 </label>
               )
             })}
-            <div>
+            <div className="pt-1">
               <button
                 onClick={() => setFilters({ ...filters, category: [] })}
-                className="text-xs text-primary-600 hover:underline"
+                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
                 type="button"
               >
-                Clear categories
+                Clear
               </button>
             </div>
           </div>
@@ -56,14 +57,14 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
 
         {/* Meeting Day Filter (multi-select checkboxes) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Meeting Day
           </label>
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {meetingDays.map(day => {
               const selected = Array.isArray(filters.meetingDay) ? filters.meetingDay.includes(day) : filters.meetingDay === day
               return (
-                <label key={day} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <label key={day} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-1 rounded">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -75,18 +76,19 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                         setFilters({ ...filters, meetingDay: prev.filter((d) => d !== day) })
                       }
                     }}
+                    className="flex-shrink-0"
                   />
                   <span>{day}</span>
                 </label>
               )
             })}
-            <div>
+            <div className="pt-1">
               <button
                 onClick={() => setFilters({ ...filters, meetingDay: [] })}
-                className="text-xs text-primary-600 hover:underline"
+                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
                 type="button"
               >
-                Clear days
+                Clear
               </button>
             </div>
           </div>
@@ -94,14 +96,14 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
 
         {/* Meeting Frequency Filter (multi-select) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Meeting Frequency
           </label>
-          <div className="space-y-2 max-h-40 overflow-y-auto p-2 border border-transparent rounded">
+          <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
             {frequencies.map(freq => {
               const selected = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency.includes(freq) : filters.meetingFrequency === freq
               return (
-                <label key={freq} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <label key={freq} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-1 rounded">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -113,18 +115,19 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
                         setFilters({ ...filters, meetingFrequency: prev.filter((c) => c !== freq) })
                       }
                     }}
+                    className="flex-shrink-0"
                   />
-                  <span>{freq}</span>
+                  <span className="truncate">{freq}</span>
                 </label>
               )
             })}
-            <div>
+            <div className="pt-1">
               <button
                 onClick={() => setFilters({ ...filters, meetingFrequency: [] })}
-                className="text-xs text-primary-600 hover:underline"
+                className="text-xs text-primary-600 hover:underline dark:text-primary-400"
                 type="button"
               >
-                Clear frequencies
+                Clear
               </button>
             </div>
           </div>
@@ -132,13 +135,13 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
 
         {/* Status Filter */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Status
           </label>
           <select
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="input-field"
+            className="input-field text-xs sm:text-sm py-2"
           >
             <option value="">All Status</option>
             <option value="open">Open</option>
