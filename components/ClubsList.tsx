@@ -34,10 +34,16 @@ export function ClubsList() {
     }
   }
   const [filters, setFilters] = useState<ClubFilters>(parseFiltersFromQuery())
+  
+  // Local search state for immediate UI updates (to avoid slow typing)
+  const [searchInput, setSearchInput] = useState(filters.search)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Sync filters state with URL query params
   useEffect(() => {
-    setFilters(parseFiltersFromQuery())
+    const newFilters = parseFiltersFromQuery()
+    setFilters(newFilters)
+    setSearchInput(newFilters.search)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
@@ -132,9 +138,9 @@ export function ClubsList() {
       .map(([k]) => k)
 
     return clubs.filter(club => {
-      // Search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase()
+      // Search filter - use searchInput for immediate filtering
+      if (searchInput) {
+        const searchLower = searchInput.toLowerCase()
 
         // Combine several club fields into a single searchable string
         const fields = [
@@ -216,7 +222,7 @@ export function ClubsList() {
 
       return true
     })
-  }, [clubs, filters])
+  }, [clubs, filters, searchInput])
 
   const categories = useMemo(() => {
     const uniqueCategories = [...new Set(clubs.map(club => club.category))].filter(Boolean)
@@ -265,7 +271,7 @@ export function ClubsList() {
     const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
     meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
     if (newFilters.status) params.set('status', newFilters.status)
-    const newUrl = params.toString() ? `?${params.toString()}` : ''
+    const newUrl = params.toString() ? `/?${params.toString()}` : '/'
     router.replace(newUrl)
   }
 
@@ -277,6 +283,10 @@ export function ClubsList() {
       meetingFrequency: [],
       status: '',
     }
+    setSearchInput('')
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
     updateQueryParams(cleared)
   }
 
@@ -284,10 +294,36 @@ export function ClubsList() {
   function setFiltersAndUpdate(newFilters: ClubFilters) {
     updateQueryParams(newFilters)
   }
+  
+  // Handle search input with debouncing for performance
+  function handleSearchChange(value: string) {
+    // Update local state immediately for fast UI response
+    setSearchInput(value)
+    
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    // Debounce URL update (300ms delay)
+    searchTimeoutRef.current = setTimeout(() => {
+      setFiltersAndUpdate({ ...filters, search: value })
+    }, 300)
+  }
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
 
-  const hasActiveFilters = Object.values(filters).some((value) => {
+  const hasActiveFilters = searchInput !== '' || Object.values(filters).some((value) => {
     if (Array.isArray(value)) return value.length > 0
-    return value !== ''
+    if (typeof value === 'string' && value !== 'search') return value !== ''
+    return false
   })
 
   if (loading) {
@@ -308,8 +344,8 @@ export function ClubsList() {
             <input
               type="text"
               placeholder="Search clubs..."
-              value={filters.search}
-              onChange={(e) => setFiltersAndUpdate({ ...filters, search: e.target.value })}
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="input-field pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
             />
           </div>
