@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, X } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
@@ -14,25 +15,31 @@ export function ClubsList() {
   // Start with filters hidden on mobile, visible on desktop
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
-  // Read filters from URL query params on mount
+  const router = useRouter()
+  const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
-    if (typeof window === 'undefined') return {
+    if (!searchParams) return {
       search: '',
       category: [],
       meetingDay: [],
       meetingFrequency: [],
       status: '',
     }
-    const params = new URLSearchParams(window.location.search)
     return {
-      search: params.get('search') || '',
-      category: params.getAll('category'),
-      meetingDay: params.getAll('meetingDay'),
-      meetingFrequency: params.getAll('meetingFrequency'),
-      status: params.get('status') || '',
+      search: searchParams.get('search') || '',
+      category: searchParams.getAll('category'),
+      meetingDay: searchParams.getAll('meetingDay'),
+      meetingFrequency: searchParams.getAll('meetingFrequency'),
+      status: searchParams.get('status') || '',
     }
   }
   const [filters, setFilters] = useState<ClubFilters>(parseFiltersFromQuery())
+
+  // Sync filters state with URL query params
+  useEffect(() => {
+    setFilters(parseFiltersFromQuery())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
   const isMountedRef = useRef(true)
@@ -249,18 +256,17 @@ export function ClubsList() {
 
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
-    if (typeof window === 'undefined') return
     const params = new URLSearchParams()
     if (newFilters.search) params.set('search', newFilters.search)
-  const categories = Array.isArray(newFilters.category) ? newFilters.category : (newFilters.category ? [newFilters.category] : [])
-  categories.forEach((c: string) => params.append('category', c))
-  const meetingDays = Array.isArray(newFilters.meetingDay) ? newFilters.meetingDay : (newFilters.meetingDay ? [newFilters.meetingDay] : [])
-  meetingDays.forEach((d: string) => params.append('meetingDay', d))
-  const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
-  meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
+    const categories = Array.isArray(newFilters.category) ? newFilters.category : (newFilters.category ? [newFilters.category] : [])
+    categories.forEach((c: string) => params.append('category', c))
+    const meetingDays = Array.isArray(newFilters.meetingDay) ? newFilters.meetingDay : (newFilters.meetingDay ? [newFilters.meetingDay] : [])
+    meetingDays.forEach((d: string) => params.append('meetingDay', d))
+    const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
+    meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
     if (newFilters.status) params.set('status', newFilters.status)
-    const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
-    window.history.replaceState({}, '', newUrl)
+    const newUrl = params.toString() ? `?${params.toString()}` : ''
+    router.replace(newUrl)
   }
 
   const clearFilters = () => {
@@ -271,13 +277,11 @@ export function ClubsList() {
       meetingFrequency: [],
       status: '',
     }
-    setFilters(cleared)
     updateQueryParams(cleared)
   }
 
   // Wrap setFilters to also update query params
   function setFiltersAndUpdate(newFilters: ClubFilters) {
-    setFilters(newFilters)
     updateQueryParams(newFilters)
   }
 
@@ -305,7 +309,7 @@ export function ClubsList() {
               type="text"
               placeholder="Search clubs..."
               value={filters.search}
-              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              onChange={(e) => setFiltersAndUpdate({ ...filters, search: e.target.value })}
               className="input-field pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
             />
           </div>

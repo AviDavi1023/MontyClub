@@ -1,8 +1,11 @@
+
+'use client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Users, Mail, ExternalLink, User } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Mail, ExternalLink, User, Megaphone } from 'lucide-react'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { Club } from '@/types/club'
 import { SimilarClubs } from '@/components/SimilarClubs'
+import { useSearchParams } from 'next/navigation'
 
 interface ClubDetailProps {
   club: Club
@@ -10,16 +13,13 @@ interface ClubDetailProps {
 }
 
 export function ClubDetail({ club, allClubs }: ClubDetailProps) {
-  // Get search params from window.location.search
-  let searchParams = ''
-  if (typeof window !== 'undefined') {
-    searchParams = window.location.search
-  }
+  const searchParams = useSearchParams()
+  const queryString = searchParams?.toString() ? `/?${searchParams.toString()}` : '/'
   return (
     <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
       {/* Back Button */}
       <Link
-        href={`/${searchParams}`}
+        href={queryString}
         className="inline-flex items-center gap-2 text-sm sm:text-base text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -30,11 +30,7 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
       <div className="card">
         {club.announcement && (
           <div className="mb-3 sm:mb-4 flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2.5 sm:p-3 rounded">
-            {/* Use Megaphone icon from Lucide React for consistency */}
-            <span className="flex-shrink-0 mt-0.5">
-              {/* @ts-ignore-next-line: dynamic import for icon */}
-              {require('lucide-react').Megaphone({ className: 'h-4 w-4 sm:h-5 sm:w-5' })}
-            </span>
+            <Megaphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" />
             <div>{club.announcement}</div>
           </div>
         )}
