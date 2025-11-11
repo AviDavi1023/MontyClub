@@ -25,7 +25,7 @@ export function AdminPanel() {
   const bcRef = useRef<BroadcastChannel | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmClearId, setConfirmClearId] = useState<string | null>(null)
-  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(true)
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -475,8 +475,7 @@ export function AdminPanel() {
                 </div>
 
                 <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                  <p><strong>Current:</strong> {u.currentInfo || '—'}</p>
-                  <p className="mt-1"><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
+                  <p><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
                   <p className="mt-1"><strong>Contact:</strong> {u.contactEmail || '—'}</p>
                   {u.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {u.additionalNotes}</p>}
                 </div>
@@ -536,19 +535,7 @@ export function AdminPanel() {
           Quick Actions
         </h2>
         
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a
-            href="/submit-update"
-            className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-              Submit Update Form
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Test the public update submission form
-            </p>
-          </a>
-
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">
               Excel File

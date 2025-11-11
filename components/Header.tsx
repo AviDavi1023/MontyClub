@@ -20,12 +20,12 @@ export function Header() {
             </span>
           </Link>
           
-          <nav className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          <nav className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
             <Link 
               href="/submit-update" 
               className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap"
             >
-              <span className="hidden sm:inline">Submit Update</span>
+              <span className="hidden sm:inline">Submit Club Update</span>
               <span className="sm:hidden">Submit</span>
             </Link>
             <Link 
