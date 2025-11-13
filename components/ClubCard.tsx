@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Club } from '@/types/club'
 import { Calendar, MapPin, Users } from 'lucide-react'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
@@ -9,13 +12,11 @@ interface ClubCardProps {
 }
 
 export function ClubCard({ club }: ClubCardProps) {
-  // Get current search/filter params from window.location.search
-  let searchParams = ''
-  if (typeof window !== 'undefined') {
-    searchParams = window.location.search
-  }
+  const searchParams = useSearchParams()
+  const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
+  
   return (
-    <Link href={`/clubs/${club.id}${searchParams}`} className="block">
+    <Link href={`/clubs/${club.id}${queryString}`} className="block">
       <div className="card hover:shadow-md transition-shadow duration-200 p-4 sm:p-6">
         <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
           <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">

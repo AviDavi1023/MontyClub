@@ -119,8 +119,6 @@ export function ClubsList() {
   }, [])
 
   const filteredClubs = useMemo(() => {
-    // Clear console to help spot new data loads
-    console.log('Filtering clubs, update counter:', updateCounter)
     // Build a frequency map using normalized labels to group variants (e.g. "1st & 3rd weeks")
     const freqMap = new Map<string, { count: number; repr: string }>()
     clubs.forEach((club) => {
@@ -351,6 +349,7 @@ export function ClubsList() {
       meetingDay: [],
       meetingFrequency: [],
       status: '',
+      sort: 'relevant',
     }
     setSearchInput('')
     if (searchTimeoutRef.current) {
@@ -389,11 +388,13 @@ export function ClubsList() {
     }
   }, [])
 
-  const hasActiveFilters = searchInput !== '' || Object.values(filters).some((value) => {
-    if (Array.isArray(value)) return value.length > 0
-    if (typeof value === 'string' && value !== 'search' && value !== 'relevant' && value !== 'sort') return value !== ''
-    return false
-  })
+  const hasActiveFilters = searchInput !== '' || 
+    Object.entries(filters).some(([key, value]) => {
+      if (key === 'search' || key === 'sort') return false
+      if (Array.isArray(value)) return value.length > 0
+      if (typeof value === 'string') return value !== ''
+      return false
+    })
 
   if (loading) {
     return (
