@@ -27,4 +27,6 @@ export interface ClubFilters {
   // Allow filtering by meeting frequency (e.g. 'Weekly', '1st & 3rd weeks')
   meetingFrequency?: string | string[]
   status: string
+  // Sorting option: 'relevant' | 'random' | 'az' | 'za'
+  sort?: string
 }

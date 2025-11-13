@@ -24,6 +24,7 @@ export function ClubsList() {
       meetingDay: [],
       meetingFrequency: [],
       status: '',
+      sort: 'relevant',
     }
     return {
       search: searchParams.get('search') || '',
@@ -31,6 +32,7 @@ export function ClubsList() {
       meetingDay: searchParams.getAll('meetingDay'),
       meetingFrequency: searchParams.getAll('meetingFrequency'),
       status: searchParams.get('status') || '',
+      sort: searchParams.get('sort') || 'relevant',
     }
   }
   const [filters, setFilters] = useState<ClubFilters>(parseFiltersFromQuery())
@@ -260,6 +262,72 @@ export function ClubsList() {
     return frequent
   }, [clubs])
 
+  // Build a randomized order map when sort is 'random'
+  const randomRankRef = useRef<Map<string, number> | null>(null)
+  useEffect(() => {
+    if ((filters.sort || 'relevant') === 'random') {
+      const map = new Map<string, number>()
+      const ids = clubs.map(c => c.id)
+      // Fisher-Yates shuffle to assign ranks
+      for (let i = ids.length - 1; i >= 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const tmp = ids[i]
+        ids[i] = ids[j]
+        ids[j] = tmp
+      }
+      ids.forEach((id, idx) => map.set(id, idx))
+      randomRankRef.current = map
+    } else {
+      randomRankRef.current = null
+    }
+    // Rebuild when sort changes or clubs list changes
+  }, [filters.sort, clubs])
+
+  // Score function for 'relevant' sorting
+  function relevanceScore(club: Club): number {
+    let score = 0
+    // Boost clubs with announcements
+    if (club.announcement && club.announcement.trim()) score += 100
+    const query = (searchInput || '').toLowerCase().trim()
+    if (query) {
+      const inName = (club.name || '').toLowerCase()
+      const inDesc = (club.description || '').toLowerCase()
+      const inCategory = (club.category || '').toLowerCase()
+      const inKeywords = (club.keywords || []).map(k => (k || '').toLowerCase())
+      if (inName.startsWith(query)) score += 50
+      if (inName.includes(query)) score += 30
+      if (inKeywords.some(k => k.startsWith(query))) score += 20
+      if (inCategory.includes(query)) score += 10
+      if (inDesc.includes(query)) score += 5
+    }
+    // Slight boost for active clubs
+    if (club.active) score += 1
+    return score
+  }
+
+  const sortedClubs = useMemo(() => {
+    const sortMode = (filters.sort || 'relevant') as string
+    const arr = [...filteredClubs]
+    if (sortMode === 'az') {
+      arr.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortMode === 'za') {
+      arr.sort((a, b) => b.name.localeCompare(a.name))
+    } else if (sortMode === 'random') {
+      const map = randomRankRef.current
+      if (map) {
+        arr.sort((a, b) => (map.get(a.id) ?? 0) - (map.get(b.id) ?? 0))
+      } else {
+        // Fallback: simple random shuffle
+        arr.sort(() => Math.random() - 0.5)
+      }
+    } else {
+      // Relevant
+      arr.sort((a, b) => relevanceScore(b) - relevanceScore(a))
+    }
+    return arr
+    // Include dependencies that affect sorting
+  }, [filteredClubs, filters.sort, searchInput])
+
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
     const params = new URLSearchParams()
@@ -271,6 +339,7 @@ export function ClubsList() {
     const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
     meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
     if (newFilters.status) params.set('status', newFilters.status)
+    if (newFilters.sort && newFilters.sort !== 'relevant') params.set('sort', newFilters.sort)
     const newUrl = params.toString() ? `/?${params.toString()}` : '/'
     router.replace(newUrl)
   }
@@ -322,7 +391,7 @@ export function ClubsList() {
 
   const hasActiveFilters = searchInput !== '' || Object.values(filters).some((value) => {
     if (Array.isArray(value)) return value.length > 0
-    if (typeof value === 'string' && value !== 'search') return value !== ''
+    if (typeof value === 'string' && value !== 'search' && value !== 'relevant' && value !== 'sort') return value !== ''
     return false
   })
 
@@ -350,6 +419,21 @@ export function ClubsList() {
             />
           </div>
           
+          {/* Sort select */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort</label>
+            <select
+              value={filters.sort || 'relevant'}
+              onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
+              className="input-field text-xs sm:text-sm py-2"
+            >
+              <option value="relevant">Relevant</option>
+              <option value="random">Random</option>
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
+            </select>
+          </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="btn-secondary flex items-center justify-center gap-2 text-sm sm:text-base whitespace-nowrap py-2.5 sm:py-2"
@@ -388,7 +472,7 @@ export function ClubsList() {
               className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1"
             >
               <X className="h-3 w-3 sm:h-4 sm:w-4" />
-              Clear
+              Clear Filters
             </button>
           )}
         </div>
@@ -404,7 +488,7 @@ export function ClubsList() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {filteredClubs.map(club => (
+            {sortedClubs.map(club => (
               <ClubCard key={club.id} club={club} />
             ))}
           </div>

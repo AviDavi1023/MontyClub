@@ -27,7 +27,7 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
               className="text-xs text-primary-600 hover:underline dark:text-primary-400"
               type="button"
             >
-              Clear
+              Clear Filters
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
@@ -66,7 +66,7 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
               className="text-xs text-primary-600 hover:underline dark:text-primary-400"
               type="button"
             >
-              Clear
+              Clear Filters
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
@@ -105,7 +105,7 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
               className="text-xs text-primary-600 hover:underline dark:text-primary-400"
               type="button"
             >
-              Clear
+              Clear Filters
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
