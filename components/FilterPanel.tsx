@@ -18,6 +18,20 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
 
   return (
     <div className="card p-4 sm:p-6">
+      {/* Mobile toggle at top */}
+      {showToggle && onToggle && (
+        <div className="flex sm:hidden items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">Filters</h3>
+          <button
+            onClick={onToggle}
+            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <ChevronUp className="h-4 w-4" />
+            <span>Hide</span>
+          </button>
+        </div>
+      )}
+      
       {/* Desktop toggle at top-left */}
       {showToggle && onToggle && (
         <div className="hidden sm:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">

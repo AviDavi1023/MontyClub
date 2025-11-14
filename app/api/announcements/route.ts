@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 async function ensureAnnouncementsFile() {
   // left for compatibility; runtime-store handles file creation
   return null
@@ -9,7 +12,13 @@ async function ensureAnnouncementsFile() {
 export async function GET() {
   try {
     const data = await readData('announcements', {})
-    return NextResponse.json(data)
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    })
   } catch (err) {
     console.error('Error reading announcements:', err)
     return NextResponse.json({ error: 'Failed to read announcements' }, { status: 500 })

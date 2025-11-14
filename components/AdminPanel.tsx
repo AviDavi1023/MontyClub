@@ -157,13 +157,18 @@ export function AdminPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reviewed: !current }),
       })
-      if (!resp.ok) throw new Error('Failed to update')
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || `Server returned ${resp.status}`)
+      }
+      
       const updated = await resp.json()
       setUpdates(prev => prev.map(u => (String(u.id) === String(id) ? updated : u)))
       showToast(`Marked as ${!current ? 'reviewed' : 'unreviewed'}`)
     } catch (err) {
       console.error('Error toggling reviewed:', err)
-      showToast('Could not update status', 'error')
+      showToast(`Could not update status: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     }
   }
 
@@ -173,13 +178,18 @@ export function AdminPanel() {
 
     try {
       const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
-      if (!resp.ok) throw new Error('Failed to delete')
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || `Server returned ${resp.status}`)
+      }
+      
       const removed = await resp.json()
       setUpdates(prev => prev.filter(u => String(u.id) !== String(id)))
       showToast('Update request deleted')
     } catch (err) {
       console.error('Error deleting update:', err)
-      showToast('Could not delete update', 'error')
+      showToast(`Could not delete update: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     }
   }
 
@@ -231,10 +241,16 @@ export function AdminPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ announcement: text || '' }),
       })
-      if (!resp.ok) throw new Error('Failed to save announcement')
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || `Server returned ${resp.status}`)
+      }
+      
       const updated = await resp.json()
       setAnnouncements(prev => ({ ...prev, [id]: updated.announcement || '' }))
       showToast('Announcement saved successfully')
+      
       // notify other tabs/windows
       try {
         bcRef.current?.postMessage({ type: 'announcements-updated', id })
@@ -249,7 +265,7 @@ export function AdminPanel() {
       }
     } catch (err) {
       console.error('Error saving announcement:', err)
-      showToast('Could not save announcement', 'error')
+      showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
     }
