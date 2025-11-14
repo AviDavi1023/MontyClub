@@ -408,51 +408,34 @@ export function ClubsList() {
     <div className="space-y-6">
       {/* Search and Filter Controls */}
       <div className="space-y-3 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
-            <input
-              type="text"
-              placeholder="Search clubs..."
-              value={searchInput}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="input-field pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
-            />
-          </div>
-          
-          {/* Sort select */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort</label>
-            <select
-              value={filters.sort || 'relevant'}
-              onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
-              className="input-field text-xs sm:text-sm py-2"
-            >
-              <option value="relevant">Relevant</option>
-              <option value="random">Random</option>
-              <option value="az">A-Z</option>
-              <option value="za">Z-A</option>
-            </select>
-          </div>
+        {/* Search bar - full width */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
+          <input
+            type="text"
+            placeholder="Search clubs..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="input-field w-full pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
+          />
+        </div>
 
+        {/* Show Filters button - only when filters are hidden */}
+        {!showFilters && (
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="btn-secondary flex items-center justify-center gap-2 text-sm sm:text-base whitespace-nowrap py-2.5 sm:py-2"
+            onClick={() => setShowFilters(true)}
+            className="btn-secondary flex items-center gap-2 text-sm"
           >
-            <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span>Filters</span>
-            {showFilters ? (
-              <ChevronUp className="h-4 w-4 sm:h-5 sm:w-5" />
-            ) : (
-              <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
-            )}
+            <Filter className="h-4 w-4" />
+            <span>Show Filters</span>
+            <ChevronDown className="h-4 w-4" />
             {hasActiveFilters && (
               <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium ml-1">
                 {Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== '').length}
               </span>
             )}
           </button>
-        </div>
+        )}
 
         {showFilters && (
           <FilterPanel
@@ -473,6 +456,21 @@ export function ClubsList() {
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
+          
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort</label>
+            <select
+              value={filters.sort || 'relevant'}
+              onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
+              className="input-field text-xs sm:text-sm py-2"
+            >
+              <option value="relevant">Relevant</option>
+              <option value="random">Random</option>
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
+            </select>
+          </div>
         </div>
 
         {filteredClubs.length === 0 ? (

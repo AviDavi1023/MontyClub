@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3 } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -26,6 +26,9 @@ export function AdminPanel() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmClearId, setConfirmClearId] = useState<string | null>(null)
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
+  const [refreshingUpdates, setRefreshingUpdates] = useState(false)
+  const [showStatistics, setShowStatistics] = useState(false)
+  const statisticsRef = useRef<HTMLDivElement | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -134,6 +137,7 @@ export function AdminPanel() {
   }
 
   const fetchUpdates = async () => {
+    setRefreshingUpdates(true)
     try {
       const resp = await fetch('/api/updates')
       if (!resp.ok) throw new Error('Failed to fetch updates')
@@ -141,6 +145,8 @@ export function AdminPanel() {
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
+    } finally {
+      setRefreshingUpdates(false)
     }
   }
 
@@ -362,8 +368,9 @@ export function AdminPanel() {
             onClick={fetchUpdates}
             className="btn-secondary p-2"
             title="Refresh requests"
+            disabled={refreshingUpdates}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -411,50 +418,6 @@ export function AdminPanel() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Club Statistics */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Club Statistics
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">By Status</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Active</span>
-                <span className="font-medium text-green-600 dark:text-green-400">
-                  {clubs.filter(c => c.active).length}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Inactive</span>
-                <span className="font-medium text-gray-600 dark:text-gray-400">
-                  {clubs.filter(c => !c.active).length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">By Category</h3>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {Object.entries(
-                clubs.reduce((acc, club) => {
-                  acc[club.category] = (acc[club.category] || 0) + 1
-                  return acc
-                }, {} as Record<string, number>)
-              ).map(([category, count]) => (
-                <div key={category} className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">{category}</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Quick Actions */}
@@ -548,6 +511,18 @@ export function AdminPanel() {
             >
               <Users className="h-4 w-4" />
               {showUserManagement ? 'Close Users' : 'Manage Users'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Statistics</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View club data analytics and stats</p>
+            <button
+              onClick={() => setShowStatistics(!showStatistics)}
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              {showStatistics ? 'Close Statistics' : 'View Statistics'}
             </button>
           </div>
         </div>
@@ -689,6 +664,83 @@ export function AdminPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Club Statistics Modal */}
+      {showStatistics && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-in fade-in duration-200"
+            onClick={() => setShowStatistics(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div 
+              ref={statisticsRef} 
+              className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto animate-in zoom-in-95 fade-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Statistics</h2>
+                <button
+                  onClick={() => setShowStatistics(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">By Status</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Active</span>
+                      <span className="font-medium text-green-600 dark:text-green-400">
+                        {clubs.filter(c => c.active).length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Inactive</span>
+                      <span className="font-medium text-gray-600 dark:text-gray-400">
+                        {clubs.filter(c => !c.active).length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <span className="font-medium text-gray-900 dark:text-white">Total</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {clubs.length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">By Category</h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {Object.entries(
+                      clubs.reduce((acc, club) => {
+                        acc[club.category] = (acc[club.category] || 0) + 1
+                        return acc
+                      }, {} as Record<string, number>)
+                    )
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([category, count]) => (
+                      <div key={category} className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">{category}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       <ToastContainer toasts={toasts} onClose={closeToast} />
