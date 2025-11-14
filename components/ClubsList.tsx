@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, X } from 'lucide-react'
+import { Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { getClubs } from '@/lib/clubs-client'
@@ -441,8 +441,13 @@ export function ClubsList() {
           >
             <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
             <span>Filters</span>
+            {showFilters ? (
+              <ChevronUp className="h-4 w-4 sm:h-5 sm:w-5" />
+            ) : (
+              <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
+            )}
             {hasActiveFilters && (
-              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium ml-1">
                 {Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== '').length}
               </span>
             )}
@@ -456,6 +461,8 @@ export function ClubsList() {
             categories={categories}
             frequencies={frequencies}
             onClear={clearFilters}
+            onToggle={() => setShowFilters(false)}
+            showToggle={true}
           />
         )}
       </div>
@@ -466,16 +473,6 @@ export function ClubsList() {
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
-          
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1"
-            >
-              <X className="h-3 w-3 sm:h-4 sm:w-4" />
-              Clear Filters
-            </button>
-          )}
         </div>
 
         {filteredClubs.length === 0 ? (

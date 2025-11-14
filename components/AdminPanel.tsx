@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Settings, Database, Megaphone, Trash2, UserPlus, Users } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -290,9 +290,6 @@ export function AdminPanel() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Admin Login
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Sign in to access the management panel
-          </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
@@ -354,89 +351,19 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      
-      {/* Admin Controls */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Admin Controls
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Logged in as: <span className="font-medium">{currentUser}</span>
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={toggleUserManagement}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Manage Users</span>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="btn-secondary"
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              Logout
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Database className="h-5 w-5 text-blue-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white">Data Source</h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Excel File (clubData.xlsx)
-            </p>
-          </div>
-
-          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <RefreshCw className="h-5 w-5 text-green-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white">Last Updated</h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {new Date().toLocaleString()}
-            </p>
-          </div>
-
-          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Settings className="h-5 w-5 text-purple-500" />
-              <h3 className="font-medium text-gray-900 dark:text-white">Total Clubs</h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {clubs.length} clubs
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <button
-            onClick={refreshData}
-            disabled={loading}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Refreshing...' : 'Refresh Data'}
-          </button>
-        </div>
-      </div>
 
       {/* Update Requests */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Update Requests</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Update Requests {updates.length > 0 && `(${updates.length})`}
+          </h2>
           <button
             onClick={fetchUpdates}
-            className="btn-secondary"
+            className="btn-secondary p-2"
+            title="Refresh requests"
           >
-            Refresh
+            <RefreshCw className="h-4 w-4" />
           </button>
         </div>
 
@@ -446,31 +373,32 @@ export function AdminPanel() {
           <div className="space-y-4">
             {updates.map((u) => (
               <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'} <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span></h3>
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
+                      <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
+                      {u.reviewed ? (
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {u.reviewed ? (
-                      <span className="px-2 py-1 text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
-                    ) : (
-                      <span className="px-2 py-1 text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => toggleReviewed(u.id, !!u.reviewed)}
-                        className="btn-secondary text-xs"
-                      >
-                        {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
-                      </button>
-                      <button
-                        onClick={() => deleteUpdate(u.id)}
-                        className="text-red-600 dark:text-red-400 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => toggleReviewed(u.id, !!u.reviewed)}
+                      className="btn-secondary text-xs whitespace-nowrap"
+                    >
+                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
+                    </button>
+                    <button
+                      onClick={() => deleteUpdate(u.id)}
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
 
@@ -608,6 +536,18 @@ export function AdminPanel() {
             >
               <Megaphone className="h-4 w-4 mr-2" />
               {showAnnouncementsPanel ? 'Close Announcements' : 'Manage Announcements'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">User Management</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Manage admin users and permissions</p>
+            <button
+              onClick={toggleUserManagement}
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              {showUserManagement ? 'Close Users' : 'Manage Users'}
             </button>
           </div>
         </div>

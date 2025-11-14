@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronUp } from 'lucide-react'
 import { ClubFilters } from '@/types/club'
 
 interface FilterPanelProps {
@@ -8,13 +9,28 @@ interface FilterPanelProps {
   categories: string[]
   frequencies: string[]
   onClear: () => void
+  onToggle?: () => void
+  showToggle?: boolean
 }
 
-export function FilterPanel({ filters, setFilters, categories, frequencies, onClear }: FilterPanelProps) {
+export function FilterPanel({ filters, setFilters, categories, frequencies, onClear, onToggle, showToggle = false }: FilterPanelProps) {
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
     <div className="card p-4 sm:p-6">
+      {/* Desktop toggle at top-left */}
+      {showToggle && onToggle && (
+        <div className="hidden sm:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={onToggle}
+            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <ChevronUp className="h-4 w-4" />
+            <span>Hide Filters</span>
+          </button>
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4">
         {/* Category Filter (multi-select checkboxes) */}
         <div>
@@ -150,6 +166,16 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
         </div>
 
         {/* (Grade level removed — all clubs are for all grades) */}
+      </div>
+      
+      {/* Clear All Filters button at bottom */}
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <button
+          onClick={onClear}
+          className="btn-secondary w-full sm:w-auto"
+        >
+          Clear All Filters
+        </button>
       </div>
     </div>
   )
