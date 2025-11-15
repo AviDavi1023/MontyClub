@@ -11,9 +11,10 @@ interface FilterPanelProps {
   onClear: () => void
   onToggle?: () => void
   showToggle?: boolean
+  canClear?: boolean
 }
 
-export function FilterPanel({ filters, setFilters, categories, frequencies, onClear, onToggle, showToggle = false }: FilterPanelProps) {
+export function FilterPanel({ filters, setFilters, categories, frequencies, onClear, onToggle, showToggle = false, canClear = true }: FilterPanelProps) {
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
@@ -186,7 +187,8 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <button
           onClick={onClear}
-          className="btn-secondary w-full sm:w-auto"
+          disabled={!canClear}
+          className={`w-full sm:w-auto rounded-lg px-4 py-2 font-medium transition-colors shadow-sm hover:shadow ${canClear ? 'btn-secondary' : 'bg-gray-200/60 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
         >
           Clear All Filters
         </button>

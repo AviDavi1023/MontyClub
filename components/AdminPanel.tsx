@@ -395,7 +395,7 @@ export function AdminPanel() {
         ) : (
           <div className="space-y-4">
             {updates.map((u) => (
-              <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div key={u.id} className="p-4 bg-gray-100 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -544,11 +544,37 @@ export function AdminPanel() {
         </div>
       </div>
 
-      {/* User Management */}
+      {/* User Management Modal */}
       {showUserManagement && (
-        <div ref={userManagementRef}>
-          <UserManagement currentUser={currentUser!} showToast={showToast} />
-        </div>
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-in fade-in duration-200"
+            onClick={() => setShowUserManagement(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div 
+              ref={userManagementRef} 
+              className="card max-w-3xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto animate-in zoom-in-95 fade-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h2>
+                <button
+                  onClick={() => setShowUserManagement(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <UserManagement currentUser={currentUser!} showToast={showToast} />
+            </div>
+          </div>
+        </>
       )}
 
       {showAnnouncementsPanel && (
@@ -737,7 +763,7 @@ export function AdminPanel() {
 
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white mb-3">By Category</h3>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-2" style={{ scrollbarGutter: 'stable' }}>
                     {Object.entries(
                       clubs.reduce((acc, club) => {
                         acc[club.category] = (acc[club.category] || 0) + 1
