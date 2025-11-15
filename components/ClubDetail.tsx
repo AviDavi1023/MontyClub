@@ -1,11 +1,12 @@
 
 'use client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Users, Mail, ExternalLink, User, Megaphone } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Mail, ExternalLink, User, Megaphone, Share2, Check } from 'lucide-react'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { Club } from '@/types/club'
 import { SimilarClubs } from '@/components/SimilarClubs'
 import { useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 
 interface ClubDetailProps {
   club: Club
@@ -15,6 +16,35 @@ interface ClubDetailProps {
 export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   const searchParams = useSearchParams()
   const queryString = searchParams?.toString() ? `/?${searchParams.toString()}` : '/'
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/clubs/${club.id}`
+    
+    // Check if Web Share API is available (mobile devices)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: club.name,
+          text: `Check out ${club.name} - ${club.description}`,
+          url: shareUrl,
+        })
+      } catch (err) {
+        // User cancelled share or error occurred
+        console.log('Share cancelled or failed')
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy:', err)
+      }
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
       {/* Back Button */}
@@ -54,6 +84,24 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
               </span>
             </div>
           </div>
+          
+          {/* Share Button */}
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors text-sm sm:text-base whitespace-nowrap"
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Share2 className="h-4 w-4" />
+                Share
+              </>
+            )}
+          </button>
         </div>
 
         <p className="text-gray-700 dark:text-gray-300 text-sm sm:text-lg leading-relaxed mb-4 sm:mb-6">

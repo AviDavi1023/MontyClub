@@ -494,49 +494,50 @@ export function ClubsList() {
           
           <div className="flex items-center gap-3">
             {/* View switcher */}
-            <div className="flex items-center gap-1 border border-gray-300 dark:border-gray-600 rounded-lg p-0.5">
-              <button
-                onClick={() => handleViewModeChange('grid')}
-                className={`p-1.5 rounded transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-                title="Grid view"
-              >
-                <Grid3x3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => handleViewModeChange('list')}
-                className={`p-1.5 rounded transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-                title="List view"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Sort dropdown */}
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span>Sort</span>
-              </label>
-              <select
-                value={filters.sort || 'relevant'}
-                onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
-                className="input-field text-xs sm:text-sm py-2"
-              >
-                <option value="relevant">Relevant</option>
-                <option value="random">Random</option>
-                <option value="az">A-Z</option>
-                <option value="za">Z-A</option>
-              </select>
-            </div>
+                      {/* View Switcher */}
+          <div className="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg p-1">
+            <button
+              onClick={() => handleViewModeChange('grid')}
+              className={`p-2 rounded transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title="Grid view"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleViewModeChange('list')}
+              className={`p-2 rounded transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
           </div>
+
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-2 ml-4">
+            <label className="flex items-center gap-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+              <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Sort</span>
+            </label>
+            <select
+              value={filters.sort || 'relevant'}
+              onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
+              className="input-field text-xs sm:text-sm py-2"
+            >
+              <option value="relevant">Relevant</option>
+              <option value="random">Random</option>
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
+            </select>
+          </div>
+        </div>
         </div>
 
         {filteredClubs.length === 0 ? (
