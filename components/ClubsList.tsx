@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { getClubs } from '@/lib/clubs-client'
 import { ClubCard } from '@/components/ClubCard'
+import { ClubsTable } from '@/components/ClubsTable'
 import { FilterPanel } from '@/components/FilterPanel'
 
 export function ClubsList() {
@@ -15,6 +16,7 @@ export function ClubsList() {
   // Start with filters hidden on mobile, visible on desktop
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const router = useRouter()
   const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
@@ -48,6 +50,24 @@ export function ClubsList() {
     setSearchInput(newFilters.search)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Load view mode preference from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedView = localStorage.getItem('montyclub:viewMode')
+      if (savedView === 'grid' || savedView === 'list') {
+        setViewMode(savedView)
+      }
+    }
+  }, [])
+
+  // Save view mode preference to localStorage
+  const handleViewModeChange = (mode: 'grid' | 'list') => {
+    setViewMode(mode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('montyclub:viewMode', mode)
+    }
+  }
 
   // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
   const isMountedRef = useRef(true)
@@ -416,8 +436,22 @@ export function ClubsList() {
             placeholder="Search clubs, keywords, etc."
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field w-full pl-9 sm:pl-10 text-sm sm:text-base py-2.5 sm:py-2"
+            className="input-field w-full pl-9 sm:pl-10 pr-10 text-sm sm:text-base py-2.5 sm:py-2"
           />
+          {searchInput && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setSearchInput('')
+                if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+                setFiltersAndUpdate({ ...filters, search: '' })
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Show Filters button - only when filters are hidden */}
@@ -453,24 +487,55 @@ export function ClubsList() {
 
       {/* Results */}
       <div className="space-y-3 sm:space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
           
-          {/* Sort dropdown */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort</label>
-            <select
-              value={filters.sort || 'relevant'}
-              onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
-              className="input-field text-xs sm:text-sm py-2"
-            >
-              <option value="relevant">Relevant</option>
-              <option value="random">Random</option>
-              <option value="az">A-Z</option>
-              <option value="za">Z-A</option>
-            </select>
+          <div className="flex items-center gap-3">
+            {/* View switcher */}
+            <div className="flex items-center gap-1 border border-gray-300 dark:border-gray-600 rounded-lg p-0.5">
+              <button
+                onClick={() => handleViewModeChange('grid')}
+                className={`p-1.5 rounded transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+                title="Grid view"
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleViewModeChange('list')}
+                className={`p-1.5 rounded transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+                title="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Sort dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Sort</span>
+              </label>
+              <select
+                value={filters.sort || 'relevant'}
+                onChange={(e) => setFiltersAndUpdate({ ...filters, sort: e.target.value })}
+                className="input-field text-xs sm:text-sm py-2"
+              >
+                <option value="relevant">Relevant</option>
+                <option value="random">Random</option>
+                <option value="az">A-Z</option>
+                <option value="za">Z-A</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -483,12 +548,14 @@ export function ClubsList() {
               Try adjusting your search or filters
             </p>
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {sortedClubs.map(club => (
               <ClubCard key={club.id} club={club} />
             ))}
           </div>
+        ) : (
+          <ClubsTable clubs={sortedClubs} />
         )}
       </div>
     </div>

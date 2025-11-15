@@ -29,6 +29,8 @@ export function AdminPanel() {
   const [refreshingUpdates, setRefreshingUpdates] = useState(false)
   const [showStatistics, setShowStatistics] = useState(false)
   const statisticsRef = useRef<HTMLDivElement | null>(null)
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -198,6 +200,7 @@ export function AdminPanel() {
       refreshData()
       fetchUpdates()
       fetchAnnouncements()
+      fetchSettings()
     }
   }, [isAuthenticated])
 
@@ -221,6 +224,36 @@ export function AdminPanel() {
       }
     }
   }, [showAnnouncementsPanel])
+
+  // When the statistics modal opens, handle ESC and body scroll
+  useEffect(() => {
+    if (showStatistics) {
+      document.body.style.overflow = 'hidden'
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setShowStatistics(false)
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => {
+        document.body.style.overflow = 'unset'
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+  }, [showStatistics])
+
+  // When the user management modal opens, handle ESC and body scroll
+  useEffect(() => {
+    if (showUserManagement) {
+      document.body.style.overflow = 'hidden'
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setShowUserManagement(false)
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => {
+        document.body.style.overflow = 'unset'
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+  }, [showUserManagement])
 
   const fetchAnnouncements = async () => {
     try {
@@ -301,6 +334,45 @@ export function AdminPanel() {
       }
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  const fetchSettings = async () => {
+    try {
+      const resp = await fetch('/api/settings')
+      if (!resp.ok) throw new Error('Failed to fetch settings')
+      const data = await resp.json()
+      setAnnouncementsEnabled(data.announcementsEnabled !== false)
+    } catch (err) {
+      console.error('Error fetching settings:', err)
+    }
+  }
+
+  const toggleAnnouncements = async () => {
+    try {
+      setSavingSettings(true)
+      const newValue = !announcementsEnabled
+      const resp = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcementsEnabled: newValue }),
+      })
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || `Server returned ${resp.status}`)
+      }
+      
+      setAnnouncementsEnabled(newValue)
+      showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
+      
+      // Refresh club data to apply changes
+      await refreshData()
+    } catch (err) {
+      console.error('Error toggling announcements:', err)
+      showToast(`Could not update settings: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+    } finally {
+      setSavingSettings(false)
     }
   }
 
@@ -395,7 +467,7 @@ export function AdminPanel() {
         ) : (
           <div className="space-y-4">
             {updates.map((u) => (
-              <div key={u.id} className="p-4 bg-gray-100 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -539,6 +611,25 @@ export function AdminPanel() {
             >
               <BarChart3 className="h-4 w-4" />
               {showStatistics ? 'Close Statistics' : 'View Statistics'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements Feature</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
+            </p>
+            <button
+              onClick={toggleAnnouncements}
+              disabled={savingSettings}
+              className={`w-full sm:w-auto flex items-center gap-2 ${announcementsEnabled ? 'btn-secondary' : 'btn-primary'}`}
+            >
+              {savingSettings ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Megaphone className="h-4 w-4" />
+              )}
+              {announcementsEnabled ? 'Disable Announcements' : 'Enable Announcements'}
             </button>
           </div>
         </div>
