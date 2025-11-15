@@ -521,7 +521,7 @@ export function ClubsList() {
           </div>
 
           {/* Sort dropdown */}
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2 ml-6">
             <label className="flex items-center gap-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
               <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Sort</span>

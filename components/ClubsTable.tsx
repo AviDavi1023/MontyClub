@@ -35,9 +35,6 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden xl:table-cell">
               Location
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden xl:table-cell">
-              Announcement
-            </th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               <span className="sr-only">View</span>
             </th>
@@ -49,13 +46,21 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
               key={club.id} 
               className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <td className="px-4 py-3 whitespace-nowrap">
-                <Link 
-                  href={`/clubs/${club.id}`}
-                  className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                >
-                  {club.name}
-                </Link>
+              <td className="px-4 py-3">
+                <div className="flex flex-col">
+                  <Link 
+                    href={`/clubs/${club.id}`}
+                    className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  >
+                    {club.name}
+                  </Link>
+                  {club.announcement && (
+                    <div className="flex items-start gap-1 mt-0.5">
+                      <Megaphone className="h-3 w-3 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">{club.announcement}</span>
+                    </div>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-3 whitespace-nowrap">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -73,23 +78,19 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.meetingTime || '—'}</span>
               </td>
               <td className="px-4 py-3 whitespace-nowrap hidden lg:table-cell">
-                <span className="text-sm text-gray-600 dark:text-gray-400">{club.meetingFrequency || '—'}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {club.meetingFrequency 
+                    ? (club.meetingFrequency.length > 30 
+                        ? club.meetingFrequency.substring(0, 30) + '...' 
+                        : club.meetingFrequency)
+                    : '—'}
+                </span>
               </td>
               <td className="px-4 py-3 whitespace-nowrap hidden lg:table-cell">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.advisor || '—'}</span>
               </td>
               <td className="px-4 py-3 whitespace-nowrap hidden xl:table-cell">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.location || '—'}</span>
-              </td>
-              <td className="px-4 py-3 hidden xl:table-cell max-w-xs">
-                {club.announcement ? (
-                  <div className="flex items-start gap-1.5">
-                    <Megaphone className="h-4 w-4 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{club.announcement}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-gray-400 dark:text-gray-500">—</span>
-                )}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-center text-sm">
                 <Link 
