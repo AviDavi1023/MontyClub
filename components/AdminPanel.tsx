@@ -37,7 +37,7 @@ export function AdminPanel() {
   const [analyticsSummary, setAnalyticsSummary] = useState<any | null>(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [clearingAnalytics, setClearingAnalytics] = useState(false)
-  const adminKey = process.env.NEXT_PUBLIC_ADMIN_API_KEY || ''
+  const [adminApiKey, setAdminApiKey] = useState('')
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -46,6 +46,8 @@ export function AdminPanel() {
       if (enabled === 'false') setAnalyticsEnabled(false)
       const period = localStorage.getItem('analytics:period')
       if (period) setAnalyticsPeriod(period)
+      const key = localStorage.getItem('analytics:adminKey')
+      if (key) setAdminApiKey(key)
     } catch {}
   }, [])
 
@@ -63,42 +65,63 @@ export function AdminPanel() {
     showToast(`Period set to '${p}'`)
   }
 
+  const saveAdminApiKey = () => {
+    const k = adminApiKey.trim()
+    setAdminApiKey(k)
+    try { localStorage.setItem('analytics:adminKey', k) } catch {}
+    showToast('Admin API key saved')
+  }
+
   const fetchAnalyticsSummary = async () => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
     setLoadingSummary(true)
     setAnalyticsSummary(null)
     try {
       const resp = await fetch(`/api/analytics/admin/summary?period=${encodeURIComponent(analyticsPeriod)}&max=5000`, {
-        headers: { 'x-admin-key': adminKey }
+        headers: { 'x-admin-key': adminApiKey }
       })
-      if (!resp.ok) throw new Error('Failed to fetch summary')
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${resp.status}`)
+      }
       const data = await resp.json()
       setAnalyticsSummary(data)
       showToast('Analytics summary loaded', 'info')
     } catch (e) {
       console.error('Summary error', e)
-      showToast('Could not load summary', 'error')
+      showToast(`Could not load summary: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
     } finally {
       setLoadingSummary(false)
     }
   }
 
   const clearAnalyticsPeriod = async () => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
     const ok = confirm(`Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`)
     if (!ok) return
     setClearingAnalytics(true)
     try {
       const resp = await fetch('/api/analytics/admin/clear', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
         body: JSON.stringify({ period: analyticsPeriod })
       })
-      if (!resp.ok) throw new Error('Failed to clear')
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${resp.status}`)
+      }
       const data = await resp.json()
       showToast(`Removed ${data.removed || 0} event files`)  
       setAnalyticsSummary(null)
     } catch (e) {
       console.error('Clear error', e)
-      showToast('Could not clear analytics', 'error')
+      showToast(`Could not clear analytics: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
     } finally {
       setClearingAnalytics(false)
     }
@@ -709,19 +732,34 @@ export function AdminPanel() {
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">Pilot Analytics</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Manage temporary usage analytics for pilot testing. Data is anonymous and stored as JSON files you can clear anytime.</p>
-            <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Period Label</label>
-                <input
-                  value={analyticsPeriod}
-                  onChange={(e) => setAnalyticsPeriod(e.target.value)}
-                  className="input-field text-sm"
-                  placeholder="e.g. pilot-1"
-                />
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Admin API Key</label>
+                  <input
+                    type="password"
+                    value={adminApiKey}
+                    onChange={(e) => setAdminApiKey(e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="Enter your ADMIN_API_KEY"
+                  />
+                </div>
+                <button onClick={saveAdminApiKey} className="btn-secondary whitespace-nowrap">Save Key</button>
               </div>
-              <div className="flex gap-2">
-                <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
-                <button onClick={toggleAnalyticsEnabled} className={`whitespace-nowrap flex items-center gap-2 ${analyticsEnabled ? 'btn-secondary' : 'btn-primary'}`}>{analyticsEnabled ? 'Disable Analytics' : 'Enable Analytics'}</button>
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Period Label</label>
+                  <input
+                    value={analyticsPeriod}
+                    onChange={(e) => setAnalyticsPeriod(e.target.value)}
+                    className="input-field text-sm"
+                    placeholder="e.g. pilot-1"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
+                  <button onClick={toggleAnalyticsEnabled} className={`whitespace-nowrap flex items-center gap-2 ${analyticsEnabled ? 'btn-secondary' : 'btn-primary'}`}>{analyticsEnabled ? 'Disable Analytics' : 'Enable Analytics'}</button>
+                </div>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
