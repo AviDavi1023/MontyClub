@@ -4,12 +4,15 @@ import { Club } from '@/types/club'
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { track } from '@/lib/analytics'
+import { useSearchParams } from 'next/navigation'
 
 interface ClubsTableProps {
   clubs: Club[]
 }
 
 export function ClubsTable({ clubs }: ClubsTableProps) {
+  const searchParams = useSearchParams()
+  const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -50,7 +53,7 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
               <td className="px-4 py-3 max-w-xs">
                 <div className="flex flex-col">
                   <Link 
-                    href={`/clubs/${club.id}`}
+                    href={`/clubs/${club.id}${queryString}`}
                     className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                     onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
                   >
@@ -96,7 +99,7 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-center text-sm">
                 <Link 
-                  href={`/clubs/${club.id}`}
+                  href={`/clubs/${club.id}${queryString}`}
                   className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1"
                   onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
                 >

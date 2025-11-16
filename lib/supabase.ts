@@ -3,16 +3,28 @@ import { createClient } from '@supabase/supabase-js'
 // Create a single supabase client for interacting with your database
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const supabase = supabaseUrl && supabaseKey 
   ? createClient(supabaseUrl, supabaseKey)
   : null
 
+// Prefer server-side service role client for Storage ops (in API routes)
+function getStorageClient() {
+  if (typeof window === 'undefined' && supabaseUrl && supabaseServiceKey) {
+    try {
+      return createClient(supabaseUrl, supabaseServiceKey)
+    } catch {}
+  }
+  return supabase
+}
+
 export async function readJSONFromStorage(path: string) {
-  if (!supabase) return null
+  const client = getStorageClient()
+  if (!client) return null
 
   try {
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from('club-data')
       .download(path)
 
@@ -30,14 +42,15 @@ export async function readJSONFromStorage(path: string) {
 }
 
 export async function writeJSONToStorage(path: string, data: any) {
-  if (!supabase) return false
+  const client = getStorageClient()
+  if (!client) return false
 
   try {
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
     })
 
-    const { error } = await supabase.storage
+    const { error } = await client.storage
       .from('club-data')
       .upload(path, blob, {
         upsert: true,
@@ -57,17 +70,17 @@ export async function writeJSONToStorage(path: string, data: any) {
 }
 
 export async function listPaths(prefix: string) {
-  if (!supabase) return []
+  const client = getStorageClient()
+  if (!client) return []
   try {
     const all: string[] = []
     const size = 100
     // paginate through folder
     // Supabase storage list is not recursive, so we iterate shallow and recurse manually
     async function walk(dir: string) {
-      if (!supabase) return
       let from = 0
       while (true) {
-        const storage = supabase.storage
+        const storage = client.storage
         if (!storage) break
         const { data, error } = await storage.from('club-data').list(dir, { limit: size, offset: from })
         if (error) break
@@ -113,9 +126,10 @@ export async function listPaths(prefix: string) {
 }
 
 export async function removePaths(paths: string[]) {
-  if (!supabase || paths.length === 0) return { removed: 0 }
+  const client = getStorageClient()
+  if (!client || paths.length === 0) return { removed: 0 }
   try {
-    const { data, error } = await supabase.storage.from('club-data').remove(paths)
+    const { data, error } = await client.storage.from('club-data').remove(paths)
     if (error) {
       console.warn('Error removing from Supabase:', error)
       return { removed: 0 }
