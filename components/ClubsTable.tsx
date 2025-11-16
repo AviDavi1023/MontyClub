@@ -3,6 +3,7 @@
 import { Club } from '@/types/club'
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
+import { track } from '@/lib/analytics'
 
 interface ClubsTableProps {
   clubs: Club[]
@@ -46,11 +47,12 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
               key={club.id} 
               className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 max-w-xs">
                 <div className="flex flex-col">
                   <Link 
                     href={`/clubs/${club.id}`}
                     className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                    onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
                   >
                     {club.name}
                   </Link>
@@ -96,6 +98,7 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
                 <Link 
                   href={`/clubs/${club.id}`}
                   className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1"
+                  onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
                 >
                   <span className="hidden sm:inline">View</span>
                   <ExternalLink className="h-4 w-4" />
