@@ -744,69 +744,75 @@ export function AdminPanel() {
             </div>
             {analyticsSummary && (
               <div className="mt-6 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Total Events</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{analyticsSummary.totalEvents}</div>
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Distinct Types</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{Object.keys(analyticsSummary.byType || {}).length}</div>
-                  </div>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Club Opens</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{Object.values(analyticsSummary.clubOpens || {}).reduce((a: number, b: number) => a + b, 0)}</div>
-                  </div>
-                </div>
-                {/* Event Type Breakdown */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Events By Type</h4>
-                  <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                    {Object.entries(analyticsSummary.byType || {}).sort((a:any,b:any)=>b[1]-a[1]).map(([t,c]) => (
-                      <div key={t} className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">{t}</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                {(() => {
+                  const byTypeEntries = (Object.entries(analyticsSummary.byType || {}) as [string, unknown][])
+                  const clubOpenEntries = (Object.entries(analyticsSummary.clubOpens || {}) as [string, unknown][])
+                  const shareEntries = (Object.entries(analyticsSummary.shares || {}) as [string, unknown][])
+                  const totalClubOpens = clubOpenEntries.reduce((a, [, v]) => a + Number(v), 0)
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Total Events</div>
+                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{analyticsSummary.totalEvents}</div>
+                        </div>
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Distinct Types</div>
+                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{byTypeEntries.length}</div>
+                        </div>
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Club Opens</div>
+                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{totalClubOpens}</div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-                {/* Top Clubs Opens */}
-                {Object.keys(analyticsSummary.clubOpens || {}).length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Club Opens</h4>
-                    <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                      {Object.entries(analyticsSummary.clubOpens || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0,10).map(([id,c]) => (
-                        <div key={id} className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Events By Type</h4>
+                        <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                          {byTypeEntries.sort((a, b) => Number(b[1]) - Number(a[1])).map(([t, c]) => (
+                            <div key={t} className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">{t}</span>
+                              <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Shares */}
-                {Object.keys(analyticsSummary.shares || {}).length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Shares</h4>
-                    <div className="space-y-1 max-h-32 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                      {Object.entries(analyticsSummary.shares || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0,10).map(([id,c]) => (
-                        <div key={id} className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                      </div>
+                      {clubOpenEntries.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Club Opens</h4>
+                          <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                            {clubOpenEntries.sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10).map(([id, c]) => (
+                              <div key={id} className="flex justify-between">
+                                <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Sample */}
-                {analyticsSummary.sample && analyticsSummary.sample.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sample Events (first {analyticsSummary.sample.length})</h4>
-                    <pre className="text-[11px] bg-gray-900/80 text-gray-100 p-3 rounded overflow-x-auto max-h-64" style={{ scrollbarGutter: 'stable' }}>
+                      )}
+                      {shareEntries.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Shares</h4>
+                          <div className="space-y-1 max-h-32 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                            {shareEntries.sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10).map(([id, c]) => (
+                              <div key={id} className="flex justify-between">
+                                <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {analyticsSummary.sample && analyticsSummary.sample.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sample Events (first {analyticsSummary.sample.length})</h4>
+                          <pre className="text-[11px] bg-gray-900/80 text-gray-100 p-3 rounded overflow-x-auto max-h-64" style={{ scrollbarGutter: 'stable' }}>
 {JSON.stringify(analyticsSummary.sample, null, 2)}
-                    </pre>
-                  </div>
-                )}
+                          </pre>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             )}
             {!analyticsSummary && !loadingSummary && (
