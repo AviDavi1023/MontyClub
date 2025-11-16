@@ -60,21 +60,20 @@ export async function listPaths(prefix: string) {
   if (!supabase) return []
   try {
     const all: string[] = []
-    let page = 0
     const size = 100
     // paginate through folder
     // Supabase storage list is not recursive, so we iterate shallow and recurse manually
     async function walk(dir: string) {
+      if (!supabase) return
       let from = 0
       while (true) {
-        const { data, error } = await supabase.storage.from('club-data').list(dir, { limit: size, offset: from })
+        const storage = supabase.storage
+        if (!storage) break
+        const { data, error } = await storage.from('club-data').list(dir, { limit: size, offset: from })
         if (error) break
         if (!data || data.length === 0) break
         for (const item of data) {
           if (item.name.endsWith('/')) continue
-          if (item.id) {
-            // newer SDK returns id/name; build path from dir+name
-          }
           const childPath = dir ? `${dir}/${item.name}` : item.name
           if (item.metadata && (item as any).metadata?.size === 0 && item.name.endsWith('/')) {
             // folder marker, skip
