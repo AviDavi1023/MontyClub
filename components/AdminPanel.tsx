@@ -31,6 +31,78 @@ export function AdminPanel() {
   const statisticsRef = useRef<HTMLDivElement | null>(null)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
+  // Analytics Pilot State
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true)
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('pilot')
+  const [analyticsSummary, setAnalyticsSummary] = useState<any | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
+  const [clearingAnalytics, setClearingAnalytics] = useState(false)
+  const adminKey = process.env.NEXT_PUBLIC_ADMIN_API_KEY || ''
+
+  // Load analytics settings from localStorage
+  useEffect(() => {
+    try {
+      const enabled = localStorage.getItem('analytics:enabled')
+      if (enabled === 'false') setAnalyticsEnabled(false)
+      const period = localStorage.getItem('analytics:period')
+      if (period) setAnalyticsPeriod(period)
+    } catch {}
+  }, [])
+
+  const toggleAnalyticsEnabled = () => {
+    const next = !analyticsEnabled
+    setAnalyticsEnabled(next)
+    try { localStorage.setItem('analytics:enabled', String(next)) } catch {}
+    showToast(`Analytics ${next ? 'enabled' : 'disabled'}`)
+  }
+
+  const saveAnalyticsPeriod = () => {
+    const p = analyticsPeriod.trim() || 'pilot'
+    setAnalyticsPeriod(p)
+    try { localStorage.setItem('analytics:period', p) } catch {}
+    showToast(`Period set to '${p}'`)
+  }
+
+  const fetchAnalyticsSummary = async () => {
+    setLoadingSummary(true)
+    setAnalyticsSummary(null)
+    try {
+      const resp = await fetch(`/api/analytics/admin/summary?period=${encodeURIComponent(analyticsPeriod)}&max=5000`, {
+        headers: { 'x-admin-key': adminKey }
+      })
+      if (!resp.ok) throw new Error('Failed to fetch summary')
+      const data = await resp.json()
+      setAnalyticsSummary(data)
+      showToast('Analytics summary loaded', 'info')
+    } catch (e) {
+      console.error('Summary error', e)
+      showToast('Could not load summary', 'error')
+    } finally {
+      setLoadingSummary(false)
+    }
+  }
+
+  const clearAnalyticsPeriod = async () => {
+    const ok = confirm(`Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`)
+    if (!ok) return
+    setClearingAnalytics(true)
+    try {
+      const resp = await fetch('/api/analytics/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ period: analyticsPeriod })
+      })
+      if (!resp.ok) throw new Error('Failed to clear')
+      const data = await resp.json()
+      showToast(`Removed ${data.removed || 0} event files`)  
+      setAnalyticsSummary(null)
+    } catch (e) {
+      console.error('Clear error', e)
+      showToast('Could not clear analytics', 'error')
+    } finally {
+      setClearingAnalytics(false)
+    }
+  }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = `${Date.now()}-${Math.random()}`
@@ -631,6 +703,115 @@ export function AdminPanel() {
               )}
               {announcementsEnabled ? 'Disable Announcements' : 'Enable Announcements'}
             </button>
+          </div>
+
+          {/* Pilot Analytics */}
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">Pilot Analytics</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Manage temporary usage analytics for pilot testing. Data is anonymous and stored as JSON files you can clear anytime.</p>
+            <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Period Label</label>
+                <input
+                  value={analyticsPeriod}
+                  onChange={(e) => setAnalyticsPeriod(e.target.value)}
+                  className="input-field text-sm"
+                  placeholder="e.g. pilot-1"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
+                <button onClick={toggleAnalyticsEnabled} className={`whitespace-nowrap flex items-center gap-2 ${analyticsEnabled ? 'btn-secondary' : 'btn-primary'}`}>{analyticsEnabled ? 'Disable Analytics' : 'Enable Analytics'}</button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={fetchAnalyticsSummary}
+                disabled={loadingSummary}
+                className="btn-primary flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingSummary ? 'animate-spin' : ''}`} />
+                {loadingSummary ? 'Loading Summary...' : 'Load Summary'}
+              </button>
+              <button
+                onClick={clearAnalyticsPeriod}
+                disabled={clearingAnalytics}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                {clearingAnalytics ? 'Clearing...' : 'Clear Period'}
+              </button>
+            </div>
+            {analyticsSummary && (
+              <div className="mt-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Total Events</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{analyticsSummary.totalEvents}</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Distinct Types</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{Object.keys(analyticsSummary.byType || {}).length}</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Club Opens</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{Object.values(analyticsSummary.clubOpens || {}).reduce((a: number, b: number) => a + b, 0)}</div>
+                  </div>
+                </div>
+                {/* Event Type Breakdown */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Events By Type</h4>
+                  <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                    {Object.entries(analyticsSummary.byType || {}).sort((a:any,b:any)=>b[1]-a[1]).map(([t,c]) => (
+                      <div key={t} className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">{t}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Top Clubs Opens */}
+                {Object.keys(analyticsSummary.clubOpens || {}).length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Club Opens</h4>
+                    <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                      {Object.entries(analyticsSummary.clubOpens || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0,10).map(([id,c]) => (
+                        <div key={id} className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Shares */}
+                {Object.keys(analyticsSummary.shares || {}).length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Shares</h4>
+                    <div className="space-y-1 max-h-32 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
+                      {Object.entries(analyticsSummary.shares || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0,10).map(([id,c]) => (
+                        <div key={id} className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{c as any}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Sample */}
+                {analyticsSummary.sample && analyticsSummary.sample.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sample Events (first {analyticsSummary.sample.length})</h4>
+                    <pre className="text-[11px] bg-gray-900/80 text-gray-100 p-3 rounded overflow-x-auto max-h-64" style={{ scrollbarGutter: 'stable' }}>
+{JSON.stringify(analyticsSummary.sample, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+            {!analyticsSummary && !loadingSummary && (
+              <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">No summary loaded yet.</p>
+            )}
           </div>
         </div>
       </div>
