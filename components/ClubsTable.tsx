@@ -4,7 +4,8 @@ import { Club } from '@/types/club'
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { track } from '@/lib/analytics'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useCallback } from 'react'
 
 interface ClubsTableProps {
   clubs: Club[]
@@ -12,7 +13,16 @@ interface ClubsTableProps {
 
 export function ClubsTable({ clubs }: ClubsTableProps) {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+
+  const navigateToClub = useCallback((club: Club) => {
+    setLoadingId(club.id)
+    track('ClubOpen', { id: club.id, name: club.name })
+    // navigation will unmount component shortly; spinner gives immediate feedback
+    router.push(`/clubs/${club.id}${queryString}`)
+  }, [router, queryString])
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -46,19 +56,27 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {clubs.map((club) => (
-            <tr 
-              key={club.id} 
-              className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            <tr
+              key={club.id}
+              role="link"
+              tabIndex={0}
+              aria-label={`View details for ${club.name}`}
+              onClick={() => navigateToClub(club)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  navigateToClub(club)
+                }
+              }}
+              className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
             >
               <td className="px-4 py-3 max-w-xs">
                 <div className="flex flex-col">
-                  <Link 
-                    href={`/clubs/${club.id}${queryString}`}
-                    className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                    onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
+                  <span 
+                    className="text-sm font-medium text-gray-900 dark:text-white transition-colors"
                   >
                     {club.name}
-                  </Link>
+                  </span>
                   {club.announcement && (
                     <div className="flex items-start gap-1 mt-0.5">
                       <Megaphone className="h-3 w-3 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
@@ -79,17 +97,11 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
               <td className="px-4 py-3 whitespace-nowrap">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.category}</span>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap hidden md:table-cell">
-                <span className="text-sm text-gray-600 dark:text-gray-400">{club.meetingTime || '—'}</span>
+              <td className="px-4 py-3 hidden md:table-cell">
+                <span className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 break-words">{club.meetingTime || '—'}</span>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap hidden lg:table-cell">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {club.meetingFrequency 
-                    ? (club.meetingFrequency.length > 30 
-                        ? club.meetingFrequency.substring(0, 30) + '...' 
-                        : club.meetingFrequency)
-                    : '—'}
-                </span>
+              <td className="px-4 py-3 hidden lg:table-cell">
+                <span className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 break-words">{club.meetingFrequency || '—'}</span>
               </td>
               <td className="px-4 py-3 whitespace-nowrap hidden lg:table-cell">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.advisor || '—'}</span>
@@ -98,14 +110,17 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.location || '—'}</span>
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-center text-sm">
-                <Link 
-                  href={`/clubs/${club.id}${queryString}`}
-                  className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1"
-                  onClick={() => track('ClubOpen', { id: club.id, name: club.name })}
-                >
-                  <span className="hidden sm:inline">View</span>
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
+                {loadingId === club.id ? (
+                  <div className="inline-flex items-center justify-center">
+                    <span className="sr-only">Loading</span>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-600 border-t-transparent"></div>
+                  </div>
+                ) : (
+                  <span className="text-primary-600 dark:text-primary-400 inline-flex items-center gap-1">
+                    <span className="hidden sm:inline">View</span>
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                )}
               </td>
             </tr>
           ))}
