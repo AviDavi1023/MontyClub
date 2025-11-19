@@ -52,38 +52,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Send denial email
-    const emailContent = {
-      to: registration.email,
-      subject: `Club Charter Request Update - ${registration.clubName}`,
-      body: `
-Dear ${registration.advisorName},
-
-Thank you for submitting your club charter request for "${registration.clubName}". After review, we are unable to approve this request at this time.
-
-${reason ? `\nReason:\n${reason}\n` : ''}
-Submitted Information:
-- Club Name: ${registration.clubName}
-- Advisor: ${registration.advisorName}
-- Statement of Purpose: ${registration.statementOfPurpose}
-- Location: ${registration.location}
-- Meeting Day: ${registration.meetingDay}
-- Meeting Frequency: ${registration.meetingFrequency}
-- Student Contact: ${registration.studentContactName} (${registration.studentContactEmail})
-
-If you have questions or would like to resubmit with modifications, please contact ASB.
-
-Best regards,
-ASB Club Management
-      `.trim()
-    }
-
-    console.log('Denial email to send:', emailContent)
-
     return NextResponse.json({ 
       success: true,
-      message: 'Registration denied',
-      emailSent: false // Will be true once email service is integrated
+      message: 'Registration denied'
     })
   } catch (error) {
     console.error('Error denying registration:', error)

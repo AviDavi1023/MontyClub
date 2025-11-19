@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
-import { ClubRegistration } from '@/types/club'
+import { removePaths } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,37 +25,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Read the registration
     const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
     const path = `registrations/${collectionSlug}/${registrationId}.json`
-    const registration: ClubRegistration | null = await readJSONFromStorage(path)
 
-    if (!registration) {
-      return NextResponse.json(
-        { error: 'Registration not found' },
-        { status: 404 }
-      )
-    }
+    const result = await removePaths([path])
 
-    // Update status to approved
-    registration.status = 'approved'
-
-    // Save updated registration
-    const success = await writeJSONToStorage(path, registration)
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to update registration' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ 
-      success: true,
-      message: 'Registration approved'
-    })
+    return NextResponse.json({ success: result.removed > 0 })
   } catch (error) {
-    console.error('Error approving registration:', error)
+    console.error('Error deleting registration:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
