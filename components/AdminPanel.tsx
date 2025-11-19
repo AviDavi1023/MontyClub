@@ -300,7 +300,7 @@ export function AdminPanel() {
     }
   }
 
-  const toggleReviewed = async (id: string, current: boolean) => {
+  const toggleReviewed = async (id: string, current: boolean, skipToast = false, skipStateUpdate = false) => {
     try {
       const resp = await fetch(`/api/updates/${id}`, {
         method: 'PATCH',
@@ -314,17 +314,26 @@ export function AdminPanel() {
       }
       
       const updated = await resp.json()
-      setUpdates(prev => prev.map(u => (String(u.id) === String(id) ? updated : u)))
-      showToast(`Marked as ${!current ? 'reviewed' : 'unreviewed'}`)
+      if (!skipStateUpdate) {
+        setUpdates(prev => prev.map(u => (String(u.id) === String(id) ? updated : u)))
+      }
+      if (!skipToast) {
+        showToast(`Marked as ${!current ? 'reviewed' : 'unreviewed'}`)
+      }
     } catch (err) {
       console.error('Error toggling reviewed:', err)
-      showToast(`Could not update status: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      if (!skipToast) {
+        showToast(`Could not update status: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      }
+      throw err
     }
   }
 
-  const deleteUpdate = async (id: string) => {
-    const ok = confirm('Delete this update request? This cannot be undone.')
-    if (!ok) return
+  const deleteUpdate = async (id: string, skipConfirm = false, skipToast = false, skipStateUpdate = false) => {
+    if (!skipConfirm) {
+      const ok = confirm('Delete this update request? This cannot be undone.')
+      if (!ok) return
+    }
 
     try {
       const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
@@ -335,11 +344,18 @@ export function AdminPanel() {
       }
       
       const removed = await resp.json()
-      setUpdates(prev => prev.filter(u => String(u.id) !== String(id)))
-      showToast('Update request deleted')
+      if (!skipStateUpdate) {
+        setUpdates(prev => prev.filter(u => String(u.id) !== String(id)))
+      }
+      if (!skipToast) {
+        showToast('Update request deleted')
+      }
     } catch (err) {
       console.error('Error deleting update:', err)
-      showToast(`Could not delete update: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      if (!skipToast) {
+        showToast(`Could not delete update: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      }
+      throw err
     }
   }
 
@@ -647,25 +663,69 @@ export function AdminPanel() {
                   <>
                     <button
                       onClick={async () => {
-                        for (const id of Array.from(selectedUpdateIds)) {
+                        const ids = Array.from(selectedUpdateIds)
+                        let successCount = 0
+                        let errorCount = 0
+                        
+                        // Update each item without optimistic state updates or toasts
+                        for (const id of ids) {
                           const item = updates.find(u => String(u.id) === String(id))
                           if (!item || item.reviewed) continue
-                          await toggleReviewed(String(id), false)
+                          try {
+                            await toggleReviewed(String(id), false, true, true)
+                            successCount++
+                          } catch (err) {
+                            errorCount++
+                          }
                         }
-                        setSelectedUpdateIds(new Set())
+                        
+                        // Small delay to ensure writes are flushed
+                        await new Promise(resolve => setTimeout(resolve, 200))
+                        
+                        // Refresh from source of truth
                         await fetchUpdates()
+                        setSelectedUpdateIds(new Set())
+                        
+                        if (successCount > 0) {
+                          showToast(`Marked ${successCount} as reviewed`)
+                        }
+                        if (errorCount > 0) {
+                          showToast(`Failed to update ${errorCount} items`, 'error')
+                        }
                       }}
                       className="btn-secondary text-xs"
                     >Mark Reviewed</button>
                     <button
                       onClick={async () => {
-                        for (const id of Array.from(selectedUpdateIds)) {
+                        const ids = Array.from(selectedUpdateIds)
+                        let successCount = 0
+                        let errorCount = 0
+                        
+                        // Update each item without optimistic state updates or toasts
+                        for (const id of ids) {
                           const item = updates.find(u => String(u.id) === String(id))
                           if (!item || !item.reviewed) continue
-                          await toggleReviewed(String(id), true)
+                          try {
+                            await toggleReviewed(String(id), true, true, true)
+                            successCount++
+                          } catch (err) {
+                            errorCount++
+                          }
                         }
-                        setSelectedUpdateIds(new Set())
+                        
+                        // Small delay to ensure writes are flushed
+                        await new Promise(resolve => setTimeout(resolve, 200))
+                        
+                        // Refresh from source of truth
                         await fetchUpdates()
+                        setSelectedUpdateIds(new Set())
+                        
+                        if (successCount > 0) {
+                          showToast(`Marked ${successCount} as unreviewed`)
+                        }
+                        if (errorCount > 0) {
+                          showToast(`Failed to update ${errorCount} items`, 'error')
+                        }
                       }}
                       className="btn-secondary text-xs"
                     >Mark Unreviewed</button>
@@ -673,11 +733,31 @@ export function AdminPanel() {
                       onClick={async () => {
                         const ok = confirm(`Delete ${selectedUpdateIds.size} selected update request(s)? This cannot be undone.`)
                         if (!ok) return
+                        
+                        let successCount = 0
+                        let errorCount = 0
+                        
                         for (const id of Array.from(selectedUpdateIds)) {
-                          await deleteUpdate(String(id))
+                          try {
+                            await deleteUpdate(String(id), true, true, true)
+                            successCount++
+                          } catch (err) {
+                            errorCount++
+                          }
                         }
-                        setSelectedUpdateIds(new Set())
+                        
+                        // Small delay to ensure writes are flushed
+                        await new Promise(resolve => setTimeout(resolve, 200))
+                        
                         await fetchUpdates()
+                        setSelectedUpdateIds(new Set())
+                        
+                        if (successCount > 0) {
+                          showToast(`Deleted ${successCount} update request(s)`)
+                        }
+                        if (errorCount > 0) {
+                          showToast(`Failed to delete ${errorCount} items`, 'error')
+                        }
                       }}
                       className="text-red-600 dark:text-red-400 text-xs"
                     >Delete</button>
