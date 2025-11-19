@@ -30,3 +30,20 @@ export interface ClubFilters {
   // Sorting option: 'relevant' | 'random' | 'az' | 'za'
   sort?: string
 }
+
+export interface ClubRegistration {
+  id: string
+  email: string
+  clubName: string
+  advisorName: string // "Last Name (First Initial)"
+  statementOfPurpose: string
+  location: string
+  meetingDay: string
+  meetingFrequency: string
+  studentContactName: string
+  studentContactEmail: string
+  advisorAgreementDate: string
+  clubAgreementDate: string
+  submittedAt: string
+  status: 'pending' | 'approved' | 'rejected'
+}

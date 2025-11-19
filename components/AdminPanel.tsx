@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3 } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet } from 'lucide-react'
 import { Club } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
+import { RegistrationsList } from '@/components/RegistrationsList'
 
 export function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -38,6 +39,8 @@ export function AdminPanel() {
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [clearingAnalytics, setClearingAnalytics] = useState(false)
   const [adminApiKey, setAdminApiKey] = useState('')
+  const [showRegistrations, setShowRegistrations] = useState(false)
+  const registrationsRef = useRef<HTMLDivElement | null>(null)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -349,6 +352,21 @@ export function AdminPanel() {
       }
     }
   }, [showUserManagement])
+
+  // When the registrations modal opens, handle ESC and body scroll
+  useEffect(() => {
+    if (showRegistrations) {
+      document.body.style.overflow = 'hidden'
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setShowRegistrations(false)
+      }
+      document.addEventListener('keydown', handleEscape)
+      return () => {
+        document.body.style.overflow = 'unset'
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+  }, [showRegistrations])
 
   const fetchAnnouncements = async () => {
     try {
@@ -857,6 +875,19 @@ export function AdminPanel() {
               <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">No summary loaded yet.</p>
             )}
           </div>
+
+          {/* Club Registrations */}
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registrations</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View and manage club charter requests</p>
+            <button
+              onClick={() => setShowRegistrations(!showRegistrations)}
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {showRegistrations ? 'Close Registrations' : 'View Registrations'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1096,6 +1127,44 @@ export function AdminPanel() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Registrations Modal */}
+      {showRegistrations && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-in fade-in duration-200"
+            onClick={() => setShowRegistrations(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div 
+              ref={registrationsRef} 
+              className="card max-w-7xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto animate-in zoom-in-95 fade-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Registrations</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Share this link: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club</a>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowRegistrations(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <RegistrationsList adminApiKey={adminApiKey} />
             </div>
           </div>
         </>
