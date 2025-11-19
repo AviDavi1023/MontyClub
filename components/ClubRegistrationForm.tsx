@@ -41,9 +41,17 @@ export function ClubRegistrationForm() {
     try {
       const finalFrequency = meetingFrequency === 'Other' ? customFrequency : meetingFrequency
 
+      if (!meetingDay) {
+        setError('Please select at least one meeting day.')
+        setSubmitting(false)
+        document.getElementById('meetingDaySection')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
       if (!finalFrequency && meetingFrequency === 'Other') {
         setError('Please specify your custom frequency.')
         setSubmitting(false)
+        document.getElementById('meetingFrequency')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         return
       }
 
@@ -95,6 +103,10 @@ export function ClubRegistrationForm() {
   }
 
   if (submitted) {
+    // Scroll to top when success screen shows
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-8 text-center">
@@ -213,24 +225,36 @@ export function ClubRegistrationForm() {
         </div>
 
         {/* Meeting Day */}
-        <div className="mb-6">
-          <label htmlFor="meetingDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <div id="meetingDaySection" className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Meeting Day of Week <span className="text-red-500">*</span>
           </label>
-          <select
-            id="meetingDay"
-            required
-            value={meetingDay}
-            onChange={(e) => setMeetingDay(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          >
-            <option value="">Select a day</option>
-            <option value="Monday">Monday</option>
-            <option value="Tuesday">Tuesday</option>
-            <option value="Wednesday">Wednesday</option>
-            <option value="Thursday">Thursday</option>
-            <option value="Friday">Friday</option>
-          </select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Select all days that apply
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+              <label key={day} className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={meetingDay.includes(day)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setMeetingDay(meetingDay ? `${meetingDay}, ${day}` : day)
+                    } else {
+                      const days = meetingDay.split(', ').filter(d => d !== day)
+                      setMeetingDay(days.join(', '))
+                    }
+                  }}
+                  className="flex-shrink-0"
+                />
+                <span className="text-sm text-gray-900 dark:text-white">{day}</span>
+              </label>
+            ))}
+          </div>
+          {!meetingDay && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">Please select at least one day</p>
+          )}
         </div>
 
         {/* Meeting Frequency */}

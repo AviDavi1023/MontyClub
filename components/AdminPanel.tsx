@@ -728,6 +728,23 @@ export function AdminPanel() {
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registrations</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View submissions and share registration form</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowRegistrations(!showRegistrations)}
+                className="btn-primary w-full sm:w-auto flex items-center gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {showRegistrations ? 'Close Registrations' : 'View Registrations'}
+              </button>
+              <div className="text-xs text-gray-600 dark:text-gray-400">
+                Share: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club`} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline break-all">/register-club</a>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements Feature</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
