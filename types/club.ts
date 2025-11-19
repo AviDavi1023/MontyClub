@@ -46,4 +46,6 @@ export interface ClubRegistration {
   clubAgreementDate: string
   submittedAt: string
   status: 'pending' | 'approved' | 'rejected'
+  collection: string // e.g., "2025 Club Requests"
+  denialReason?: string // Optional reason for rejection
 }

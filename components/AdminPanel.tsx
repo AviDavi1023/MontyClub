@@ -41,6 +41,9 @@ export function AdminPanel() {
   const [adminApiKey, setAdminApiKey] = useState('')
   const [showRegistrations, setShowRegistrations] = useState(false)
   const registrationsRef = useRef<HTMLDivElement | null>(null)
+  const [registrationEnabled, setRegistrationEnabled] = useState(true)
+  const [activeCollection, setActiveCollection] = useState('')
+  const [loadingRegSettings, setLoadingRegSettings] = useState(false)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -52,6 +55,21 @@ export function AdminPanel() {
       const key = localStorage.getItem('analytics:adminKey')
       if (key) setAdminApiKey(key)
     } catch {}
+  }, [])
+
+  // Load registration settings
+  useEffect(() => {
+    const loadRegSettings = async () => {
+      try {
+        const resp = await fetch('/api/registration-settings')
+        const data = await resp.json()
+        setRegistrationEnabled(data.enabled)
+        setActiveCollection(data.activeCollection)
+      } catch (err) {
+        console.error('Failed to load registration settings:', err)
+      }
+    }
+    loadRegSettings()
   }, [])
 
   const toggleAnalyticsEnabled = () => {
@@ -73,6 +91,37 @@ export function AdminPanel() {
     setAdminApiKey(k)
     try { localStorage.setItem('analytics:adminKey', k) } catch {}
     showToast('Admin API key saved')
+  }
+
+  const saveRegistrationSettings = async () => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    if (!activeCollection.trim()) {
+      showToast('Collection name is required', 'error')
+      return
+    }
+    setLoadingRegSettings(true)
+    try {
+      const resp = await fetch('/api/registration-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify({
+          enabled: registrationEnabled,
+          activeCollection: activeCollection.trim()
+        })
+      })
+      if (!resp.ok) throw new Error('Failed to save settings')
+      showToast('Registration settings saved')
+    } catch (err) {
+      showToast('Failed to save registration settings', 'error')
+    } finally {
+      setLoadingRegSettings(false)
+    }
   }
 
   const fetchAnalyticsSummary = async () => {
@@ -729,11 +778,40 @@ export function AdminPanel() {
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registrations</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View submissions and share registration form</p>
-            <div className="space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View submissions and manage registration form</p>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Collection Name</label>
+                <input
+                  type="text"
+                  value={activeCollection}
+                  onChange={(e) => setActiveCollection(e.target.value)}
+                  placeholder="e.g., 2025 Club Requests"
+                  className="input-field text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRegistrationEnabled(!registrationEnabled)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    registrationEnabled 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                  }`}
+                >
+                  {registrationEnabled ? 'Form Enabled' : 'Form Disabled'}
+                </button>
+                <button
+                  onClick={saveRegistrationSettings}
+                  disabled={loadingRegSettings}
+                  className="btn-primary px-4 py-2 text-sm"
+                >
+                  {loadingRegSettings ? 'Saving...' : 'Save'}
+                </button>
+              </div>
               <button
                 onClick={() => setShowRegistrations(!showRegistrations)}
-                className="btn-primary w-full sm:w-auto flex items-center gap-2"
+                className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 <FileSpreadsheet className="h-4 w-4" />
                 {showRegistrations ? 'Close Registrations' : 'View Registrations'}

@@ -6,6 +6,17 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if registration is enabled
+    const settingsResp = await fetch(`${request.nextUrl.origin}/api/registration-settings`)
+    const settings = await settingsResp.json()
+    
+    if (!settings.enabled) {
+      return NextResponse.json(
+        { error: 'Registration is currently closed' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const {
       email,
@@ -47,11 +58,13 @@ export async function POST(request: NextRequest) {
       advisorAgreementDate,
       clubAgreementDate,
       submittedAt: new Date().toISOString(),
-      status: 'pending'
+      status: 'pending',
+      collection: settings.activeCollection
     }
 
-    // Store in Supabase
-    const path = `registrations/${id}.json`
+    // Store in Supabase under collection folder
+    const collectionSlug = settings.activeCollection.toLowerCase().replace(/\s+/g, '-')
+    const path = `registrations/${collectionSlug}/${id}.json`
     const success = await writeJSONToStorage(path, registration)
 
     if (!success) {
@@ -87,16 +100,31 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const { searchParams } = new URL(request.url)
+    const collection = searchParams.get('collection')
+
     // Get all registrations from storage
     const { listPaths, readJSONFromStorage } = await import('@/lib/supabase')
-    const paths = await listPaths('registrations')
+    
+    let paths: string[] = []
+    if (collection) {
+      const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
+      paths = await listPaths(`registrations/${collectionSlug}`)
+    } else {
+      paths = await listPaths('registrations')
+    }
     
     const registrations: ClubRegistration[] = []
+    const collections = new Set<string>()
+    
     for (const path of paths) {
       if (path.endsWith('.json')) {
         const data = await readJSONFromStorage(path)
         if (data) {
           registrations.push(data)
+          if (data.collection) {
+            collections.add(data.collection)
+          }
         }
       }
     }
@@ -106,7 +134,10 @@ export async function GET(request: NextRequest) {
       new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     )
 
-    return NextResponse.json({ registrations })
+    return NextResponse.json({ 
+      registrations,
+      collections: Array.from(collections).sort()
+    })
   } catch (error) {
     console.error('Error fetching registrations:', error)
     return NextResponse.json(

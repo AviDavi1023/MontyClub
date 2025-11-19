@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
-import { Send, CheckCircle2 } from 'lucide-react'
+import { useState, FormEvent, useEffect } from 'react'
+import { Send, CheckCircle2, XCircle } from 'lucide-react'
 
 export function ClubRegistrationForm() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  const [formEnabled, setFormEnabled] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   // Form state
   const [email, setEmail] = useState('')
@@ -21,6 +23,23 @@ export function ClubRegistrationForm() {
   const [studentContactEmail, setStudentContactEmail] = useState('')
   const [advisorAgreementDate, setAdvisorAgreementDate] = useState('')
   const [clubAgreementDate, setClubAgreementDate] = useState('')
+
+  // Check if form is enabled
+  useEffect(() => {
+    const checkFormStatus = async () => {
+      try {
+        const response = await fetch('/api/registration-settings')
+        const data = await response.json()
+        setFormEnabled(data.enabled)
+      } catch (err) {
+        console.error('Error checking form status:', err)
+        setFormEnabled(true) // Default to enabled on error
+      } finally {
+        setLoading(false)
+      }
+    }
+    checkFormStatus()
+  }, [])
 
   const frequencyOptions = [
     'Weekly',
@@ -75,6 +94,9 @@ export function ClubRegistrationForm() {
 
       if (!response.ok) {
         const data = await response.json()
+        if (response.status === 403) {
+          throw new Error('Registration is currently closed. Please check back later.')
+        }
         throw new Error(data.error || 'Failed to submit registration')
       }
 
@@ -100,6 +122,30 @@ export function ClubRegistrationForm() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 flex items-center justify-center min-h-[400px]">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary-600 border-t-transparent"></div>
+      </div>
+    )
+  }
+
+  if (!formEnabled) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 text-center">
+          <XCircle className="h-16 w-16 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-yellow-900 dark:text-yellow-100 mb-2">
+            Registration Closed
+          </h2>
+          <p className="text-yellow-700 dark:text-yellow-300">
+            Club registration is currently closed. Please check back later or contact ASB for more information.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {
