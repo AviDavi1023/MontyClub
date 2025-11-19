@@ -21,17 +21,6 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [filters, setFilters] = useState<{[k:string]: string}>({
-    status: '',
-    clubName: '',
-    advisorName: '',
-    email: '',
-    meetingDay: '',
-    meetingFrequency: '',
-    studentContactName: '',
-    studentContactEmail: '',
-    location: ''
-  })
 
   const loadRegistrations = async () => {
     setLoading(true)
@@ -67,19 +56,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
     }
   }, [adminApiKey, selectedCollection])
 
-  const filtered = registrations.filter(r => {
-    const f = filters
-    if (f.status && r.status.toLowerCase().indexOf(f.status.toLowerCase()) === -1) return false
-    if (f.clubName && r.clubName.toLowerCase().indexOf(f.clubName.toLowerCase()) === -1) return false
-    if (f.advisorName && r.advisorName.toLowerCase().indexOf(f.advisorName.toLowerCase()) === -1) return false
-    if (f.email && r.email.toLowerCase().indexOf(f.email.toLowerCase()) === -1) return false
-    if (f.meetingDay && (r.meetingDay || '').toLowerCase().indexOf(f.meetingDay.toLowerCase()) === -1) return false
-    if (f.meetingFrequency && (r.meetingFrequency || '').toLowerCase().indexOf(f.meetingFrequency.toLowerCase()) === -1) return false
-    if (f.studentContactName && (r.studentContactName || '').toLowerCase().indexOf(f.studentContactName.toLowerCase()) === -1) return false
-    if (f.studentContactEmail && (r.studentContactEmail || '').toLowerCase().indexOf(f.studentContactEmail.toLowerCase()) === -1) return false
-    if (f.location && (r.location || '').toLowerCase().indexOf(f.location.toLowerCase()) === -1) return false
-    return true
-  })
+  const visible = registrations
 
   const handleApprove = async (reg: ClubRegistration) => {
     if (!confirm(`Approve "${reg.clubName}"?`)) {
@@ -155,7 +132,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
   }
 
   const exportToCSV = () => {
-    if (filtered.length === 0) return
+    if (visible.length === 0) return
 
     const headers = [
       'ID',
@@ -176,7 +153,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
       'Denial Reason'
     ]
 
-    const rows = filtered.map(reg => [
+    const rows = visible.map(reg => [
       reg.id,
       reg.collection || '',
       new Date(reg.submittedAt).toLocaleString(),
@@ -259,7 +236,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Club Registrations ({filtered.length})
+            Club Registrations ({visible.length})
           </h3>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -289,6 +266,18 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
               <option key={col} value={col}>{col}</option>
             ))}
           </select>
+          {/* Select All for Cards view */}
+          {viewMode === 'cards' && visible.length > 0 && (
+            <button
+              onClick={() => {
+                if (selectedIds.size === visible.length) setSelectedIds(new Set())
+                else setSelectedIds(new Set(visible.map(r=>r.id)))
+              }}
+              className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
+            >
+              {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2">
               <button
@@ -354,7 +343,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
           </button>
           <button
             onClick={exportToCSV}
-            disabled={filtered.length === 0}
+            disabled={visible.length === 0}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
@@ -363,7 +352,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="text-center py-12 px-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <FileSpreadsheet className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-gray-400">No registrations yet</p>
@@ -376,9 +365,9 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
                     <th className="px-3 py-2"><input type="checkbox" aria-label="Select all" onChange={(e)=>{
-                      if (e.target.checked) setSelectedIds(new Set(filtered.map(r=>r.id)))
+                      if (e.target.checked) setSelectedIds(new Set(visible.map(r=>r.id)))
                       else setSelectedIds(new Set())
-                    }} checked={selectedIds.size>0 && selectedIds.size===filtered.length} /></th>
+                    }} checked={visible.length>0 && selectedIds.size===visible.length} /></th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Submitted</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Club Name</th>
@@ -390,22 +379,9 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Frequency</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
                   </tr>
-                  <tr>
-                    <th></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.status} onChange={e=>setFilters({...filters,status:e.target.value})} /></th>
-                    <th></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.clubName} onChange={e=>setFilters({...filters,clubName:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.advisorName} onChange={e=>setFilters({...filters,advisorName:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.email} onChange={e=>setFilters({...filters,email:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.studentContactName} onChange={e=>setFilters({...filters,studentContactName:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.studentContactEmail} onChange={e=>setFilters({...filters,studentContactEmail:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.meetingDay} onChange={e=>setFilters({...filters,meetingDay:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.meetingFrequency} onChange={e=>setFilters({...filters,meetingFrequency:e.target.value})} /></th>
-                    <th className="px-4 py-2"><input className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" placeholder="Filter" value={filters.location} onChange={e=>setFilters({...filters,location:e.target.value})} /></th>
-                  </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  {filtered.map(reg => (
+                  {visible.map(reg => (
                     <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(reg.id)} onChange={(e)=>{
                         const copy = new Set(selectedIds)
@@ -429,18 +405,27 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((reg) => {
+              {visible.map((reg) => {
                 const isExpanded = expandedId === reg.id
                 const isProcessing = processingId === reg.id
-                
                 return (
                   <div key={reg.id} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
-                    <div 
-                      className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      onClick={() => setExpandedId(isExpanded ? null : reg.id)}
-                    >
+                    <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
+                        <label className="flex items-start gap-3 select-none">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(reg.id)}
+                            onChange={(e) => {
+                              const copy = new Set(selectedIds)
+                              if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
+                              setSelectedIds(copy)
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1"
+                          />
+                        </label>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
                           <div className="flex items-center gap-2 mb-1">
                             <span className={getStatusBadge(reg.status)}>
                               {getStatusIcon(reg.status)}
@@ -455,12 +440,11 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                             {reg.advisorName} • {reg.email}
                           </p>
                         </div>
-                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
                           {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                         </button>
                       </div>
                     </div>
-
                     {isExpanded && (
                       <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -515,7 +499,6 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                             </div>
                           )}
                         </div>
-
                         {reg.status === 'pending' && (
                           <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <button

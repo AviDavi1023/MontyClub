@@ -44,6 +44,7 @@ export function AdminPanel() {
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
   const [activeCollection, setActiveCollection] = useState('')
   const [loadingRegSettings, setLoadingRegSettings] = useState(false)
+  const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -628,9 +629,79 @@ export function AdminPanel() {
           <p className="text-gray-600 dark:text-gray-400">No update requests yet.</p>
         ) : (
           <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
+                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
+                  }}
+                  className="btn-secondary text-xs"
+                >
+                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedUpdateIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        for (const id of Array.from(selectedUpdateIds)) {
+                          const item = updates.find(u => String(u.id) === String(id))
+                          if (!item || item.reviewed) continue
+                          await toggleReviewed(String(id), false)
+                        }
+                        setSelectedUpdateIds(new Set())
+                        await fetchUpdates()
+                      }}
+                      className="btn-secondary text-xs"
+                    >Mark Reviewed</button>
+                    <button
+                      onClick={async () => {
+                        for (const id of Array.from(selectedUpdateIds)) {
+                          const item = updates.find(u => String(u.id) === String(id))
+                          if (!item || !item.reviewed) continue
+                          await toggleReviewed(String(id), true)
+                        }
+                        setSelectedUpdateIds(new Set())
+                        await fetchUpdates()
+                      }}
+                      className="btn-secondary text-xs"
+                    >Mark Unreviewed</button>
+                    <button
+                      onClick={async () => {
+                        const ok = confirm(`Delete ${selectedUpdateIds.size} selected update request(s)? This cannot be undone.`)
+                        if (!ok) return
+                        for (const id of Array.from(selectedUpdateIds)) {
+                          await deleteUpdate(String(id))
+                        }
+                        setSelectedUpdateIds(new Set())
+                        await fetchUpdates()
+                      }}
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >Delete</button>
+                  </>
+                )}
+              </div>
+            </div>
+
             {updates.map((u) => (
               <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-start gap-3">
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedUpdateIds.has(String(u.id))}
+                      onChange={() => {
+                        const next = new Set(selectedUpdateIds)
+                        const id = String(u.id)
+                        if (next.has(id)) next.delete(id); else next.add(id)
+                        setSelectedUpdateIds(next)
+                      }}
+                      className="mt-1"
+                    />
+                  </label>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>

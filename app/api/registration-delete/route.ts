@@ -18,19 +18,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { registrationId, collection } = body
 
-    if (!registrationId || !collection) {
+    if (!registrationId) {
       return NextResponse.json(
-        { error: 'Missing registration ID or collection' },
+        { error: 'Missing registration ID' },
         { status: 400 }
       )
     }
 
-    const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
-    const path = `registrations/${collectionSlug}/${registrationId}.json`
+    const paths: string[] = []
+    if (collection) {
+      const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
+      paths.push(`registrations/${collectionSlug}/${registrationId}.json`)
+    }
+    // Also attempt legacy path without collection folder
+    paths.push(`registrations/${registrationId}.json`)
 
-    const result = await removePaths([path])
+    const result = await removePaths(paths)
 
-    return NextResponse.json({ success: result.removed > 0 })
+    return NextResponse.json({ success: result.removed > 0, removed: result.removed })
   } catch (error) {
     console.error('Error deleting registration:', error)
     return NextResponse.json(
