@@ -378,7 +378,18 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
       if (!data.success) throw new Error('Batch failed')
+      // Integrate authoritative server values for non-delete actions to prevent stale revert
+      if (action !== 'delete' && Array.isArray(data.items)) {
+        const authoritative = data.items.map((i: any) => String(i.id))
+        setUpdates(cur => cur.map(u => authoritative.includes(String(u.id))
+          ? (data.items.find((i: any) => String(i.id) === String(u.id)) || u)
+          : u))
+      }
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
+      // Delay final refresh to allow underlying store persistence (avoid race returning stale values)
+      setTimeout(() => {
+        fetchUpdates()
+      }, 500)
     } catch (e) {
       console.error('Batch op failed', e)
       setUpdates(prev) // revert
@@ -386,8 +397,6 @@ export function AdminPanel() {
     } finally {
       setSelectedUpdateIds(new Set())
       setUpdatingBatch(false)
-      // final authoritative refresh
-      fetchUpdates()
     }
   }
 
