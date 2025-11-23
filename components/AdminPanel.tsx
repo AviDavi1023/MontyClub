@@ -303,19 +303,22 @@ export function AdminPanel() {
     }
   }
 
-  // Fresh single-item handlers with optimistic updates + local persistence
+  // Fresh single-item handlers with optimistic updates
   const handleToggleSingle = async (item: any) => {
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     const nextReviewed = !item.reviewed
     const prev = updates
-    // optimistic + persist locally
+    // optimistic
     setUpdates(updates.map(u => String(u.id) === id ? { ...u, reviewed: nextReviewed } : u))
+    
+    // Save to localStorage for reload persistence
     const newPending = { ...localPendingChanges, [id]: { reviewed: nextReviewed } }
     setLocalPendingChanges(newPending)
     try {
       localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
     } catch (e) {}
+
     try {
       const resp = await fetch(`/api/updates/${id}`, {
         method: 'PATCH',
@@ -329,6 +332,7 @@ export function AdminPanel() {
     } catch (e) {
       console.error('Single toggle failed', e)
       setUpdates(prev) // revert
+      // Clear from pending on error
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
@@ -352,11 +356,14 @@ export function AdminPanel() {
     const id = String(item.id)
     const prev = updates
     setUpdates(updates.filter(u => String(u.id) !== id))
+    
+    // Save to localStorage for reload persistence
     const newPending = { ...localPendingChanges, [id]: { deleted: true } }
     setLocalPendingChanges(newPending)
     try {
       localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
     } catch (e) {}
+
     try {
       const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -365,6 +372,7 @@ export function AdminPanel() {
     } catch (e) {
       console.error('Single delete failed', e)
       setUpdates(prev) // revert
+      // Clear from pending on error
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
@@ -381,7 +389,7 @@ export function AdminPanel() {
     }
   }
 
-  // Bulk operations via new batch endpoint + local persistence
+  // Bulk operations via new batch endpoint
   const performBatch = async (action: 'review' | 'unreview' | 'delete') => {
     const ids = Array.from(selectedUpdateIds)
     if (ids.length === 0) return
@@ -403,6 +411,8 @@ export function AdminPanel() {
       ids.forEach(id => { newPending[id] = { reviewed: reviewedVal } })
     }
     setUpdates(optimistic)
+    
+    // Save to localStorage for reload persistence
     setLocalPendingChanges(newPending)
     try {
       localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
@@ -432,6 +442,7 @@ export function AdminPanel() {
     } catch (e) {
       console.error('Batch op failed', e)
       setUpdates(prev) // revert
+      // Clear from pending on error
       const revertPending = { ...localPendingChanges }
       ids.forEach(id => { delete revertPending[id] })
       setLocalPendingChanges(revertPending)
@@ -458,44 +469,53 @@ export function AdminPanel() {
     }
   }, [isAuthenticated])
 
-  // Load and manage local pending changes from localStorage
+  // Load pending changes from localStorage on mount (survives reloads)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
       if (stored) {
-        setLocalPendingChanges(JSON.parse(stored))
+        const parsed = JSON.parse(stored)
+        setLocalPendingChanges(parsed)
       }
     } catch (e) {
-      console.error('Failed to load pending changes', e)
+      console.error('Failed to load pending changes from localStorage', e)
     }
   }, [])
 
-  // Merge local pending changes with fetched updates and clear synced ones
+  // Auto-clear pending changes that now match database state
   useEffect(() => {
+    if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
-    const pending = { ...localPendingChanges }
-    let hasChanges = false
-    // Clear any pending changes that now match server state
-    Object.keys(pending).forEach(id => {
-      const serverItem = updates.find(u => String(u.id) === id)
-      if (!serverItem && pending[id].deleted) {
-        delete pending[id]
-        hasChanges = true
-      } else if (serverItem && pending[id].reviewed !== undefined && serverItem.reviewed === pending[id].reviewed) {
-        delete pending[id]
-        hasChanges = true
+
+    const stillPending = { ...localPendingChanges }
+    let hasCleared = false
+
+    Object.keys(stillPending).forEach(id => {
+      const pending = stillPending[id]
+      const dbItem = updates.find(u => String(u.id) === id)
+
+      // If marked deleted locally but no longer exists in DB, clear it
+      if (pending.deleted && !dbItem) {
+        delete stillPending[id]
+        hasCleared = true
+      }
+      // If reviewed state matches DB, clear it
+      else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
+        delete stillPending[id]
+        hasCleared = true
       }
     })
-    if (hasChanges) {
-      setLocalPendingChanges(pending)
+
+    if (hasCleared) {
+      setLocalPendingChanges(stillPending)
       try {
-        if (Object.keys(pending).length === 0) {
+        if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem('montyclub:pendingUpdateChanges')
         } else {
-          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(pending))
+          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(stillPending))
         }
       } catch (e) {
-        console.error('Failed to persist pending changes', e)
+        console.error('Failed to update localStorage', e)
       }
     }
   }, [updates, localPendingChanges])
@@ -815,21 +835,27 @@ export function AdminPanel() {
               </div>
             </div>
 
-            {updates.map((u) => {
-              const pending = localPendingChanges[String(u.id)]
-              const displayItem = pending?.deleted ? null : (pending?.reviewed !== undefined ? { ...u, reviewed: pending.reviewed } : u)
-              if (!displayItem) return null
-              return (
-              <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            {updates
+              .map((u) => {
+                const pending = localPendingChanges[String(u.id)]
+                // If marked as deleted locally, hide it
+                if (pending?.deleted) return null
+                // Apply pending reviewed state if it exists
+                const displayItem = pending?.reviewed !== undefined ? { ...u, reviewed: pending.reviewed } : u
+                return { ...displayItem, _originalId: u.id }
+              })
+              .filter(item => item !== null)
+              .map((u: any) => (
+              <div key={u._originalId} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
                   <div className="flex items-start gap-3 flex-1">
                     <label className="flex items-start gap-3">
                       <input
                         type="checkbox"
-                        disabled={updatingBatch || singleProcessingId === String(displayItem.id)}
-                        checked={selectedUpdateIds.has(String(displayItem.id))}
+                        disabled={updatingBatch || singleProcessingId === String(u.id)}
+                        checked={selectedUpdateIds.has(String(u.id))}
                         onChange={() => {
-                          const id = String(displayItem.id)
+                          const id = String(u.id)
                           const next = new Set(selectedUpdateIds)
                           if (next.has(id)) next.delete(id); else next.add(id)
                           setSelectedUpdateIds(next)
@@ -839,34 +865,34 @@ export function AdminPanel() {
                     </label>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-medium text-gray-900 dark:text-white">{displayItem.clubName || '—'}</h3>
-                      <span className="text-sm text-gray-500">({displayItem.updateType || 'Update'})</span>
-                      {displayItem.reviewed ? (
+                      <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
+                      <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
+                      {u.reviewed ? (
                         <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
                       ) : (
                         <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
                       )}
-                      {singleProcessingId === String(displayItem.id) && (
+                      {singleProcessingId === String(u.id) && (
                         <span className="text-xs text-gray-500">Processing...</span>
                       )}
-                      {pending && (
+                      {localPendingChanges[String(u.id)] && (
                         <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">Syncing...</span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(displayItem.createdAt).toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
                   </div>
                   </div>
                   <div className="flex items-center gap-2 md:flex-shrink-0 mt-2 md:mt-0">
                     <button
-                      onClick={() => handleToggleSingle(displayItem)}
-                      disabled={updatingBatch || singleProcessingId === String(displayItem.id)}
+                      onClick={() => handleToggleSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
                       className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
                     >
-                      {displayItem.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
+                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
                     </button>
                     <button
-                      onClick={() => handleDeleteSingle(displayItem)}
-                      disabled={updatingBatch || singleProcessingId === String(displayItem.id)}
+                      onClick={() => handleDeleteSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
                       className="text-red-600 dark:text-red-400 text-xs flex-1 md:flex-initial"
                     >
                       Delete
@@ -875,13 +901,12 @@ export function AdminPanel() {
                 </div>
 
                 <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                  <p><strong>Suggested:</strong> {displayItem.suggestedChange || '—'}</p>
-                  <p className="mt-1"><strong>Contact:</strong> {displayItem.contactEmail || '—'}</p>
-                  {displayItem.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {displayItem.additionalNotes}</p>}
+                  <p><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
+                  <p className="mt-1"><strong>Contact:</strong> {u.contactEmail || '—'}</p>
+                  {u.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {u.additionalNotes}</p>}
                 </div>
               </div>
-            )
-            })}
+            ))}
           </div>
         )}
       </div>
