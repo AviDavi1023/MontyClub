@@ -646,123 +646,20 @@ export function AdminPanel() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
-              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">{`${updates.length} total`}</div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
-                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
-                  }}
-                  className="btn-secondary text-xs"
-                >
-                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
+                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
+                  Select All
                 </button>
-                {selectedUpdateIds.size > 0 && (
-                  <>
-                    <button
-                      onClick={async () => {
-                        const ids = Array.from(selectedUpdateIds)
-                        let successCount = 0
-                        let errorCount = 0
-                        
-                        // Update each item without optimistic state updates or toasts
-                        for (const id of ids) {
-                          const item = updates.find(u => String(u.id) === String(id))
-                          if (!item || item.reviewed) continue
-                          try {
-                            await toggleReviewed(String(id), false, true, true)
-                            successCount++
-                          } catch (err) {
-                            errorCount++
-                          }
-                        }
-                        
-                        // Small delay to ensure writes are flushed
-                        await new Promise(resolve => setTimeout(resolve, 200))
-                        
-                        // Refresh from source of truth
-                        await fetchUpdates()
-                        setSelectedUpdateIds(new Set())
-                        
-                        if (successCount > 0) {
-                          showToast(`Marked ${successCount} as reviewed`)
-                        }
-                        if (errorCount > 0) {
-                          showToast(`Failed to update ${errorCount} items`, 'error')
-                        }
-                      }}
-                      className="btn-secondary text-xs"
-                    >Mark Reviewed</button>
-                    <button
-                      onClick={async () => {
-                        const ids = Array.from(selectedUpdateIds)
-                        let successCount = 0
-                        let errorCount = 0
-                        
-                        // Update each item without optimistic state updates or toasts
-                        for (const id of ids) {
-                          const item = updates.find(u => String(u.id) === String(id))
-                          if (!item || !item.reviewed) continue
-                          try {
-                            await toggleReviewed(String(id), true, true, true)
-                            successCount++
-                          } catch (err) {
-                            errorCount++
-                          }
-                        }
-                        
-                        // Small delay to ensure writes are flushed
-                        await new Promise(resolve => setTimeout(resolve, 200))
-                        
-                        // Refresh from source of truth
-                        await fetchUpdates()
-                        setSelectedUpdateIds(new Set())
-                        
-                        if (successCount > 0) {
-                          showToast(`Marked ${successCount} as unreviewed`)
-                        }
-                        if (errorCount > 0) {
-                          showToast(`Failed to update ${errorCount} items`, 'error')
-                        }
-                      }}
-                      className="btn-secondary text-xs"
-                    >Mark Unreviewed</button>
-                    <button
-                      onClick={async () => {
-                        const ok = confirm(`Delete ${selectedUpdateIds.size} selected update request(s)? This cannot be undone.`)
-                        if (!ok) return
-                        
-                        let successCount = 0
-                        let errorCount = 0
-                        
-                        for (const id of Array.from(selectedUpdateIds)) {
-                          try {
-                            await deleteUpdate(String(id), true, true, true)
-                            successCount++
-                          } catch (err) {
-                            errorCount++
-                          }
-                        }
-                        
-                        // Small delay to ensure writes are flushed
-                        await new Promise(resolve => setTimeout(resolve, 200))
-                        
-                        await fetchUpdates()
-                        setSelectedUpdateIds(new Set())
-                        
-                        if (successCount > 0) {
-                          showToast(`Deleted ${successCount} update request(s)`)
-                        }
-                        if (errorCount > 0) {
-                          showToast(`Failed to delete ${errorCount} items`, 'error')
-                        }
-                      }}
-                      className="text-red-600 dark:text-red-400 text-xs"
-                    >Delete</button>
-                  </>
-                )}
+                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
+                  Mark Reviewed
+                </button>
+                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
+                  Mark Unreviewed
+                </button>
+                <button className="text-red-600 dark:text-red-400 text-xs opacity-50 cursor-not-allowed" disabled>
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -770,17 +667,7 @@ export function AdminPanel() {
               <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-start gap-3">
                   <label className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedUpdateIds.has(String(u.id))}
-                      onChange={() => {
-                        const next = new Set(selectedUpdateIds)
-                        const id = String(u.id)
-                        if (next.has(id)) next.delete(id); else next.add(id)
-                        setSelectedUpdateIds(next)
-                      }}
-                      className="mt-1"
-                    />
+                    <input type="checkbox" className="mt-1" disabled />
                   </label>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -795,16 +682,10 @@ export function AdminPanel() {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => toggleReviewed(u.id, !!u.reviewed)}
-                      className="btn-secondary text-xs whitespace-nowrap"
-                    >
+                    <button className="btn-secondary text-xs whitespace-nowrap opacity-50 cursor-not-allowed" disabled>
                       {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
                     </button>
-                    <button
-                      onClick={() => deleteUpdate(u.id)}
-                      className="text-red-600 dark:text-red-400 text-xs"
-                    >
+                    <button className="text-red-600 dark:text-red-400 text-xs opacity-50 cursor-not-allowed" disabled>
                       Delete
                     </button>
                   </div>
