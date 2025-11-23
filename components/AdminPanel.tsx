@@ -380,16 +380,17 @@ export function AdminPanel() {
       if (!data.success) throw new Error('Batch failed')
       // Integrate authoritative server values for non-delete actions to prevent stale revert
       if (action !== 'delete' && Array.isArray(data.items)) {
-        const authoritative = data.items.map((i: any) => String(i.id))
-        setUpdates(cur => cur.map(u => authoritative.includes(String(u.id))
-          ? (data.items.find((i: any) => String(i.id) === String(u.id)) || u)
-          : u))
+        setUpdates(cur => cur.map(u => {
+          const found = data.items.find((i: any) => String(i.id) === String(u.id))
+          return found ? found : u
+        }))
+      } else if (action === 'delete' && Array.isArray(data.items)) {
+        // Remove deleted items from state
+        const deletedIds = new Set(data.items.map((i: any) => String(i.id)))
+        setUpdates(cur => cur.filter(u => !deletedIds.has(String(u.id))))
       }
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
-      // Delay final refresh to allow underlying store persistence (avoid race returning stale values)
-      setTimeout(() => {
-        fetchUpdates()
-      }, 500)
+      // Do NOT trigger a delayed fetch that could overwrite with stale data
     } catch (e) {
       console.error('Batch op failed', e)
       setUpdates(prev) // revert
