@@ -45,6 +45,8 @@ export function AdminPanel() {
   const [activeCollection, setActiveCollection] = useState('')
   const [loadingRegSettings, setLoadingRegSettings] = useState(false)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
+  const [updatingBatch, setUpdatingBatch] = useState(false)
+  const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -300,62 +302,92 @@ export function AdminPanel() {
     }
   }
 
-  const toggleReviewed = async (id: string, current: boolean, skipToast = false, skipStateUpdate = false) => {
+  // Fresh single-item handlers with optimistic updates
+  const handleToggleSingle = async (item: any) => {
+    setSingleProcessingId(String(item.id))
+    const id = String(item.id)
+    const nextReviewed = !item.reviewed
+    const prev = updates
+    // optimistic
+    setUpdates(updates.map(u => String(u.id) === id ? { ...u, reviewed: nextReviewed } : u))
     try {
       const resp = await fetch(`/api/updates/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewed: !current }),
+        body: JSON.stringify({ reviewed: nextReviewed }),
       })
-      
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}))
-        throw new Error(errorData.error || `Server returned ${resp.status}`)
-      }
-      
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const updated = await resp.json()
-      if (!skipStateUpdate) {
-        setUpdates(prev => prev.map(u => (String(u.id) === String(id) ? updated : u)))
-      }
-      if (!skipToast) {
-        showToast(`Marked as ${!current ? 'reviewed' : 'unreviewed'}`)
-      }
-    } catch (err) {
-      console.error('Error toggling reviewed:', err)
-      if (!skipToast) {
-        showToast(`Could not update status: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
-      }
-      throw err
+      setUpdates(cur => cur.map(u => String(u.id) === id ? updated : u))
+      showToast(`Marked ${nextReviewed ? 'reviewed' : 'unreviewed'}`)
+    } catch (e) {
+      console.error('Single toggle failed', e)
+      setUpdates(prev) // revert
+      showToast('Failed to update status', 'error')
+    } finally {
+      setSingleProcessingId(null)
     }
   }
 
-  const deleteUpdate = async (id: string, skipConfirm = false, skipToast = false, skipStateUpdate = false) => {
-    if (!skipConfirm) {
-      const ok = confirm('Delete this update request? This cannot be undone.')
-      if (!ok) return
-    }
-
+  const handleDeleteSingle = async (item: any) => {
+    const ok = confirm('Delete this update request? This cannot be undone.')
+    if (!ok) return
+    setSingleProcessingId(String(item.id))
+    const id = String(item.id)
+    const prev = updates
+    setUpdates(updates.filter(u => String(u.id) !== id))
     try {
       const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
-      
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}))
-        throw new Error(errorData.error || `Server returned ${resp.status}`)
-      }
-      
-      const removed = await resp.json()
-      if (!skipStateUpdate) {
-        setUpdates(prev => prev.filter(u => String(u.id) !== String(id)))
-      }
-      if (!skipToast) {
-        showToast('Update request deleted')
-      }
-    } catch (err) {
-      console.error('Error deleting update:', err)
-      if (!skipToast) {
-        showToast(`Could not delete update: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
-      }
-      throw err
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      await resp.json()
+      showToast('Update request deleted')
+    } catch (e) {
+      console.error('Single delete failed', e)
+      setUpdates(prev) // revert
+      showToast('Failed to delete update', 'error')
+    } finally {
+      setSingleProcessingId(null)
+    }
+  }
+
+  // Bulk operations via new batch endpoint
+  const performBatch = async (action: 'review' | 'unreview' | 'delete') => {
+    const ids = Array.from(selectedUpdateIds)
+    if (ids.length === 0) return
+    if (action === 'delete') {
+      const ok = confirm(`Delete ${ids.length} update request(s)? This cannot be undone.`)
+      if (!ok) return
+    }
+    setUpdatingBatch(true)
+    const prev = updates
+    // optimistic transform
+    let optimistic: any[]
+    if (action === 'delete') {
+      optimistic = prev.filter(u => !ids.includes(String(u.id)))
+    } else {
+      const reviewedVal = action === 'review'
+      optimistic = prev.map(u => ids.includes(String(u.id)) ? { ...u, reviewed: reviewedVal } : u)
+    }
+    setUpdates(optimistic)
+    try {
+      const resp = await fetch('/api/updates/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action })
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      if (!data.success) throw new Error('Batch failed')
+      showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
+    } catch (e) {
+      console.error('Batch op failed', e)
+      setUpdates(prev) // revert
+      showToast('Batch operation failed', 'error')
+    } finally {
+      setSelectedUpdateIds(new Set())
+      setUpdatingBatch(false)
+      // final authoritative refresh
+      fetchUpdates()
     }
   }
 
@@ -646,20 +678,40 @@ export function AdminPanel() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-400">{`${updates.length} total`}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
+              </div>
               <div className="flex items-center gap-2">
-                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
-                  Select All
+                <button
+                  onClick={() => {
+                    if (updatingBatch) return
+                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
+                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
+                  }}
+                  disabled={updatingBatch}
+                  className="btn-secondary text-xs"
+                >
+                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
                 </button>
-                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
-                  Mark Reviewed
-                </button>
-                <button className="btn-secondary text-xs opacity-50 cursor-not-allowed" disabled>
-                  Mark Unreviewed
-                </button>
-                <button className="text-red-600 dark:text-red-400 text-xs opacity-50 cursor-not-allowed" disabled>
-                  Delete
-                </button>
+                {selectedUpdateIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={() => performBatch('review')}
+                      disabled={updatingBatch}
+                      className="btn-secondary text-xs"
+                    >Mark Reviewed</button>
+                    <button
+                      onClick={() => performBatch('unreview')}
+                      disabled={updatingBatch}
+                      className="btn-secondary text-xs"
+                    >Mark Unreviewed</button>
+                    <button
+                      onClick={() => performBatch('delete')}
+                      disabled={updatingBatch}
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >Delete</button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -667,7 +719,18 @@ export function AdminPanel() {
               <div key={u.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-start gap-3">
                   <label className="flex items-start gap-3">
-                    <input type="checkbox" className="mt-1" disabled />
+                    <input
+                      type="checkbox"
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      checked={selectedUpdateIds.has(String(u.id))}
+                      onChange={() => {
+                        const id = String(u.id)
+                        const next = new Set(selectedUpdateIds)
+                        if (next.has(id)) next.delete(id); else next.add(id)
+                        setSelectedUpdateIds(next)
+                      }}
+                      className="mt-1"
+                    />
                   </label>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -678,14 +741,25 @@ export function AdminPanel() {
                       ) : (
                         <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
                       )}
+                      {singleProcessingId === String(u.id) && (
+                        <span className="text-xs text-gray-500">Processing...</span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button className="btn-secondary text-xs whitespace-nowrap opacity-50 cursor-not-allowed" disabled>
+                    <button
+                      onClick={() => handleToggleSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="btn-secondary text-xs whitespace-nowrap"
+                    >
                       {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
                     </button>
-                    <button className="text-red-600 dark:text-red-400 text-xs opacity-50 cursor-not-allowed" disabled>
+                    <button
+                      onClick={() => handleDeleteSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >
                       Delete
                     </button>
                   </div>
