@@ -14,6 +14,9 @@ import { FilterPanel } from '@/components/FilterPanel'
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
+  const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
+  const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
+  const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   // Start with filters hidden on mobile, visible on desktop
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
@@ -100,6 +103,13 @@ export function ClubsList() {
           const data = ev.data
           if (data && data.type === 'announcements-updated') {
             loadClubs()
+            try {
+              const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+              if (primary) {
+                const parsed = JSON.parse(primary)
+                if (parsed && typeof parsed === 'object') setLocalPendingAnnouncements(parsed)
+              }
+            } catch {}
           }
         } catch (e) {
           // ignore
@@ -110,6 +120,10 @@ export function ClubsList() {
     // Listen for same-tab updates (custom event)
     const onAnnouncementUpdate = () => {
       loadClubs()
+      try {
+        const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+        if (primary) setLocalPendingAnnouncements(JSON.parse(primary))
+      } catch {}
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
@@ -121,6 +135,14 @@ export function ClubsList() {
         if (!e.key) return
         if (e.key === 'montyclub:announcementsUpdated') {
           loadClubs()
+        } else if (e.key === ANNOUNCEMENTS_PENDING_KEY) {
+          try {
+            if (typeof e.newValue === 'string' && e.newValue.length > 0) {
+              setLocalPendingAnnouncements(JSON.parse(e.newValue))
+            } else {
+              setLocalPendingAnnouncements({})
+            }
+          } catch {}
         }
       } catch (err) {
         // ignore
@@ -140,10 +162,38 @@ export function ClubsList() {
     }
   }, [])
 
+  // Load pending announcements overlay from localStorage on mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        if (parsed && typeof parsed === 'object') setLocalPendingAnnouncements(parsed)
+      } else {
+        const backup = localStorage.getItem(ANNOUNCEMENTS_BACKUP_KEY)
+        if (backup) {
+          try {
+            const bp = JSON.parse(backup)
+            if (bp && bp.data) setLocalPendingAnnouncements(bp.data)
+          } catch {}
+        }
+      }
+    } catch {}
+  }, [])
+
+  const clubsOverlayed = useMemo(() => {
+    if (!localPendingAnnouncements || Object.keys(localPendingAnnouncements).length === 0) return clubs
+    return clubs.map(c => ({
+      ...c,
+      announcement: (localPendingAnnouncements[c.id] ?? c.announcement) || ''
+    }))
+  }, [clubs, localPendingAnnouncements])
+
   const filteredClubs = useMemo(() => {
     // Build a frequency map using normalized labels to group variants (e.g. "1st & 3rd weeks")
     const freqMap = new Map<string, { count: number; repr: string }>()
-    clubs.forEach((club) => {
+    clubsOverlayed.forEach((club) => {
       const raw = (club.meetingFrequency || '').trim()
       if (!raw) return
       const norm = formatMeetingFrequency(raw) || raw
@@ -159,7 +209,7 @@ export function ClubsList() {
       .filter(([, v]) => v.count === 1)
       .map(([k]) => k)
 
-    return clubs.filter(club => {
+    return clubsOverlayed.filter(club => {
       // Search filter - use searchInput for immediate filtering
       if (searchInput) {
         const searchLower = searchInput.toLowerCase()
@@ -570,11 +620,11 @@ export function ClubsList() {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {sortedClubs.map(club => (
-              <ClubCard key={club.id} club={club} />
+              <ClubCard key={club.id} club={club} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} />
             ))}
           </div>
         ) : (
-          <ClubsTable clubs={sortedClubs} />
+          <ClubsTable clubs={sortedClubs} pendingAnnouncements={localPendingAnnouncements} />
         )}
       </div>
     </div>

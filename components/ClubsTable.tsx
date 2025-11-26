@@ -9,9 +9,10 @@ import { useState, useCallback } from 'react'
 
 interface ClubsTableProps {
   clubs: Club[]
+  pendingAnnouncements?: Record<string, string>
 }
 
-export function ClubsTable({ clubs }: ClubsTableProps) {
+export function ClubsTable({ clubs, pendingAnnouncements = {} }: ClubsTableProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
@@ -80,7 +81,12 @@ export function ClubsTable({ clubs }: ClubsTableProps) {
                   {club.announcement && (
                     <div className="flex items-start gap-1 mt-0.5">
                       <Megaphone className="h-3 w-3 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">{club.announcement}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">{club.announcement}</span>
+                        {pendingAnnouncements[club.id] !== undefined && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

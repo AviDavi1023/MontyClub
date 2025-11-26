@@ -10,9 +10,10 @@ import { track } from '@/lib/analytics'
 
 interface ClubCardProps {
   club: Club
+  hasPendingAnnouncement?: boolean
 }
 
-export function ClubCard({ club }: ClubCardProps) {
+export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
   const searchParams = useSearchParams()
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
   
@@ -40,7 +41,12 @@ export function ClubCard({ club }: ClubCardProps) {
         {club.announcement && (
           <div className="mb-2 sm:mb-3 flex items-start gap-2 text-xs sm:text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2 rounded">
             <Megaphone className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
-            <span className="line-clamp-2">{club.announcement}</span>
+            <div className="flex-1 min-w-0">
+              <span className="line-clamp-2">{club.announcement}</span>
+              {hasPendingAnnouncement && (
+                <span className="inline-block mt-1 text-xs text-yellow-700 dark:text-yellow-300 italic">Syncing...</span>
+              )}
+            </div>
           </div>
         )}
 

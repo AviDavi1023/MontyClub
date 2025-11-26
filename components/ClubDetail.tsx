@@ -6,7 +6,7 @@ import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { Club } from '@/types/club'
 import { SimilarClubs } from '@/components/SimilarClubs'
 import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { track } from '@/lib/analytics'
 
 interface ClubDetailProps {
@@ -18,6 +18,22 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   const searchParams = useSearchParams()
   const queryString = searchParams?.toString() ? `/?${searchParams.toString()}` : '/'
   const [copied, setCopied] = useState(false)
+  const [hasPendingAnnouncement, setHasPendingAnnouncement] = useState(false)
+  const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
+
+  // Check if this club has a pending announcement in localStorage
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const pending = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+      if (pending) {
+        const parsed = JSON.parse(pending)
+        if (parsed && parsed[club.id] !== undefined) {
+          setHasPendingAnnouncement(true)
+        }
+      }
+    } catch {}
+  }, [club.id])
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/clubs/${club.id}`
@@ -64,7 +80,12 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
         {club.announcement && (
           <div className="mb-3 sm:mb-4 flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2.5 sm:p-3 rounded">
             <Megaphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" />
-            <div>{club.announcement}</div>
+            <div className="flex-1">
+              <div>{club.announcement}</div>
+              {hasPendingAnnouncement && (
+                <div className="mt-1 text-xs text-yellow-700 dark:text-yellow-300 italic">Syncing...</div>
+              )}
+            </div>
           </div>
         )}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
