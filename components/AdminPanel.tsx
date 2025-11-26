@@ -48,6 +48,7 @@ export function AdminPanel() {
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
   const [localPendingChanges, setLocalPendingChanges] = useState<Record<string, { reviewed?: boolean; deleted?: boolean }>>({})
+  const [localStorageLoaded, setLocalStorageLoaded] = useState(false)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -529,10 +530,19 @@ export function AdminPanel() {
       }
     } catch (e) {
       console.error('❌ Failed to load pending changes from localStorage', e)
+    } finally {
+      setLocalStorageLoaded(true)
+      console.log('✅ localStorage load complete')
     }
   }, [])
 
   // Auto-clear pending changes that now match database state
+      // CRITICAL: Don't run until localStorage has been loaded on mount
+      if (!localStorageLoaded) {
+        console.log('⏸️ AUTO-CLEAR SKIPPED - localStorage not loaded yet')
+        return
+      }
+    
   useEffect(() => {
     if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
