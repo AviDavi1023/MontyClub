@@ -95,3 +95,4 @@ export function ClubCard({ club }: ClubCardProps) {
     </Link>
   )
 }
+

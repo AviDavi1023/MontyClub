@@ -233,3 +233,4 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
     </div>
   )
 }
+

@@ -297,40 +297,13 @@ export function AdminPanel() {
     try {
       const resp = await fetch('/api/updates')
       if (!resp.ok) throw new Error('Failed to fetch updates')
-      let data = await resp.json()
-      
-      console.log('=== FETCH UPDATES DEBUG ===')
+      const data = await resp.json()
+
+      // Keep `updates` as the last known server snapshot. We overlay
+      // localPendingChanges at render time so that we can reliably compare
+      // server vs local state when deciding when to clear pending changes.
+      console.log('=== FETCH UPDATES ===')
       console.log('Raw data from API/DB:', data.map((item: any) => ({ id: item.id, clubName: item.clubName, reviewed: item.reviewed })))
-      
-      // CRITICAL: Merge with localStorage pending changes before setting state
-      // This ensures pending changes always override stale database data
-      try {
-        const stored = localStorage.getItem(PENDING_KEY) || localStorage.getItem(PENDING_BACKUP_KEY)
-        console.log('localStorage pending changes (primary/backup):', stored ? JSON.parse(stored) : 'none')
-        
-        if (stored) {
-          const pending = JSON.parse(stored)
-          const beforeMerge = [...data]
-          
-          // Apply pending changes to fetched data
-          data = data
-            .filter((item: any) => !pending[String(item.id)]?.deleted) // Hide deleted items
-            .map((item: any) => {
-              const itemPending = pending[String(item.id)]
-              if (itemPending?.reviewed !== undefined) {
-                return { ...item, reviewed: itemPending.reviewed }
-              }
-              return item
-            })
-          
-          console.log('After merge with localStorage:', data.map((item: any) => ({ id: item.id, clubName: item.clubName, reviewed: item.reviewed })))
-          console.log('Items filtered (deleted):', beforeMerge.filter((item: any) => !data.find((d: any) => d.id === item.id)).map((item: any) => ({ id: item.id, clubName: item.clubName })))
-        }
-      } catch (e) {
-        console.error('Failed to merge pending changes with fetched updates', e)
-      }
-      
-      console.log('=== END DEBUG ===')
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
@@ -339,17 +312,18 @@ export function AdminPanel() {
     }
   }
 
-  // Fresh single-item handlers with optimistic updates
+  // Fresh single-item handlers with optimistic UI via localPendingChanges only
   const handleToggleSingle = async (item: any) => {
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     const nextReviewed = !item.reviewed
-    const prev = updates
-    // optimistic
-    setUpdates(updates.map(u => String(u.id) === id ? { ...u, reviewed: nextReviewed } : u))
-    
-    // Save to localStorage for reload persistence
-    const newPending = { ...localPendingChanges, [id]: { reviewed: nextReviewed } }
+
+    // Do NOT mutate `updates` optimistically; we want it to remain the last
+    // server snapshot. The UI overlay and badges come from localPendingChanges.
+    const newPending = {
+      ...localPendingChanges,
+      [id]: { ...(localPendingChanges[id] || {}), reviewed: nextReviewed },
+    }
     setLocalPendingChanges(newPending)
     console.log('💾 SINGLE TOGGLE - Saving to localStorage:', newPending)
     try {
@@ -370,13 +344,13 @@ export function AdminPanel() {
         body: JSON.stringify({ reviewed: nextReviewed }),
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const updated = await resp.json()
-      setUpdates(cur => cur.map(u => String(u.id) === id ? updated : u))
+      await resp.json()
+      // Success: keep pending change until a future GET shows the same state
+      // from the database, at which point the auto-clear effect will prune it.
       showToast(`Marked ${nextReviewed ? 'reviewed' : 'unreviewed'}`)
     } catch (e) {
       console.error('Single toggle failed', e)
-      setUpdates(prev) // revert
-      // Clear from pending on error
+      // Clear from pending on error (revert local override)
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
@@ -405,11 +379,13 @@ export function AdminPanel() {
     if (!ok) return
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
-    const prev = updates
-    setUpdates(updates.filter(u => String(u.id) !== id))
     
-    // Save to localStorage for reload persistence
-    const newPending = { ...localPendingChanges, [id]: { deleted: true } }
+    // Mark as deleted in local pending changes; the render layer will hide
+    // it immediately while we wait for the server & database to catch up.
+    const newPending = {
+      ...localPendingChanges,
+      [id]: { ...(localPendingChanges[id] || {}), deleted: true },
+    }
     setLocalPendingChanges(newPending)
     try {
       localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
@@ -423,8 +399,7 @@ export function AdminPanel() {
       showToast('Update request deleted')
     } catch (e) {
       console.error('Single delete failed', e)
-      setUpdates(prev) // revert
-      // Clear from pending on error
+      // Clear from pending on error (undo the local delete)
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
@@ -452,20 +427,21 @@ export function AdminPanel() {
       if (!ok) return
     }
     setUpdatingBatch(true)
-    const prev = updates
-    // optimistic transform
-    let optimistic: any[]
+
+    // Apply the batch intent only to localPendingChanges so that the UI
+    // reflects it immediately but `updates` stays as the last server fetch.
     const newPending = { ...localPendingChanges }
     if (action === 'delete') {
-      optimistic = prev.filter(u => !ids.includes(String(u.id)))
-      ids.forEach(id => { newPending[id] = { deleted: true } })
+      ids.forEach(id => {
+        newPending[id] = { ...(newPending[id] || {}), deleted: true }
+      })
     } else {
       const reviewedVal = action === 'review'
-      optimistic = prev.map(u => ids.includes(String(u.id)) ? { ...u, reviewed: reviewedVal } : u)
-      ids.forEach(id => { newPending[id] = { reviewed: reviewedVal } })
+      ids.forEach(id => {
+        newPending[id] = { ...(newPending[id] || {}), reviewed: reviewedVal }
+      })
     }
-    setUpdates(optimistic)
-    
+
     // Save to localStorage for reload persistence
     setLocalPendingChanges(newPending)
     try {
@@ -481,22 +457,14 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
       if (!data.success) throw new Error('Batch failed')
-      // Integrate authoritative server values for non-delete actions to prevent stale revert
-      if (action !== 'delete' && Array.isArray(data.items)) {
-        setUpdates(cur => cur.map(u => {
-          const found = data.items.find((i: any) => String(i.id) === String(u.id))
-          return found ? found : u
-        }))
-      } else if (action === 'delete' && Array.isArray(data.items)) {
-        // Remove deleted items from state
-        const deletedIds = new Set(data.items.map((i: any) => String(i.id)))
-        setUpdates(cur => cur.filter(u => !deletedIds.has(String(u.id))))
-      }
+
+      // Success: leave `localPendingChanges` as-is so that a future GET
+      // from /api/updates can be compared against it. When the database
+      // snapshot matches, the auto-clear effect will prune these entries.
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
-      // Do NOT trigger a delayed fetch that could overwrite with stale data
+      // You can manually hit "Refresh" to force an immediate GET if needed.
     } catch (e) {
       console.error('Batch op failed', e)
-      setUpdates(prev) // revert
       // Clear from pending on error
       const revertPending = { ...localPendingChanges }
       ids.forEach(id => { delete revertPending[id] })

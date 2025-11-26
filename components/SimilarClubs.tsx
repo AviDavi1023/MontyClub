@@ -62,3 +62,4 @@ export function SimilarClubs({ currentClub, allClubs }: SimilarClubsProps) {
     </div>
   )
 }
+

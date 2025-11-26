@@ -196,3 +196,4 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
     </div>
   )
 }
+
