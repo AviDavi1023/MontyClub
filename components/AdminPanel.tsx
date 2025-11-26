@@ -44,6 +44,10 @@ export function AdminPanel() {
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
   const [activeCollection, setActiveCollection] = useState('')
   const [loadingRegSettings, setLoadingRegSettings] = useState(false)
+  const [localPendingRegSettings, setLocalPendingRegSettings] = useState<{ enabled?: boolean; activeCollection?: string } | null>(null)
+  const [regSettingsStorageLoaded, setRegSettingsStorageLoaded] = useState(false)
+  const REG_SETTINGS_PENDING_KEY = 'montyclub:pendingRegSettings'
+  const REG_SETTINGS_BACKUP_KEY = 'montyclub:pendingRegSettings:backup'
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -74,6 +78,7 @@ export function AdminPanel() {
       try {
         const resp = await fetch('/api/registration-settings')
         const data = await resp.json()
+        // Keep as pure server snapshot
         setRegistrationEnabled(data.enabled)
         setActiveCollection(data.activeCollection)
       } catch (err) {
@@ -82,6 +87,67 @@ export function AdminPanel() {
     }
     loadRegSettings()
   }, [])
+
+  // Load pending registration settings from localStorage on mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const primary = localStorage.getItem(REG_SETTINGS_PENDING_KEY)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        if (parsed && typeof parsed === 'object') setLocalPendingRegSettings(parsed)
+      } else {
+        const backup = localStorage.getItem(REG_SETTINGS_BACKUP_KEY)
+        if (backup) {
+          try {
+            const bp = JSON.parse(backup)
+            if (bp && bp.data) setLocalPendingRegSettings(bp.data)
+          } catch {}
+        }
+      }
+    } catch {}
+    finally {
+      setRegSettingsStorageLoaded(true)
+    }
+  }, [])
+
+  // Redundant persistence for registration settings
+  useEffect(() => {
+    if (!regSettingsStorageLoaded) return
+    try {
+      if (!localPendingRegSettings) {
+        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
+        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
+      } else {
+        localStorage.setItem(REG_SETTINGS_PENDING_KEY, JSON.stringify(localPendingRegSettings))
+        localStorage.setItem(REG_SETTINGS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingRegSettings }))
+      }
+    } catch (e) {}
+  }, [localPendingRegSettings, regSettingsStorageLoaded])
+
+  // Auto-clear pending registration settings that now match database state
+  useEffect(() => {
+    if (!regSettingsStorageLoaded) return
+    if (!localPendingRegSettings) return
+
+    let hasCleared = false
+
+    if (localPendingRegSettings.enabled !== undefined && localPendingRegSettings.enabled === registrationEnabled) {
+      if (localPendingRegSettings.activeCollection !== undefined && localPendingRegSettings.activeCollection === activeCollection) {
+        hasCleared = true
+      } else if (localPendingRegSettings.activeCollection === undefined) {
+        hasCleared = true
+      }
+    }
+
+    if (hasCleared) {
+      setLocalPendingRegSettings(null)
+      try {
+        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
+        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
+      } catch (e) {}
+    }
+  }, [registrationEnabled, activeCollection, localPendingRegSettings, regSettingsStorageLoaded])
 
   const toggleAnalyticsEnabled = () => {
     const next = !analyticsEnabled
@@ -109,11 +175,23 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    if (!activeCollection.trim()) {
+    const effectiveCollection = localPendingRegSettings?.activeCollection ?? activeCollection
+    if (!effectiveCollection.trim()) {
       showToast('Collection name is required', 'error')
       return
     }
+    const effectiveEnabled = localPendingRegSettings?.enabled ?? registrationEnabled
+
     setLoadingRegSettings(true)
+
+    // Mark as pending in localStorage
+    const newPending = { enabled: effectiveEnabled, activeCollection: effectiveCollection.trim() }
+    setLocalPendingRegSettings(newPending)
+    try {
+      localStorage.setItem(REG_SETTINGS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(REG_SETTINGS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch (e) {}
+
     try {
       const resp = await fetch('/api/registration-settings', {
         method: 'POST',
@@ -122,13 +200,20 @@ export function AdminPanel() {
           'x-admin-key': adminApiKey
         },
         body: JSON.stringify({
-          enabled: registrationEnabled,
-          activeCollection: activeCollection.trim()
+          enabled: effectiveEnabled,
+          activeCollection: effectiveCollection.trim()
         })
       })
       if (!resp.ok) throw new Error('Failed to save settings')
+      // Success: keep pending until future GET shows same state
       showToast('Registration settings saved')
     } catch (err) {
+      // Clear from pending on error (revert)
+      setLocalPendingRegSettings(null)
+      try {
+        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
+        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
+      } catch (e) {}
       showToast('Failed to save registration settings', 'error')
     } finally {
       setLoadingRegSettings(false)
@@ -1267,25 +1352,36 @@ export function AdminPanel() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View submissions and manage registration form</p>
             <div className="space-y-3">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Collection Name</label>
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Collection Name
+                  {localPendingRegSettings?.activeCollection !== undefined && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-2">Syncing...</span>
+                  )}
+                </label>
                 <input
                   type="text"
-                  value={activeCollection}
-                  onChange={(e) => setActiveCollection(e.target.value)}
+                  value={localPendingRegSettings?.activeCollection ?? activeCollection}
+                  onChange={(e) => setLocalPendingRegSettings({ ...localPendingRegSettings, activeCollection: e.target.value })}
                   placeholder="e.g., 2025 Club Requests"
                   className="input-field text-sm"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setRegistrationEnabled(!registrationEnabled)}
+                  onClick={() => {
+                    const currentEnabled = localPendingRegSettings?.enabled ?? registrationEnabled
+                    setLocalPendingRegSettings({ ...localPendingRegSettings, enabled: !currentEnabled })
+                  }}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    registrationEnabled 
+                    (localPendingRegSettings?.enabled ?? registrationEnabled)
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
                       : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                   }`}
                 >
-                  {registrationEnabled ? 'Form Enabled' : 'Form Disabled'}
+                  {(localPendingRegSettings?.enabled ?? registrationEnabled) ? 'Form Enabled' : 'Form Disabled'}
+                  {localPendingRegSettings?.enabled !== undefined && (
+                    <span className="text-xs italic ml-1">Syncing...</span>
+                  )}
                 </button>
                 <button
                   onClick={saveRegistrationSettings}
