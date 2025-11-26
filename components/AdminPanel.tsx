@@ -348,9 +348,16 @@ export function AdminPanel() {
     // Save to localStorage for reload persistence
     const newPending = { ...localPendingChanges, [id]: { reviewed: nextReviewed } }
     setLocalPendingChanges(newPending)
+    console.log('💾 SINGLE TOGGLE - Saving to localStorage:', newPending)
     try {
       localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
-    } catch (e) {}
+      console.log('✅ localStorage saved successfully')
+      // Verify it was saved
+      const verify = localStorage.getItem('montyclub:pendingUpdateChanges')
+      console.log('🔍 Verification read:', verify)
+    } catch (e) {
+      console.error('❌ Failed to save to localStorage:', e)
+    }
 
     try {
       const resp = await fetch(`/api/updates/${id}`, {
@@ -369,13 +376,18 @@ export function AdminPanel() {
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
+      console.log('⚠️ REVERTING - Clearing from localStorage:', revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
           localStorage.removeItem('montyclub:pendingUpdateChanges')
+          console.log('🗑️ localStorage cleared (no pending changes)')
         } else {
           localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(revertPending))
+          console.log('💾 localStorage updated after revert')
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('❌ Failed to update localStorage on revert:', e)
+      }
       showToast('Failed to update status', 'error')
     } finally {
       setSingleProcessingId(null)
@@ -504,14 +516,19 @@ export function AdminPanel() {
 
   // Load pending changes from localStorage on mount (survives reloads)
   useEffect(() => {
+    console.log('🔄 MOUNT - Loading pending changes from localStorage...')
     try {
       const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
+      console.log('📖 Read from localStorage:', stored)
       if (stored) {
         const parsed = JSON.parse(stored)
+        console.log('✅ Parsed pending changes:', parsed)
         setLocalPendingChanges(parsed)
+      } else {
+        console.log('ℹ️ No pending changes found in localStorage')
       }
     } catch (e) {
-      console.error('Failed to load pending changes from localStorage', e)
+      console.error('❌ Failed to load pending changes from localStorage', e)
     }
   }, [])
 
@@ -519,6 +536,9 @@ export function AdminPanel() {
   useEffect(() => {
     if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
+
+    console.log('🔍 AUTO-CLEAR CHECK - Pending changes:', localPendingChanges)
+    console.log('🔍 Current updates from DB:', updates.map(u => ({ id: u.id, reviewed: u.reviewed })))
 
     const stillPending = { ...localPendingChanges }
     let hasCleared = false
@@ -529,27 +549,36 @@ export function AdminPanel() {
 
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
+        console.log(`🗑️ Clearing deleted item ${id} - no longer in DB`)
         delete stillPending[id]
         hasCleared = true
       }
       // If reviewed state matches DB, clear it
       else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
+        console.log(`✅ Clearing item ${id} - DB now matches (reviewed: ${pending.reviewed})`)
         delete stillPending[id]
         hasCleared = true
+      } else if (dbItem && pending.reviewed !== undefined) {
+        console.log(`⏳ Keeping item ${id} - DB mismatch (pending: ${pending.reviewed}, db: ${dbItem.reviewed})`)
       }
     })
 
     if (hasCleared) {
+      console.log('📝 Updating localStorage with remaining pending:', stillPending)
       setLocalPendingChanges(stillPending)
       try {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem('montyclub:pendingUpdateChanges')
+          console.log('🗑️ All pending changes synced - localStorage cleared')
         } else {
           localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(stillPending))
+          console.log('💾 localStorage updated with remaining pending changes')
         }
       } catch (e) {
-        console.error('Failed to update localStorage', e)
+        console.error('❌ Failed to update localStorage', e)
       }
+    } else {
+      console.log('ℹ️ No changes to clear')
     }
   }, [updates, localPendingChanges])
 
