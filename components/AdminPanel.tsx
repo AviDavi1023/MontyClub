@@ -330,7 +330,6 @@ export function AdminPanel() {
       localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
       console.log('✅ localStorage saved successfully')
-      // Verify it was saved
       const verify = localStorage.getItem(PENDING_KEY)
       console.log('🔍 Verification read:', verify)
     } catch (e) {
