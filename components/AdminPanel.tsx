@@ -294,7 +294,29 @@ export function AdminPanel() {
     try {
       const resp = await fetch('/api/updates')
       if (!resp.ok) throw new Error('Failed to fetch updates')
-      const data = await resp.json()
+      let data = await resp.json()
+      
+      // CRITICAL: Merge with localStorage pending changes before setting state
+      // This ensures pending changes always override stale database data
+      try {
+        const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
+        if (stored) {
+          const pending = JSON.parse(stored)
+          // Apply pending changes to fetched data
+          data = data
+            .filter((item: any) => !pending[String(item.id)]?.deleted) // Hide deleted items
+            .map((item: any) => {
+              const itemPending = pending[String(item.id)]
+              if (itemPending?.reviewed !== undefined) {
+                return { ...item, reviewed: itemPending.reviewed }
+              }
+              return item
+            })
+        }
+      } catch (e) {
+        console.error('Failed to merge pending changes with fetched updates', e)
+      }
+      
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
