@@ -296,12 +296,19 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to fetch updates')
       let data = await resp.json()
       
+      console.log('=== FETCH UPDATES DEBUG ===')
+      console.log('Raw data from API/DB:', data.map((item: any) => ({ id: item.id, clubName: item.clubName, reviewed: item.reviewed })))
+      
       // CRITICAL: Merge with localStorage pending changes before setting state
       // This ensures pending changes always override stale database data
       try {
         const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
+        console.log('localStorage pending changes:', stored ? JSON.parse(stored) : 'none')
+        
         if (stored) {
           const pending = JSON.parse(stored)
+          const beforeMerge = [...data]
+          
           // Apply pending changes to fetched data
           data = data
             .filter((item: any) => !pending[String(item.id)]?.deleted) // Hide deleted items
@@ -312,11 +319,15 @@ export function AdminPanel() {
               }
               return item
             })
+          
+          console.log('After merge with localStorage:', data.map((item: any) => ({ id: item.id, clubName: item.clubName, reviewed: item.reviewed })))
+          console.log('Items filtered (deleted):', beforeMerge.filter((item: any) => !data.find((d: any) => d.id === item.id)).map((item: any) => ({ id: item.id, clubName: item.clubName })))
         }
       } catch (e) {
         console.error('Failed to merge pending changes with fetched updates', e)
       }
       
+      console.log('=== END DEBUG ===')
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
