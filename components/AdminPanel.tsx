@@ -51,6 +51,10 @@ export function AdminPanel() {
   const [localStorageLoaded, setLocalStorageLoaded] = useState(false)
   const PENDING_KEY = 'montyclub:pendingUpdateChanges'
   const PENDING_BACKUP_KEY = 'montyclub:pendingUpdateChanges:backup'
+  const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
+  const [announcementsStorageLoaded, setAnnouncementsStorageLoaded] = useState(false)
+  const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
+  const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -606,6 +610,111 @@ export function AdminPanel() {
     }
   }, [updates, localPendingChanges, localStorageLoaded])
 
+  // Load pending announcements from localStorage on mount
+  useEffect(() => {
+    console.log('🔄 MOUNT - Loading pending announcements (primary & backup)...')
+    try {
+      const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+      console.log('📖 Announcements primary read:', primary)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        console.log('✅ Parsed pending announcements (primary):', parsed)
+        setLocalPendingAnnouncements(parsed)
+      } else {
+        const backup = localStorage.getItem(ANNOUNCEMENTS_BACKUP_KEY)
+        console.log('📖 Announcements primary empty, backup read:', backup)
+        if (backup) {
+          try {
+            const backupParsed = JSON.parse(backup)
+            if (backupParsed && backupParsed.data) {
+              console.log('✅ Using backup data for pending announcements')
+              setLocalPendingAnnouncements(backupParsed.data)
+            } else {
+              console.log('ℹ️ Announcements backup malformed or missing data')
+            }
+          } catch (e) {
+            console.error('❌ Failed parsing backup pending announcements', e)
+          }
+        } else {
+          console.log('ℹ️ No pending announcements found (primary or backup)')
+        }
+      }
+    } catch (e) {
+      console.error('❌ Failed loading pending announcements', e)
+    } finally {
+      setAnnouncementsStorageLoaded(true)
+      console.log('✅ Announcements localStorage load complete')
+    }
+  }, [])
+
+  // Redundant persistence for announcements
+  useEffect(() => {
+    if (!announcementsStorageLoaded) return
+    try {
+      if (Object.keys(localPendingAnnouncements).length === 0) {
+        localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+        localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+        console.log('🗑️ Cleared pending announcement keys (no pending items)')
+      } else {
+        const serialized = JSON.stringify(localPendingAnnouncements)
+        localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, serialized)
+        localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingAnnouncements }))
+        console.log('💾 Persisted pending announcements redundantly:', localPendingAnnouncements)
+      }
+    } catch (e) {
+      console.error('❌ Announcements redundant persistence failed', e)
+    }
+  }, [localPendingAnnouncements, announcementsStorageLoaded])
+
+  // Auto-clear pending announcements that now match database state
+  useEffect(() => {
+    if (!announcementsStorageLoaded) {
+      console.log('⏸️ ANNOUNCEMENTS AUTO-CLEAR SKIPPED - localStorage not loaded yet')
+      return
+    }
+    if (Object.keys(localPendingAnnouncements).length === 0) return
+
+    console.log('🔍 ANNOUNCEMENTS AUTO-CLEAR CHECK - Pending:', localPendingAnnouncements)
+    console.log('🔍 Current announcements from DB:', announcements)
+
+    const stillPending = { ...localPendingAnnouncements }
+    let hasCleared = false
+
+    Object.keys(stillPending).forEach(id => {
+      const pendingText = stillPending[id]
+      const dbText = announcements[id] || ''
+
+      // If announcement text matches DB (including both being empty), clear it
+      if (pendingText === dbText) {
+        console.log(`✅ Clearing announcement ${id} - DB now matches ("${pendingText}")`)
+        delete stillPending[id]
+        hasCleared = true
+      } else {
+        console.log(`⏳ Keeping announcement ${id} - DB mismatch (pending: "${pendingText}", db: "${dbText}")`)
+      }
+    })
+
+    if (hasCleared) {
+      console.log('📝 Updating announcements localStorage with remaining pending:', stillPending)
+      setLocalPendingAnnouncements(stillPending)
+      try {
+        if (Object.keys(stillPending).length === 0) {
+          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+          console.log('🗑️ All pending announcements synced - localStorage cleared')
+        } else {
+          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(stillPending))
+          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
+          console.log('💾 Announcements localStorage updated with remaining pending')
+        }
+      } catch (e) {
+        console.error('❌ Failed to update announcements localStorage', e)
+      }
+    } else {
+      console.log('ℹ️ No announcements to clear')
+    }
+  }, [announcements, localPendingAnnouncements, announcementsStorageLoaded])
+
   // When the announcements panel opens, scroll it into view and keep a fixed height
   useEffect(() => {
     if (showAnnouncementsPanel) {
@@ -677,6 +786,10 @@ export function AdminPanel() {
       const resp = await fetch('/api/announcements')
       if (!resp.ok) throw new Error('Failed to fetch announcements')
       const data = await resp.json()
+      // Keep announcements as pure server snapshot
+      // localPendingAnnouncements will overlay at render time
+      console.log('=== FETCH ANNOUNCEMENTS ===')
+      console.log('Raw announcements from API/DB:', data)
       setAnnouncements(data || {})
     } catch (err) {
       console.error('Error fetching announcements:', err)
@@ -684,8 +797,21 @@ export function AdminPanel() {
   }
 
   const saveAnnouncement = async (id: string, text: string) => {
+    setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
+    
+    // Do NOT mutate announcements optimistically; only update localPendingAnnouncements
+    const newPending = { ...localPendingAnnouncements, [id]: text || '' }
+    setLocalPendingAnnouncements(newPending)
+    console.log('💾 SAVE ANNOUNCEMENT - Saving to localStorage:', newPending)
     try {
-      setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
+      localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      console.log('✅ Announcements localStorage saved successfully')
+    } catch (e) {
+      console.error('❌ Failed to save announcements to localStorage:', e)
+    }
+
+    try {
       const resp = await fetch(`/api/announcements/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -697,8 +823,8 @@ export function AdminPanel() {
         throw new Error(errorData.error || `Server returned ${resp.status}`)
       }
       
-      const updated = await resp.json()
-      setAnnouncements(prev => ({ ...prev, [id]: updated.announcement || '' }))
+      await resp.json()
+      // Success: keep pending until future GET shows same state
       showToast('Announcement saved successfully')
       
       // notify other tabs/windows
@@ -707,7 +833,6 @@ export function AdminPanel() {
       } catch (e) {
         // ignore
       }
-      // localStorage fallback for cross-browser/tab notification
       try {
         localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
       } catch (e) {
@@ -715,6 +840,19 @@ export function AdminPanel() {
       }
     } catch (err) {
       console.error('Error saving announcement:', err)
+      // Clear from pending on error (revert)
+      const revertPending = { ...localPendingAnnouncements }
+      delete revertPending[id]
+      setLocalPendingAnnouncements(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
       showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
@@ -722,17 +860,25 @@ export function AdminPanel() {
   }
 
   const clearAnnouncement = async (id: string) => {
+    setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
+    
+    // Mark as cleared (empty string) in localPendingAnnouncements
+    const newPending = { ...localPendingAnnouncements, [id]: '' }
+    setLocalPendingAnnouncements(newPending)
     try {
-      setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
-      const resp = await fetch(`/api/announcements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement: '' }) })
+      localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch (e) {}
+
+    try {
+      const resp = await fetch(`/api/announcements/${id}`, { 
+        method: 'PATCH', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ announcement: '' }) 
+      })
       if (!resp.ok) throw new Error('Failed to clear')
       await resp.json()
-      setAnnouncements(prev => {
-        const copy = { ...prev }
-        delete copy[id]
-        return copy
-      })
-      // Don't show toast for individual clears during bulk delete
+      // Success: keep pending until future GET shows cleared state
       if (!savingAnnouncements[`bulk-${id}`]) {
         showToast('Announcement cleared successfully')
       }
@@ -746,6 +892,19 @@ export function AdminPanel() {
       } catch (e) {}
     } catch (err) {
       console.error('Error clearing announcement:', err)
+      // Clear from pending on error (revert)
+      const revertPending = { ...localPendingAnnouncements }
+      delete revertPending[id]
+      setLocalPendingAnnouncements(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
       if (!savingAnnouncements[`bulk-${id}`]) {
         showToast('Could not clear announcement', 'error')
       }
@@ -1374,9 +1533,12 @@ export function AdminPanel() {
               </div>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Search a club, edit its announcement, and save.</p>
 
+              {(() => {
+                const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+                return (
               <AnnounceEditor
             clubs={clubs}
-            announcements={announcements}
+            announcements={mergedAnnouncements}
             setAnnouncements={setAnnouncements}
             saveAnnouncement={async (id: string, text: string) => {
               await saveAnnouncement(id, text)
@@ -1397,11 +1559,16 @@ export function AdminPanel() {
             showToast={showToast}
             onRequestClear={(id: string) => setConfirmClearId(id)}
           />
+                )
+              })()}
           
           {/* Bulk Delete Section */}
+          {(() => {
+            const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+            return (
           <BulkDeleteAnnouncements
             clubs={clubs}
-            announcements={announcements}
+            announcements={mergedAnnouncements}
             onDelete={async (ids: string[]) => {
               // Call new bulk delete API for atomic removal
               if (ids.length === 0) return
@@ -1437,6 +1604,8 @@ export function AdminPanel() {
               }
             }}
           />
+            )
+          })()}
             </div>
           </div>
         </>
