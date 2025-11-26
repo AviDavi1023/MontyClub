@@ -49,6 +49,8 @@ export function AdminPanel() {
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
   const [localPendingChanges, setLocalPendingChanges] = useState<Record<string, { reviewed?: boolean; deleted?: boolean }>>({})
   const [localStorageLoaded, setLocalStorageLoaded] = useState(false)
+  const PENDING_KEY = 'montyclub:pendingUpdateChanges'
+  const PENDING_BACKUP_KEY = 'montyclub:pendingUpdateChanges:backup'
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -303,8 +305,8 @@ export function AdminPanel() {
       // CRITICAL: Merge with localStorage pending changes before setting state
       // This ensures pending changes always override stale database data
       try {
-        const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
-        console.log('localStorage pending changes:', stored ? JSON.parse(stored) : 'none')
+        const stored = localStorage.getItem(PENDING_KEY) || localStorage.getItem(PENDING_BACKUP_KEY)
+        console.log('localStorage pending changes (primary/backup):', stored ? JSON.parse(stored) : 'none')
         
         if (stored) {
           const pending = JSON.parse(stored)
@@ -351,10 +353,11 @@ export function AdminPanel() {
     setLocalPendingChanges(newPending)
     console.log('💾 SINGLE TOGGLE - Saving to localStorage:', newPending)
     try {
-      localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
+      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
       console.log('✅ localStorage saved successfully')
       // Verify it was saved
-      const verify = localStorage.getItem('montyclub:pendingUpdateChanges')
+      const verify = localStorage.getItem(PENDING_KEY)
       console.log('🔍 Verification read:', verify)
     } catch (e) {
       console.error('❌ Failed to save to localStorage:', e)
@@ -380,10 +383,12 @@ export function AdminPanel() {
       console.log('⚠️ REVERTING - Clearing from localStorage:', revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem('montyclub:pendingUpdateChanges')
+          localStorage.removeItem(PENDING_KEY)
+          localStorage.removeItem(PENDING_BACKUP_KEY)
           console.log('🗑️ localStorage cleared (no pending changes)')
         } else {
-          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
           console.log('💾 localStorage updated after revert')
         }
       } catch (e) {
@@ -407,7 +412,8 @@ export function AdminPanel() {
     const newPending = { ...localPendingChanges, [id]: { deleted: true } }
     setLocalPendingChanges(newPending)
     try {
-      localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
+      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
     } catch (e) {}
 
     try {
@@ -424,9 +430,11 @@ export function AdminPanel() {
       setLocalPendingChanges(revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem('montyclub:pendingUpdateChanges')
+          localStorage.removeItem(PENDING_KEY)
+          localStorage.removeItem(PENDING_BACKUP_KEY)
         } else {
-          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
         }
       } catch (e) {}
       showToast('Failed to delete update', 'error')
@@ -461,7 +469,8 @@ export function AdminPanel() {
     // Save to localStorage for reload persistence
     setLocalPendingChanges(newPending)
     try {
-      localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(newPending))
+      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
     } catch (e) {}
     try {
       const resp = await fetch('/api/updates/batch', {
@@ -494,9 +503,11 @@ export function AdminPanel() {
       setLocalPendingChanges(revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem('montyclub:pendingUpdateChanges')
+          localStorage.removeItem(PENDING_KEY)
+          localStorage.removeItem(PENDING_BACKUP_KEY)
         } else {
-          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
         }
       } catch (e) {}
       showToast('Batch operation failed', 'error')
@@ -515,26 +526,61 @@ export function AdminPanel() {
     }
   }, [isAuthenticated])
 
-  // Load pending changes from localStorage on mount (survives reloads)
+  // Load pending changes from localStorage on mount (primary + backup fallback)
   useEffect(() => {
-    console.log('🔄 MOUNT - Loading pending changes from localStorage...')
+    console.log('🔄 MOUNT - Loading pending changes (primary & backup)...')
     try {
-      const stored = localStorage.getItem('montyclub:pendingUpdateChanges')
-      console.log('📖 Read from localStorage:', stored)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        console.log('✅ Parsed pending changes:', parsed)
+      const primary = localStorage.getItem(PENDING_KEY)
+      console.log('📖 Primary read:', primary)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        console.log('✅ Parsed pending (primary):', parsed)
         setLocalPendingChanges(parsed)
       } else {
-        console.log('ℹ️ No pending changes found in localStorage')
+        const backup = localStorage.getItem(PENDING_BACKUP_KEY)
+        console.log('📖 Primary empty, backup read:', backup)
+        if (backup) {
+          try {
+            const backupParsed = JSON.parse(backup)
+            if (backupParsed && backupParsed.data) {
+              console.log('✅ Using backup data for pending changes')
+              setLocalPendingChanges(backupParsed.data)
+            } else {
+              console.log('ℹ️ Backup malformed or missing data')
+            }
+          } catch (e) {
+            console.error('❌ Failed parsing backup pending changes', e)
+          }
+        } else {
+          console.log('ℹ️ No pending changes found (primary or backup)')
+        }
       }
     } catch (e) {
-      console.error('❌ Failed to load pending changes from localStorage', e)
+      console.error('❌ Failed loading pending changes', e)
     } finally {
       setLocalStorageLoaded(true)
       console.log('✅ localStorage load complete')
     }
   }, [])
+
+  // Redundant persistence effect (writes both keys after any change once loaded)
+  useEffect(() => {
+    if (!localStorageLoaded) return
+    try {
+      if (Object.keys(localPendingChanges).length === 0) {
+        localStorage.removeItem(PENDING_KEY)
+        localStorage.removeItem(PENDING_BACKUP_KEY)
+        console.log('🗑️ Cleared pending keys (no pending items)')
+      } else {
+        const serialized = JSON.stringify(localPendingChanges)
+        localStorage.setItem(PENDING_KEY, serialized)
+        localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingChanges }))
+        console.log('💾 Persisted pending changes redundantly:', localPendingChanges)
+      }
+    } catch (e) {
+      console.error('❌ Redundant persistence failed', e)
+    }
+  }, [localPendingChanges, localStorageLoaded])
 
   // Auto-clear pending changes that now match database state
   useEffect(() => {
@@ -577,10 +623,12 @@ export function AdminPanel() {
       setLocalPendingChanges(stillPending)
       try {
         if (Object.keys(stillPending).length === 0) {
-          localStorage.removeItem('montyclub:pendingUpdateChanges')
+          localStorage.removeItem(PENDING_KEY)
+          localStorage.removeItem(PENDING_BACKUP_KEY)
           console.log('🗑️ All pending changes synced - localStorage cleared')
         } else {
-          localStorage.setItem('montyclub:pendingUpdateChanges', JSON.stringify(stillPending))
+          localStorage.setItem(PENDING_KEY, JSON.stringify(stillPending))
+          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
           console.log('💾 localStorage updated with remaining pending changes')
         }
       } catch (e) {
