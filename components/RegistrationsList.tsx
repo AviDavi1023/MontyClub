@@ -6,12 +6,12 @@ import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, Che
 
 interface RegistrationsListProps {
   adminApiKey: string
+  collectionId: string
+  collectionName: string
 }
 
-export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionId, collectionName }: RegistrationsListProps) {
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
-  const [collections, setCollections] = useState<string[]>([])
-  const [selectedCollection, setSelectedCollection] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -27,12 +27,11 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
   const REGISTRATIONS_BACKUP_KEY = 'montyclub:pendingRegistrationChanges:backup'
 
   const loadRegistrations = async () => {
+    if (!collectionId) return
     setLoading(true)
     setError('')
     try {
-      const url = selectedCollection === 'all' 
-        ? '/api/club-registration'
-        : `/api/club-registration?collection=${encodeURIComponent(selectedCollection)}`
+      const url = `/api/club-registration?collectionId=${encodeURIComponent(collectionId)}`
         
       const response = await fetch(url, {
         headers: {
@@ -48,7 +47,6 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
       // Keep registrations as pure server snapshot
       // localPendingRegistrationChanges will overlay at render time
       setRegistrations(data.registrations || [])
-      setCollections(data.collections || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load registrations')
     } finally {
@@ -57,10 +55,10 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
   }
 
   useEffect(() => {
-    if (adminApiKey) {
+    if (adminApiKey && collectionId) {
       loadRegistrations()
     }
-  }, [adminApiKey, selectedCollection])
+  }, [adminApiKey, collectionId])
 
   // Load pending registration changes from localStorage on mount
   useEffect(() => {
@@ -176,7 +174,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         },
         body: JSON.stringify({
           registrationId: reg.id,
-          collection: reg.collection
+          collection: reg.collectionId
         })
       })
 
@@ -235,7 +233,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         },
         body: JSON.stringify({
           registrationId: currentReg.id,
-          collection: currentReg.collection,
+          collection: currentReg.collectionId,
           reason: denyReason
         })
       })
@@ -292,7 +290,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
 
     const rows = visible.map(reg => [
       reg.id,
-      reg.collection || '',
+      reg.collectionId || '',
       new Date(reg.submittedAt).toLocaleString(),
       reg.status,
       reg.email,
@@ -318,9 +316,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    const filename = selectedCollection === 'all' 
-      ? `club-registrations-all-${new Date().toISOString().split('T')[0]}.csv`
-      : `club-registrations-${selectedCollection.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`
+    const filename = `club-registrations-${collectionName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`
     link.setAttribute('download', filename)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
@@ -393,16 +389,6 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
               <TableIcon className="h-4 w-4"/> Table
             </button>
           </div>
-          <select
-            value={selectedCollection}
-            onChange={(e) => setSelectedCollection(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          >
-            <option value="all">All Collections</option>
-            {collections.map(col => (
-              <option key={col} value={col}>{col}</option>
-            ))}
-          </select>
           {/* Select All for Cards view */}
           {viewMode === 'cards' && visible.length > 0 && (
             <button
@@ -438,7 +424,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                       await fetch('/api/registration-approve', {
                         method: 'POST',
                         headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
                       })
                     } catch (err) {
                       console.error('Failed to approve', id, err)
@@ -470,7 +456,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                       await fetch('/api/registration-deny', {
                         method: 'POST',
                         headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection, reason })
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
                       })
                     } catch (err) {
                       console.error('Failed to deny', id, err)
@@ -501,7 +487,7 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                       await fetch('/api/registration-delete', {
                         method: 'POST',
                         headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
                       })
                     } catch (err) {
                       console.error('Failed to delete', id, err)

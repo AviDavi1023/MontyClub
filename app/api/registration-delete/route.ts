@@ -18,22 +18,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { registrationId, collection } = body
 
-    if (!registrationId) {
+    if (!registrationId || !collection) {
       return NextResponse.json(
-        { error: 'Missing registration ID' },
+        { error: 'Missing registration ID or collection ID' },
         { status: 400 }
       )
     }
 
-    const paths: string[] = []
-    if (collection) {
-      const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
-      paths.push(`registrations/${collectionSlug}/${registrationId}.json`)
-    }
-    // Also attempt legacy path without collection folder
-    paths.push(`registrations/${registrationId}.json`)
-
-    const result = await removePaths(paths)
+    // Delete using collection ID as folder
+    const path = `registrations/${collection}/${registrationId}.json`
+    const result = await removePaths([path])
 
     return NextResponse.json({ success: result.removed > 0, removed: result.removed })
   } catch (error) {

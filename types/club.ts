@@ -31,6 +31,13 @@ export interface ClubFilters {
   sort?: string
 }
 
+export interface RegistrationCollection {
+  id: string
+  name: string
+  enabled: boolean
+  createdAt: string
+}
+
 export interface ClubRegistration {
   id: string
   email: string
@@ -46,6 +53,6 @@ export interface ClubRegistration {
   clubAgreementDate: string
   submittedAt: string
   status: 'pending' | 'approved' | 'rejected'
-  collection: string // e.g., "2025 Club Requests"
+  collectionId: string // Reference to RegistrationCollection
   denialReason?: string // Optional reason for rejection
 }

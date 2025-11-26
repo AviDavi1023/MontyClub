@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet } from 'lucide-react'
-import { Club } from '@/types/club'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink } from 'lucide-react'
+import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
@@ -41,13 +41,11 @@ export function AdminPanel() {
   const [adminApiKey, setAdminApiKey] = useState('')
   const [showRegistrations, setShowRegistrations] = useState(false)
   const registrationsRef = useRef<HTMLDivElement | null>(null)
-  const [registrationEnabled, setRegistrationEnabled] = useState(true)
-  const [activeCollection, setActiveCollection] = useState('')
-  const [loadingRegSettings, setLoadingRegSettings] = useState(false)
-  const [localPendingRegSettings, setLocalPendingRegSettings] = useState<{ enabled?: boolean; activeCollection?: string } | null>(null)
-  const [regSettingsStorageLoaded, setRegSettingsStorageLoaded] = useState(false)
-  const REG_SETTINGS_PENDING_KEY = 'montyclub:pendingRegSettings'
-  const REG_SETTINGS_BACKUP_KEY = 'montyclub:pendingRegSettings:backup'
+  const [collections, setCollections] = useState<RegistrationCollection[]>([])
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [creatingCollection, setCreatingCollection] = useState(false)
+  const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -72,82 +70,120 @@ export function AdminPanel() {
     } catch {}
   }, [])
 
-  // Load registration settings
+  // Load collections
   useEffect(() => {
-    const loadRegSettings = async () => {
-      try {
-        const resp = await fetch('/api/registration-settings')
-        const data = await resp.json()
-        // Keep as pure server snapshot
-        setRegistrationEnabled(data.enabled)
-        setActiveCollection(data.activeCollection)
-      } catch (err) {
-        console.error('Failed to load registration settings:', err)
-      }
-    }
-    loadRegSettings()
-  }, [])
+    if (!isAuthenticated || !adminApiKey) return
+    loadCollections()
+  }, [isAuthenticated, adminApiKey])
 
-  // Load pending registration settings from localStorage on mount
-  useEffect(() => {
+  const loadCollections = async () => {
+    if (!adminApiKey) return
     try {
-      if (typeof window === 'undefined') return
-      const primary = localStorage.getItem(REG_SETTINGS_PENDING_KEY)
-      if (primary) {
-        const parsed = JSON.parse(primary)
-        if (parsed && typeof parsed === 'object') setLocalPendingRegSettings(parsed)
-      } else {
-        const backup = localStorage.getItem(REG_SETTINGS_BACKUP_KEY)
-        if (backup) {
-          try {
-            const bp = JSON.parse(backup)
-            if (bp && bp.data) setLocalPendingRegSettings(bp.data)
-          } catch {}
-        }
+      const resp = await fetch('/api/registration-collections', {
+        headers: { 'x-admin-key': adminApiKey }
+      })
+      if (!resp.ok) throw new Error('Failed to load collections')
+      const data = await resp.json()
+      setCollections(data.collections || [])
+      // Set first enabled collection as active, or first collection if none enabled
+      if (data.collections && data.collections.length > 0) {
+        const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
+        setActiveCollectionId(enabledCol?.id || data.collections[0].id)
       }
-    } catch {}
-    finally {
-      setRegSettingsStorageLoaded(true)
+    } catch (err) {
+      console.error('Failed to load collections:', err)
     }
-  }, [])
+  }
 
-  // Redundant persistence for registration settings
-  useEffect(() => {
-    if (!regSettingsStorageLoaded) return
+  const createCollection = async () => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    if (!newCollectionName.trim()) {
+      showToast('Collection name is required', 'error')
+      return
+    }
+    setCreatingCollection(true)
     try {
-      if (!localPendingRegSettings) {
-        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
-        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
-      } else {
-        localStorage.setItem(REG_SETTINGS_PENDING_KEY, JSON.stringify(localPendingRegSettings))
-        localStorage.setItem(REG_SETTINGS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingRegSettings }))
+      const resp = await fetch('/api/registration-collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify({ name: newCollectionName.trim(), enabled: false })
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.error || 'Failed to create collection')
       }
-    } catch (e) {}
-  }, [localPendingRegSettings, regSettingsStorageLoaded])
+      const data = await resp.json()
+      setCollections(prev => [data.collection, ...prev])
+      setNewCollectionName('')
+      showToast('Collection created successfully')
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create collection', 'error')
+    } finally {
+      setCreatingCollection(false)
+    }
+  }
 
-  // Auto-clear pending registration settings that now match database state
-  useEffect(() => {
-    if (!regSettingsStorageLoaded) return
-    if (!localPendingRegSettings) return
+  const toggleCollectionEnabled = async (collectionId: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) return
 
-    let hasCleared = false
+    setTogglingCollection(collectionId)
+    try {
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify({ id: collectionId, enabled: !collection.enabled })
+      })
+      if (!resp.ok) throw new Error('Failed to update collection')
+      const data = await resp.json()
+      setCollections(prev => prev.map(c => c.id === collectionId ? data.collection : c))
+      showToast(`Collection ${data.collection.enabled ? 'enabled' : 'disabled'}`)
+    } catch (err) {
+      showToast('Failed to update collection', 'error')
+    } finally {
+      setTogglingCollection(null)
+    }
+  }
 
-    if (localPendingRegSettings.enabled !== undefined && localPendingRegSettings.enabled === registrationEnabled) {
-      if (localPendingRegSettings.activeCollection !== undefined && localPendingRegSettings.activeCollection === activeCollection) {
-        hasCleared = true
-      } else if (localPendingRegSettings.activeCollection === undefined) {
-        hasCleared = true
+  const deleteCollection = async (collectionId: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    if (!confirm('Are you sure you want to delete this collection? This cannot be undone.')) return
+
+    try {
+      const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=false`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': adminApiKey }
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.error || 'Failed to delete collection')
       }
+      setCollections(prev => prev.filter(c => c.id !== collectionId))
+      if (activeCollectionId === collectionId && collections.length > 1) {
+        const remaining = collections.filter(c => c.id !== collectionId)
+        setActiveCollectionId(remaining[0]?.id || null)
+      }
+      showToast('Collection deleted')
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete collection', 'error')
     }
-
-    if (hasCleared) {
-      setLocalPendingRegSettings(null)
-      try {
-        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
-        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
-      } catch (e) {}
-    }
-  }, [registrationEnabled, activeCollection, localPendingRegSettings, regSettingsStorageLoaded])
+  }
 
   const toggleAnalyticsEnabled = () => {
     const next = !analyticsEnabled
@@ -168,56 +204,6 @@ export function AdminPanel() {
     setAdminApiKey(k)
     try { localStorage.setItem('analytics:adminKey', k) } catch {}
     showToast('Admin API key saved')
-  }
-
-  const saveRegistrationSettings = async () => {
-    if (!adminApiKey) {
-      showToast('Set admin API key first', 'error')
-      return
-    }
-    const effectiveCollection = localPendingRegSettings?.activeCollection ?? activeCollection
-    if (!effectiveCollection.trim()) {
-      showToast('Collection name is required', 'error')
-      return
-    }
-    const effectiveEnabled = localPendingRegSettings?.enabled ?? registrationEnabled
-
-    setLoadingRegSettings(true)
-
-    // Mark as pending in localStorage
-    const newPending = { enabled: effectiveEnabled, activeCollection: effectiveCollection.trim() }
-    setLocalPendingRegSettings(newPending)
-    try {
-      localStorage.setItem(REG_SETTINGS_PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(REG_SETTINGS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
-
-    try {
-      const resp = await fetch('/api/registration-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': adminApiKey
-        },
-        body: JSON.stringify({
-          enabled: effectiveEnabled,
-          activeCollection: effectiveCollection.trim()
-        })
-      })
-      if (!resp.ok) throw new Error('Failed to save settings')
-      // Success: keep pending until future GET shows same state
-      showToast('Registration settings saved')
-    } catch (err) {
-      // Clear from pending on error (revert)
-      setLocalPendingRegSettings(null)
-      try {
-        localStorage.removeItem(REG_SETTINGS_PENDING_KEY)
-        localStorage.removeItem(REG_SETTINGS_BACKUP_KEY)
-      } catch (e) {}
-      showToast('Failed to save registration settings', 'error')
-    } finally {
-      setLoadingRegSettings(false)
-    }
   }
 
   const fetchAnalyticsSummary = async () => {
@@ -1347,61 +1333,127 @@ export function AdminPanel() {
             </button>
           </div>
 
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registrations</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View submissions and manage registration form</p>
-            <div className="space-y-3">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                  Collection Name
-                  {localPendingRegSettings?.activeCollection !== undefined && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-2">Syncing...</span>
-                  )}
-                </label>
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Manage multiple registration form collections (e.g., different years). Each has a unique form link and can be toggled on/off.
+            </p>
+            
+            {/* Create New Collection */}
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Create New Collection</h4>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={localPendingRegSettings?.activeCollection ?? activeCollection}
-                  onChange={(e) => setLocalPendingRegSettings({ ...localPendingRegSettings, activeCollection: e.target.value })}
-                  placeholder="e.g., 2025 Club Requests"
-                  className="input-field text-sm"
+                  value={newCollectionName}
+                  onChange={(e) => setNewCollectionName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createCollection()}
+                  placeholder="e.g., 2026 Club Requests"
+                  className="input-field text-sm flex-1"
                 />
-              </div>
-              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    const currentEnabled = localPendingRegSettings?.enabled ?? registrationEnabled
-                    setLocalPendingRegSettings({ ...localPendingRegSettings, enabled: !currentEnabled })
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    (localPendingRegSettings?.enabled ?? registrationEnabled)
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-                  }`}
+                  onClick={createCollection}
+                  disabled={creatingCollection || !newCollectionName.trim()}
+                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
                 >
-                  {(localPendingRegSettings?.enabled ?? registrationEnabled) ? 'Form Enabled' : 'Form Disabled'}
-                  {localPendingRegSettings?.enabled !== undefined && (
-                    <span className="text-xs italic ml-1">Syncing...</span>
-                  )}
+                  <Plus className="h-4 w-4" />
+                  {creatingCollection ? 'Creating...' : 'Create'}
                 </button>
-                <button
-                  onClick={saveRegistrationSettings}
-                  disabled={loadingRegSettings}
-                  className="btn-primary px-4 py-2 text-sm"
-                >
-                  {loadingRegSettings ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-              <button
-                onClick={() => setShowRegistrations(!showRegistrations)}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                {showRegistrations ? 'Close Registrations' : 'View Registrations'}
-              </button>
-              <div className="text-xs text-gray-600 dark:text-gray-400">
-                Share: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club`} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline break-all">/register-club</a>
               </div>
             </div>
+
+            {/* Collections List */}
+            <div className="space-y-2 mb-4">
+              {collections.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
+              ) : (
+                collections.map((collection) => (
+                  <div
+                    key={collection.id}
+                    className={`p-3 border rounded-lg ${
+                      activeCollectionId === collection.id
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h5 className="font-medium text-gray-900 dark:text-white truncate">{collection.name}</h5>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            collection.enabled
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                          }`}>
+                            {collection.enabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Created {new Date(collection.createdAt).toLocaleDateString()}
+                        </p>
+                        {collection.enabled && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
+                            <a
+                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${collection.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                            >
+                              /register-club?collection={collection.id}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setActiveCollectionId(collection.id)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                            activeCollectionId === collection.id
+                              ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/50 dark:text-primary-300'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {activeCollectionId === collection.id ? 'Active' : 'Select'}
+                        </button>
+                        <button
+                          onClick={() => toggleCollectionEnabled(collection.id)}
+                          disabled={togglingCollection === collection.id}
+                          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                            collection.enabled
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-200'
+                              : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
+                          }`}
+                        >
+                          {togglingCollection === collection.id ? '...' : (collection.enabled ? 'Disable' : 'Enable')}
+                        </button>
+                        {collections.length > 1 && (
+                          <button
+                            onClick={() => deleteCollection(collection.id)}
+                            className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                            title="Delete collection"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* View Registrations Button */}
+            <button
+              onClick={() => setShowRegistrations(!showRegistrations)}
+              disabled={!activeCollectionId}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {showRegistrations ? 'Close Registrations' : 'View Registrations'}
+              {activeCollectionId && ` (${collections.find(c => c.id === activeCollectionId)?.name || ''})`}
+            </button>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -1851,7 +1903,11 @@ export function AdminPanel() {
                   </svg>
                 </button>
               </div>
-              <RegistrationsList adminApiKey={adminApiKey} />
+              <RegistrationsList 
+                adminApiKey={adminApiKey} 
+                collectionId={activeCollectionId || ''}
+                collectionName={collections.find(c => c.id === activeCollectionId)?.name || ''}
+              />
             </div>
           </div>
         </>

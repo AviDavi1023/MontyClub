@@ -1,18 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeJSONToStorage } from '@/lib/supabase'
-import { ClubRegistration } from '@/types/club'
+import { writeJSONToStorage, readJSONFromStorage } from '@/lib/supabase'
+import { ClubRegistration, RegistrationCollection } from '@/types/club'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if registration is enabled
-    const settingsResp = await fetch(`${request.nextUrl.origin}/api/registration-settings`)
-    const settings = await settingsResp.json()
-    
-    if (!settings.enabled) {
+    const { searchParams } = new URL(request.url)
+    const collectionId = searchParams.get('collectionId')
+
+    if (!collectionId) {
       return NextResponse.json(
-        { error: 'Registration is currently closed' },
+        { error: 'Collection ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get collections and verify the collection exists and is enabled
+    const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+    const collections: RegistrationCollection[] = collectionsData || []
+    const collection = collections.find(c => c.id === collectionId)
+    
+    if (!collection) {
+      return NextResponse.json(
+        { error: 'Collection not found' },
+        { status: 404 }
+      )
+    }
+
+    if (!collection.enabled) {
+      return NextResponse.json(
+        { error: 'Registration is currently closed for this collection' },
         { status: 403 }
       )
     }
@@ -59,12 +77,11 @@ export async function POST(request: NextRequest) {
       clubAgreementDate,
       submittedAt: new Date().toISOString(),
       status: 'pending',
-      collection: settings.activeCollection
+      collectionId: collection.id
     }
 
     // Store in Supabase under collection folder
-    const collectionSlug = settings.activeCollection.toLowerCase().replace(/\s+/g, '-')
-    const path = `registrations/${collectionSlug}/${id}.json`
+    const path = `registrations/${collection.id}/${id}.json`
     const success = await writeJSONToStorage(path, registration)
 
     if (!success) {
@@ -101,30 +118,26 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const collection = searchParams.get('collection')
+    const collectionId = searchParams.get('collectionId')
 
-    // Get all registrations from storage
+    if (!collectionId) {
+      return NextResponse.json(
+        { error: 'Collection ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get all registrations from storage for this collection
     const { listPaths, readJSONFromStorage } = await import('@/lib/supabase')
     
-    let paths: string[] = []
-    if (collection) {
-      const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
-      paths = await listPaths(`registrations/${collectionSlug}`)
-    } else {
-      paths = await listPaths('registrations')
-    }
-    
+    const paths = await listPaths(`registrations/${collectionId}`)
     const registrations: ClubRegistration[] = []
-    const collections = new Set<string>()
     
     for (const path of paths) {
       if (path.endsWith('.json')) {
         const data = await readJSONFromStorage(path)
-        if (data) {
+        if (data && data.collectionId === collectionId) {
           registrations.push(data)
-          if (data.collection) {
-            collections.add(data.collection)
-          }
         }
       }
     }
@@ -134,10 +147,7 @@ export async function GET(request: NextRequest) {
       new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     )
 
-    return NextResponse.json({ 
-      registrations,
-      collections: Array.from(collections).sort()
-    })
+    return NextResponse.json({ registrations })
   } catch (error) {
     console.error('Error fetching registrations:', error)
     return NextResponse.json(

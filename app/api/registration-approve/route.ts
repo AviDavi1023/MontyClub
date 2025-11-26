@@ -18,34 +18,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { registrationId, collection } = body
-    if (!registrationId) {
+    if (!registrationId || !collection) {
       return NextResponse.json(
-        { error: 'Missing registration ID' },
+        { error: 'Missing registration ID or collection ID' },
         { status: 400 }
       )
     }
 
-    // Read the registration
-    // Try collection path first if provided, then legacy path fallback
-    let path: string | null = null
-    let registration: ClubRegistration | null = null
-    if (collection) {
-      const collectionSlug = collection.toLowerCase().replace(/\s+/g, '-')
-      const tryPath = `registrations/${collectionSlug}/${registrationId}.json`
-      const reg = await readJSONFromStorage(tryPath)
-      if (reg) {
-        path = tryPath
-        registration = reg
-      }
-    }
-    if (!registration) {
-      const legacyPath = `registrations/${registrationId}.json`
-      const reg = await readJSONFromStorage(legacyPath)
-      if (reg) {
-        path = legacyPath
-        registration = reg
-      }
-    }
+    // Read the registration using collection ID as folder
+    const path = `registrations/${collection}/${registrationId}.json`
+    const registration: ClubRegistration | null = await readJSONFromStorage(path)
 
     if (!registration) {
       return NextResponse.json(
@@ -58,7 +40,7 @@ export async function POST(request: NextRequest) {
     registration.status = 'approved'
 
     // Save updated registration
-    const success = await writeJSONToStorage(path!, registration)
+    const success = await writeJSONToStorage(path, registration)
 
     if (!success) {
       return NextResponse.json(
