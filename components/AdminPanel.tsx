@@ -537,13 +537,12 @@ export function AdminPanel() {
   }, [])
 
   // Auto-clear pending changes that now match database state
-      // CRITICAL: Don't run until localStorage has been loaded on mount
-      if (!localStorageLoaded) {
-        console.log('⏸️ AUTO-CLEAR SKIPPED - localStorage not loaded yet')
-        return
-      }
-    
   useEffect(() => {
+    // CRITICAL: Don't run until localStorage has been loaded on mount
+    if (!localStorageLoaded) {
+      console.log('⏸️ AUTO-CLEAR SKIPPED - localStorage not loaded yet')
+      return
+    }
     if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
 
@@ -590,7 +589,7 @@ export function AdminPanel() {
     } else {
       console.log('ℹ️ No changes to clear')
     }
-  }, [updates, localPendingChanges])
+  }, [updates, localPendingChanges, localStorageLoaded])
 
   // When the announcements panel opens, scroll it into view and keep a fixed height
   useEffect(() => {
