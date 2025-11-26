@@ -21,6 +21,10 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [localPendingRegistrationChanges, setLocalPendingRegistrationChanges] = useState<Record<string, { status?: string; denialReason?: string; deleted?: boolean }>>({})
+  const [registrationStorageLoaded, setRegistrationStorageLoaded] = useState(false)
+  const REGISTRATIONS_PENDING_KEY = 'montyclub:pendingRegistrationChanges'
+  const REGISTRATIONS_BACKUP_KEY = 'montyclub:pendingRegistrationChanges:backup'
 
   const loadRegistrations = async () => {
     setLoading(true)
@@ -41,6 +45,8 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
       }
 
       const data = await response.json()
+      // Keep registrations as pure server snapshot
+      // localPendingRegistrationChanges will overlay at render time
       setRegistrations(data.registrations || [])
       setCollections(data.collections || [])
     } catch (err: any) {
@@ -56,7 +62,95 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
     }
   }, [adminApiKey, selectedCollection])
 
-  const visible = registrations
+  // Load pending registration changes from localStorage on mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const primary = localStorage.getItem(REGISTRATIONS_PENDING_KEY)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        if (parsed && typeof parsed === 'object') setLocalPendingRegistrationChanges(parsed)
+      } else {
+        const backup = localStorage.getItem(REGISTRATIONS_BACKUP_KEY)
+        if (backup) {
+          try {
+            const bp = JSON.parse(backup)
+            if (bp && bp.data) setLocalPendingRegistrationChanges(bp.data)
+          } catch {}
+        }
+      }
+    } catch {}
+    finally {
+      setRegistrationStorageLoaded(true)
+    }
+  }, [])
+
+  // Redundant persistence for registrations
+  useEffect(() => {
+    if (!registrationStorageLoaded) return
+    try {
+      if (Object.keys(localPendingRegistrationChanges).length === 0) {
+        localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+        localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+      } else {
+        const serialized = JSON.stringify(localPendingRegistrationChanges)
+        localStorage.setItem(REGISTRATIONS_PENDING_KEY, serialized)
+        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingRegistrationChanges }))
+      }
+    } catch (e) {}
+  }, [localPendingRegistrationChanges, registrationStorageLoaded])
+
+  // Auto-clear pending registration changes that now match database state
+  useEffect(() => {
+    if (!registrationStorageLoaded) return
+    if (Object.keys(localPendingRegistrationChanges).length === 0) return
+
+    const stillPending = { ...localPendingRegistrationChanges }
+    let hasCleared = false
+
+    Object.keys(stillPending).forEach(id => {
+      const pending = stillPending[id]
+      const dbItem = registrations.find(r => r.id === id)
+
+      // If marked deleted locally but no longer exists in DB, clear it
+      if (pending.deleted && !dbItem) {
+        delete stillPending[id]
+        hasCleared = true
+      }
+      // If status matches DB, clear it
+      else if (dbItem && pending.status !== undefined && dbItem.status === pending.status) {
+        delete stillPending[id]
+        hasCleared = true
+      }
+    })
+
+    if (hasCleared) {
+      setLocalPendingRegistrationChanges(stillPending)
+      try {
+        if (Object.keys(stillPending).length === 0) {
+          localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+          localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(stillPending))
+          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
+        }
+      } catch (e) {}
+    }
+  }, [registrations, localPendingRegistrationChanges, registrationStorageLoaded])
+
+  // Merge server registrations with local pending changes
+  const registrationsOverlayed = registrations.map(reg => {
+    const pending = localPendingRegistrationChanges[reg.id]
+    if (!pending) return reg
+    const overlayed: ClubRegistration = {
+      ...reg,
+      status: (pending.status !== undefined ? pending.status : reg.status) as 'pending' | 'approved' | 'rejected',
+      denialReason: pending.denialReason !== undefined ? pending.denialReason : reg.denialReason
+    }
+    return overlayed
+  }).filter(reg => !localPendingRegistrationChanges[reg.id]?.deleted)
+
+  const visible = registrationsOverlayed
 
   const handleApprove = async (reg: ClubRegistration) => {
     if (!confirm(`Approve "${reg.clubName}"?`)) {
@@ -64,6 +158,15 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
     }
 
     setProcessingId(reg.id)
+
+    // Do NOT mutate registrations optimistically; only update localPendingRegistrationChanges
+    const newPending = { ...localPendingRegistrationChanges, [reg.id]: { status: 'approved' } }
+    setLocalPendingRegistrationChanges(newPending)
+    try {
+      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch (e) {}
+
     try {
       const response = await fetch('/api/registration-approve', {
         method: 'POST',
@@ -81,9 +184,22 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         throw new Error('Failed to approve registration')
       }
 
-      await loadRegistrations()
+      // Success: keep pending until future GET shows same state
       alert('Registration approved successfully!')
     } catch (err: any) {
+      // Clear from pending on error (revert)
+      const revertPending = { ...localPendingRegistrationChanges }
+      delete revertPending[reg.id]
+      setLocalPendingRegistrationChanges(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+          localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
       alert(err.message || 'Failed to approve registration')
     } finally {
       setProcessingId(null)
@@ -101,6 +217,14 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
 
     setProcessingId(currentReg.id)
     setShowDenyModal(false)
+
+    // Do NOT mutate registrations optimistically; only update localPendingRegistrationChanges
+    const newPending = { ...localPendingRegistrationChanges, [currentReg.id]: { status: 'rejected', denialReason: denyReason } }
+    setLocalPendingRegistrationChanges(newPending)
+    try {
+      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch (e) {}
 
     try {
       const response = await fetch('/api/registration-deny', {
@@ -120,9 +244,22 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
         throw new Error('Failed to deny registration')
       }
 
-      await loadRegistrations()
+      // Success: keep pending until future GET shows same state
       alert('Registration denied.')
     } catch (err: any) {
+      // Clear from pending on error (revert)
+      const revertPending = { ...localPendingRegistrationChanges }
+      delete revertPending[currentReg.id]
+      setLocalPendingRegistrationChanges(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+          localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
       alert(err.message || 'Failed to deny registration')
     } finally {
       setProcessingId(null)
@@ -283,17 +420,31 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
               <button
                 onClick={async () => {
                   if (!confirm(`Approve ${selectedIds.size} selected registrations?`)) return
+                  // Batch update localPendingRegistrationChanges
+                  const newPending = { ...localPendingRegistrationChanges }
+                  for (const id of Array.from(selectedIds)) {
+                    newPending[id] = { status: 'approved' }
+                  }
+                  setLocalPendingRegistrationChanges(newPending)
+                  try {
+                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                  } catch (e) {}
+                  
                   for (const id of Array.from(selectedIds)) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
-                    await fetch('/api/registration-approve', {
-                      method: 'POST',
-                      headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                      body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
-                    })
+                    try {
+                      await fetch('/api/registration-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
+                      })
+                    } catch (err) {
+                      console.error('Failed to approve', id, err)
+                    }
                   }
                   setSelectedIds(new Set())
-                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
               >Approve Selected</button>
@@ -301,34 +452,62 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                 onClick={async () => {
                   const reason = prompt('Optional denial reason (applies to all selected):') || ''
                   if (!confirm(`Deny ${selectedIds.size} selected registrations?`)) return
+                  // Batch update localPendingRegistrationChanges
+                  const newPending = { ...localPendingRegistrationChanges }
+                  for (const id of Array.from(selectedIds)) {
+                    newPending[id] = { status: 'rejected', denialReason: reason }
+                  }
+                  setLocalPendingRegistrationChanges(newPending)
+                  try {
+                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                  } catch (e) {}
+
                   for (const id of Array.from(selectedIds)) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
-                    await fetch('/api/registration-deny', {
-                      method: 'POST',
-                      headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                      body: JSON.stringify({ registrationId: reg.id, collection: reg.collection, reason })
-                    })
+                    try {
+                      await fetch('/api/registration-deny', {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection, reason })
+                      })
+                    } catch (err) {
+                      console.error('Failed to deny', id, err)
+                    }
                   }
                   setSelectedIds(new Set())
-                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg"
               >Deny Selected</button>
               <button
                 onClick={async () => {
                   if (!confirm(`Delete ${selectedIds.size} selected registrations? This cannot be undone.`)) return
+                  // Batch mark as deleted in localPendingRegistrationChanges
+                  const newPending = { ...localPendingRegistrationChanges }
+                  for (const id of Array.from(selectedIds)) {
+                    newPending[id] = { deleted: true }
+                  }
+                  setLocalPendingRegistrationChanges(newPending)
+                  try {
+                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                  } catch (e) {}
+
                   for (const id of Array.from(selectedIds)) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
-                    await fetch('/api/registration-delete', {
-                      method: 'POST',
-                      headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                      body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
-                    })
+                    try {
+                      await fetch('/api/registration-delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collection })
+                      })
+                    } catch (err) {
+                      console.error('Failed to delete', id, err)
+                    }
                   }
                   setSelectedIds(new Set())
-                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
               >Delete Selected</button>
@@ -388,7 +567,14 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                         if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
                         setSelectedIds(copy)
                       }}/></td>
-                      <td className="px-4 py-3"><span className={getStatusBadge(reg.status)}>{getStatusIcon(reg.status)}{reg.status}</span></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={getStatusBadge(reg.status)}>{getStatusIcon(reg.status)}{reg.status}</span>
+                          {localPendingRegistrationChanges[reg.id] && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{new Date(reg.submittedAt).toLocaleString()}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.clubName}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.advisorName}</td>
@@ -426,11 +612,14 @@ export function RegistrationsList({ adminApiKey }: RegistrationsListProps) {
                           />
                         </label>
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className={getStatusBadge(reg.status)}>
                               {getStatusIcon(reg.status)}
                               {reg.status.charAt(0).toUpperCase() + reg.status.slice(1)}
                             </span>
+                            {localPendingRegistrationChanges[reg.id] && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
+                            )}
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {new Date(reg.submittedAt).toLocaleDateString()}
                             </span>
