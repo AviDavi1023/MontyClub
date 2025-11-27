@@ -7,19 +7,21 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const collectionId = searchParams.get('collectionId')
+    const collectionSlug = searchParams.get('collection')
 
-    if (!collectionId) {
+    if (!collectionSlug) {
       return NextResponse.json(
-        { error: 'Collection ID is required' },
+        { error: 'Collection parameter is required' },
         { status: 400 }
       )
     }
 
-    // Get collections and verify the collection exists and is enabled
+    // Get collections and find by name slug
     const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
     const collections: RegistrationCollection[] = collectionsData || []
-    const collection = collections.find(c => c.id === collectionId)
+    const collection = collections.find(c => 
+      c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+    )
     
     if (!collection) {
       return NextResponse.json(
@@ -118,25 +120,38 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const collectionId = searchParams.get('collectionId')
+    const collectionSlug = searchParams.get('collection')
 
-    if (!collectionId) {
+    if (!collectionSlug) {
       return NextResponse.json(
-        { error: 'Collection ID is required' },
+        { error: 'Collection parameter is required' },
         { status: 400 }
       )
     }
 
-    // Get all registrations from storage for this collection
-    const { listPaths, readJSONFromStorage } = await import('@/lib/supabase')
+    // Get collections and find by name slug
+    const { listPaths } = await import('@/lib/supabase')
+    const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+    const collections: RegistrationCollection[] = collectionsData || []
+    const collection = collections.find(c => 
+      c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+    )
     
-    const paths = await listPaths(`registrations/${collectionId}`)
+    if (!collection) {
+      return NextResponse.json(
+        { error: 'Collection not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get all registrations from storage for this collection
+    const paths = await listPaths(`registrations/${collection.id}`)
     const registrations: ClubRegistration[] = []
     
     for (const path of paths) {
       if (path.endsWith('.json')) {
         const data = await readJSONFromStorage(path)
-        if (data && data.collectionId === collectionId) {
+        if (data && data.collectionId === collection.id) {
           registrations.push(data)
         }
       }

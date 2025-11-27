@@ -5,10 +5,10 @@ import { Send, CheckCircle2, XCircle } from 'lucide-react'
 import { RegistrationCollection } from '@/types/club'
 
 interface ClubRegistrationFormProps {
-  collectionId?: string
+  collectionSlug?: string
 }
 
-export function ClubRegistrationForm({ collectionId }: ClubRegistrationFormProps) {
+export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
@@ -32,16 +32,15 @@ export function ClubRegistrationForm({ collectionId }: ClubRegistrationFormProps
   // Check collection status
   useEffect(() => {
     const checkCollectionStatus = async () => {
-      if (!collectionId) {
+      if (!collectionSlug) {
         setError('No collection specified. Please use a valid registration link.')
         setLoading(false)
         return
       }
 
       try {
-        // We need to get the collection from the collections list (would need a public endpoint or pass it from server)
-        // For now, we'll just check if it exists when submitting
-        setCollection({ id: collectionId, name: '', enabled: true, createdAt: '' })
+        // We'll validate the collection when submitting
+        setCollection({ id: collectionSlug, name: collectionSlug, enabled: true, createdAt: '' })
       } catch (err) {
         console.error('Error checking collection status:', err)
         setError('Unable to verify collection status.')
@@ -50,7 +49,7 @@ export function ClubRegistrationForm({ collectionId }: ClubRegistrationFormProps
       }
     }
     checkCollectionStatus()
-  }, [collectionId])
+  }, [collectionSlug])
 
   const frequencyOptions = [
     'Weekly',
@@ -85,7 +84,7 @@ export function ClubRegistrationForm({ collectionId }: ClubRegistrationFormProps
         return
       }
 
-      const response = await fetch(`/api/club-registration?collectionId=${encodeURIComponent(collectionId || '')}`, {
+      const response = await fetch(`/api/club-registration?collection=${encodeURIComponent(collectionSlug || '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

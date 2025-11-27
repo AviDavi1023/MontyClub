@@ -46,6 +46,10 @@ export function AdminPanel() {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
+  const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, { deleted?: boolean }>>({})
+  const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
+  const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
+  const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -75,6 +79,65 @@ export function AdminPanel() {
     if (!isAuthenticated || !adminApiKey) return
     loadCollections()
   }, [isAuthenticated, adminApiKey])
+
+  // Load pending collection changes from localStorage on mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const primary = localStorage.getItem(COLLECTIONS_PENDING_KEY)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        if (parsed && typeof parsed === 'object') setLocalPendingCollectionChanges(parsed)
+      } else {
+        const backup = localStorage.getItem(COLLECTIONS_BACKUP_KEY)
+        if (backup) {
+          try {
+            const bp = JSON.parse(backup)
+            if (bp && bp.data) setLocalPendingCollectionChanges(bp.data)
+          } catch {}
+        }
+      }
+    } catch {}
+    finally {
+      setCollectionsStorageLoaded(true)
+    }
+  }, [])
+
+  // Redundant persistence for collection changes
+  useEffect(() => {
+    if (!collectionsStorageLoaded) return
+    try {
+      if (Object.keys(localPendingCollectionChanges).length === 0) {
+        localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+        localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+      } else {
+        const serialized = JSON.stringify(localPendingCollectionChanges)
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, serialized)
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingCollectionChanges }))
+      }
+    } catch (e) {}
+  }, [localPendingCollectionChanges, collectionsStorageLoaded])
+
+  // Auto-clear pending collection changes that now match database state
+  useEffect(() => {
+    if (!collectionsStorageLoaded) return
+    if (Object.keys(localPendingCollectionChanges).length === 0) return
+
+    const newPending = { ...localPendingCollectionChanges }
+    let hasChanges = false
+
+    for (const collectionId in newPending) {
+      const exists = collections.some(c => c.id === collectionId)
+      if (newPending[collectionId].deleted && !exists) {
+        delete newPending[collectionId]
+        hasChanges = true
+      }
+    }
+
+    if (hasChanges) {
+      setLocalPendingCollectionChanges(newPending)
+    }
+  }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
   const loadCollections = async () => {
     if (!adminApiKey) return
@@ -165,6 +228,14 @@ export function AdminPanel() {
     }
     if (!confirm('Are you sure you want to delete this collection? This cannot be undone.')) return
 
+    // Mark as deleted in local pending changes
+    const newPending = { ...localPendingCollectionChanges, [collectionId]: { deleted: true } }
+    setLocalPendingCollectionChanges(newPending)
+    try {
+      localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch (e) {}
+
     try {
       const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=false`, {
         method: 'DELETE',
@@ -174,6 +245,8 @@ export function AdminPanel() {
         const err = await resp.json()
         throw new Error(err.error || 'Failed to delete collection')
       }
+      
+      // On success, update the collections list (which will trigger auto-clear)
       setCollections(prev => prev.filter(c => c.id !== collectionId))
       if (activeCollectionId === collectionId && collections.length > 1) {
         const remaining = collections.filter(c => c.id !== collectionId)
@@ -181,6 +254,19 @@ export function AdminPanel() {
       }
       showToast('Collection deleted')
     } catch (err: any) {
+      // Revert local pending on error
+      const revertPending = { ...localPendingCollectionChanges }
+      delete revertPending[collectionId]
+      setLocalPendingCollectionChanges(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+          localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
       showToast(err.message || 'Failed to delete collection', 'error')
     }
   }
@@ -1299,14 +1385,30 @@ export function AdminPanel() {
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Manage club announcements without re-uploading Excel</p>
-            <button
-              onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
-              className="btn-primary w-full sm:w-auto"
-            >
-              <Megaphone className="h-4 w-4 mr-2" />
-              {showAnnouncementsPanel ? 'Close Announcements' : 'Manage Announcements'}
-            </button>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={toggleAnnouncements}
+                disabled={savingSettings}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 ${announcementsEnabled ? 'btn-secondary' : 'btn-primary'}`}
+              >
+                {savingSettings ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Megaphone className="h-4 w-4" />
+                )}
+                {announcementsEnabled ? 'Disable' : 'Enable'}
+              </button>
+              <button
+                onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
+                className="btn-primary flex items-center justify-center gap-2"
+              >
+                <Megaphone className="h-4 w-4" />
+                {showAnnouncementsPanel ? 'Close' : 'Manage'}
+              </button>
+            </div>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -1364,16 +1466,17 @@ export function AdminPanel() {
 
             {/* Collections List */}
             <div className="space-y-2 mb-4">
-              {collections.length === 0 ? (
+              {collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
               ) : (
-                collections.map((collection) => (
+                collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
                   <div
                     key={collection.id}
-                    className={`p-3 border rounded-lg ${
+                    onClick={() => setActiveCollectionId(collection.id)}
+                    className={`p-3 border rounded-lg cursor-pointer transition-all ${
                       activeCollectionId === collection.id
                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                        : 'border-gray-200 dark:border-gray-700'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-primary-50/50 dark:hover:border-primary-700 dark:hover:bg-primary-900/10'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -1395,28 +1498,19 @@ export function AdminPanel() {
                           <div className="mt-2 flex items-center gap-2">
                             <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
                             <a
-                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${collection.id}`}
+                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${collection.name.toLowerCase().replace(/\s+/g, '-')}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              /register-club?collection={collection.id}
+                              /register-club?collection={collection.name.toLowerCase().replace(/\s+/g, '-')}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setActiveCollectionId(collection.id)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                            activeCollectionId === collection.id
-                              ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/50 dark:text-primary-300'
-                              : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          {activeCollectionId === collection.id ? 'Active' : 'Select'}
-                        </button>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => toggleCollectionEnabled(collection.id)}
                           disabled={togglingCollection === collection.id}
@@ -1430,7 +1524,10 @@ export function AdminPanel() {
                         </button>
                         {collections.length > 1 && (
                           <button
-                            onClick={() => deleteCollection(collection.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteCollection(collection.id)
+                            }}
                             className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
                             title="Delete collection"
                           >
@@ -1453,25 +1550,6 @@ export function AdminPanel() {
               <FileSpreadsheet className="h-4 w-4" />
               {showRegistrations ? 'Close Registrations' : 'View Registrations'}
               {activeCollectionId && ` (${collections.find(c => c.id === activeCollectionId)?.name || ''})`}
-            </button>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements Feature</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
-            </p>
-            <button
-              onClick={toggleAnnouncements}
-              disabled={savingSettings}
-              className={`w-full sm:w-auto flex items-center gap-2 ${announcementsEnabled ? 'btn-secondary' : 'btn-primary'}`}
-            >
-              {savingSettings ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Megaphone className="h-4 w-4" />
-              )}
-              {announcementsEnabled ? 'Disable Announcements' : 'Enable Announcements'}
             </button>
           </div>
 
@@ -1905,7 +1983,7 @@ export function AdminPanel() {
               </div>
               <RegistrationsList 
                 adminApiKey={adminApiKey} 
-                collectionId={activeCollectionId || ''}
+                collectionSlug={collections.find(c => c.id === activeCollectionId)?.name.toLowerCase().replace(/\s+/g, '-') || ''}
                 collectionName={collections.find(c => c.id === activeCollectionId)?.name || ''}
               />
             </div>

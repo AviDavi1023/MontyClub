@@ -6,11 +6,11 @@ import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, Che
 
 interface RegistrationsListProps {
   adminApiKey: string
-  collectionId: string
+  collectionSlug: string
   collectionName: string
 }
 
-export function RegistrationsList({ adminApiKey, collectionId, collectionName }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionSlug, collectionName }: RegistrationsListProps) {
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -27,11 +27,11 @@ export function RegistrationsList({ adminApiKey, collectionId, collectionName }:
   const REGISTRATIONS_BACKUP_KEY = 'montyclub:pendingRegistrationChanges:backup'
 
   const loadRegistrations = async () => {
-    if (!collectionId) return
+    if (!collectionSlug) return
     setLoading(true)
     setError('')
     try {
-      const url = `/api/club-registration?collectionId=${encodeURIComponent(collectionId)}`
+      const url = `/api/club-registration?collection=${encodeURIComponent(collectionSlug)}`
         
       const response = await fetch(url, {
         headers: {
@@ -55,10 +55,10 @@ export function RegistrationsList({ adminApiKey, collectionId, collectionName }:
   }
 
   useEffect(() => {
-    if (adminApiKey && collectionId) {
+    if (adminApiKey && collectionSlug) {
       loadRegistrations()
     }
-  }, [adminApiKey, collectionId])
+  }, [adminApiKey, collectionSlug])
 
   // Load pending registration changes from localStorage on mount
   useEffect(() => {
