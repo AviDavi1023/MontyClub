@@ -139,8 +139,23 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const collections = await getCollections()
-    const collectionIndex = collections.findIndex(c => c.id === id)
+    // Retry logic to handle eventual consistency from Supabase storage
+    let collections: RegistrationCollection[] = []
+    let collectionIndex = -1
+    const maxRetries = 3
+    const retryDelay = 200 // ms
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      collections = await getCollections()
+      collectionIndex = collections.findIndex(c => c.id === id)
+      
+      if (collectionIndex !== -1) break
+      
+      // If not found and not last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+      }
+    }
 
     if (collectionIndex === -1) {
       return NextResponse.json(

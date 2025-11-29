@@ -16,12 +16,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get collections and find by name slug
-    const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-    const collections: RegistrationCollection[] = collectionsData || []
-    const collection = collections.find(c => 
-      c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
-    )
+    // Get collections and find by name slug with retry for eventual consistency
+    let collection: RegistrationCollection | undefined
+    const maxRetries = 3
+    const retryDelay = 200 // ms
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+      const collections: RegistrationCollection[] = collectionsData || []
+      collection = collections.find(c => 
+        c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+      )
+      
+      if (collection) break
+      
+      // If not found and not last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+      }
+    }
     
     if (!collection) {
       return NextResponse.json(
@@ -129,13 +142,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get collections and find by name slug
+    // Get collections and find by name slug with retry for eventual consistency
     const { listPaths } = await import('@/lib/supabase')
-    const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-    const collections: RegistrationCollection[] = collectionsData || []
-    const collection = collections.find(c => 
-      c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
-    )
+    let collection: RegistrationCollection | undefined
+    const maxRetries = 3
+    const retryDelay = 200 // ms
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+      const collections: RegistrationCollection[] = collectionsData || []
+      collection = collections.find(c => 
+        c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+      )
+      
+      if (collection) break
+      
+      // If not found and not last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+      }
+    }
     
     if (!collection) {
       return NextResponse.json(
