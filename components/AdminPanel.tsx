@@ -251,8 +251,9 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    // If it's a temp or pending-created collection, toggle locally only
-    const isTemp = collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created
+    // If it's a temp ID or the collection hasn't been confirmed by server yet, toggle locally only
+    const collection = collections.find(c => c.id === collectionId)
+    const isTemp = collectionId.startsWith('temp-col-') || (!collection && localPendingCollectionChanges[collectionId]?.created)
     if (isTemp) {
       const current = localPendingCollectionChanges[collectionId]?.enabled ?? false
       const nextEnabled = !current
@@ -267,7 +268,6 @@ export function AdminPanel() {
       showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
       return
     }
-    const collection = collections.find(c => c.id === collectionId)
     if (!collection) return
 
     setTogglingCollection(collectionId)
@@ -1812,18 +1812,6 @@ export function AdminPanel() {
             )}
           </div>
 
-          {/* Club Registrations */}
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registrations</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View and manage club charter requests</p>
-            <button
-              onClick={() => setShowRegistrations(!showRegistrations)}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              {showRegistrations ? 'Close Registrations' : 'View Registrations'}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -2098,7 +2086,15 @@ export function AdminPanel() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Registrations</h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Share this link: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club</a>
+                    Share this link: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
+                      const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                      return baseName.toLowerCase().replace(/\s+/g, '-')
+                    })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
+                      const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                      return baseName.toLowerCase().replace(/\s+/g, '-')
+                    })()}</a>
                   </p>
                 </div>
                 <button
