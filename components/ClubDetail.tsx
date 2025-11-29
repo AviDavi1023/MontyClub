@@ -19,12 +19,20 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   const queryString = searchParams?.toString() ? `/?${searchParams.toString()}` : '/'
   const [copied, setCopied] = useState(false)
   const [hasPendingAnnouncement, setHasPendingAnnouncement] = useState(false)
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
 
   // Check if this club has a pending announcement in localStorage
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
+      // pick up announcementsEnabled quick override
+      try {
+        const override = localStorage.getItem('settings:announcementsEnabled')
+        if (override === 'true' || override === 'false') {
+          setAnnouncementsEnabled(override === 'true')
+        }
+      } catch {}
       const pending = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
       if (pending) {
         const parsed = JSON.parse(pending)
@@ -32,6 +40,24 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
           setHasPendingAnnouncement(true)
         }
       }
+      // Also load server setting once
+      fetch('/api/settings', { cache: 'no-store' }).then(async (resp) => {
+        if (resp.ok) {
+          const s = await resp.json()
+          setAnnouncementsEnabled(s.announcementsEnabled !== false)
+        }
+      }).catch(() => {})
+      // Listen for storage events to update enabled flag
+      const onStorage = (e: StorageEvent) => {
+        try {
+          if (!e.key) return
+          if (e.key === 'settings:announcementsEnabled' && typeof e.newValue === 'string') {
+            setAnnouncementsEnabled(e.newValue === 'true')
+          }
+        } catch {}
+      }
+      window.addEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
     } catch {}
   }, [club.id])
 
@@ -77,12 +103,12 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
 
       {/* Club Header */}
       <div className="card">
-        {club.announcement && (
+        {announcementsEnabled && club.announcement && (
           <div className="mb-3 sm:mb-4 flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-200 p-2.5 sm:p-3 rounded">
             <Megaphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <div>{club.announcement}</div>
-              {hasPendingAnnouncement && (
+              {announcementsEnabled && hasPendingAnnouncement && (
                 <div className="mt-1 text-xs text-yellow-700 dark:text-yellow-300 italic">Syncing...</div>
               )}
             </div>

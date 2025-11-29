@@ -8,6 +8,7 @@ import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
 import { Toggle } from '@/components/Toggle'
+import { slugifyName } from '@/lib/slug'
 
 export function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -129,10 +130,31 @@ export function AdminPanel() {
     let hasChanges = false
 
     for (const collectionId in newPending) {
-      const exists = collections.some(c => c.id === collectionId)
-      if (newPending[collectionId].deleted && !exists) {
+      const pending = newPending[collectionId]
+      const found = collections.find(c => c.id === collectionId)
+      // If marked deleted locally but no longer exists in DB, clear it
+      if (pending.deleted && !found) {
         delete newPending[collectionId]
         hasChanges = true
+        continue
+      }
+      if (found) {
+        // If enabled matches DB, clear enabled flag
+        if (pending.enabled !== undefined && found.enabled === pending.enabled) {
+          delete newPending[collectionId].enabled
+          hasChanges = true
+        }
+        // If name matches DB, clear name flag
+        if (pending.name && found.name === pending.name) {
+          delete newPending[collectionId].name
+          hasChanges = true
+        }
+        // If no remaining flags, remove entry
+        const entry = newPending[collectionId]
+        if (entry && !entry.deleted && entry.enabled === undefined && !entry.name && !entry.created) {
+          delete newPending[collectionId]
+          hasChanges = true
+        }
       }
     }
 
@@ -1621,13 +1643,13 @@ export function AdminPanel() {
                           <div className="mt-2 flex items-center gap-2">
                             <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
                             <a
-                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${collection.name.toLowerCase().replace(/\s+/g, '-')}`}
+                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              /register-club?collection={collection.name.toLowerCase().replace(/\s+/g, '-')}
+                              /register-club?collection={slugifyName(collection.name)}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </div>
@@ -2112,7 +2134,7 @@ export function AdminPanel() {
                 collectionSlug={( (() => {
                   const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
                   const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                  return baseName.toLowerCase().replace(/\s+/g, '-')
+                  return slugifyName(baseName)
                 })() )}
                 collectionName={( (() => {
                   const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined

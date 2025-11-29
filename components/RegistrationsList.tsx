@@ -25,6 +25,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
   const [registrationStorageLoaded, setRegistrationStorageLoaded] = useState(false)
   const REGISTRATIONS_PENDING_KEY = 'montyclub:pendingRegistrationChanges'
   const REGISTRATIONS_BACKUP_KEY = 'montyclub:pendingRegistrationChanges:backup'
+  const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
+  const [pendingCollectionsBySlug, setPendingCollectionsBySlug] = useState<Record<string, { created?: boolean; enabled?: boolean; name?: string }>>({})
 
   const loadRegistrations = async () => {
     if (!collectionSlug) return
@@ -40,6 +42,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
       })
 
       if (!response.ok) {
+        // Gracefully handle 404 for just-created collections not yet propagated
+        if (response.status === 404) {
+          const pend = pendingCollectionsBySlug[collectionSlug]
+          if (pend && pend.created) {
+            setRegistrations([])
+            return
+          }
+        }
         throw new Error('Failed to load registrations')
       }
 
@@ -58,12 +68,26 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
     if (adminApiKey && collectionSlug) {
       loadRegistrations()
     }
-  }, [adminApiKey, collectionSlug])
+  }, [adminApiKey, collectionSlug, pendingCollectionsBySlug])
 
   // Load pending registration changes from localStorage on mount
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
+      // Load pending collections and index by slug for created entries
+      try {
+        const raw = localStorage.getItem(COLLECTIONS_PENDING_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, { created?: boolean; enabled?: boolean; name?: string }>
+          const bySlug: Record<string, { created?: boolean; enabled?: boolean; name?: string }> = {}
+          Object.values(parsed || {}).forEach((v) => {
+            if (!v) return
+            const slug = (v.name || '').toLowerCase().replace(/\s+/g, '-')
+            if (slug) bySlug[slug] = v
+          })
+          setPendingCollectionsBySlug(bySlug)
+        }
+      } catch {}
       const primary = localStorage.getItem(REGISTRATIONS_PENDING_KEY)
       if (primary) {
         const parsed = JSON.parse(primary)
