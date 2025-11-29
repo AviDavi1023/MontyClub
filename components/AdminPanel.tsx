@@ -340,14 +340,20 @@ export function AdminPanel() {
       showToast('New collection creation canceled')
       return
     }
-
-    // Mark as deleted in local pending changes
+    // Mark as deleted in local pending changes (do not mutate server snapshot yet)
     const newPending = { ...localPendingCollectionChanges, [collectionId]: { deleted: true } }
     setLocalPendingCollectionChanges(newPending)
     try {
       localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
+    } catch {}
+
+    // Adjust active collection immediately if needed (choose an enabled non-deleted replacement)
+    if (activeCollectionId === collectionId) {
+      const replacement = collections.find(c => c.id !== collectionId && !newPending[c.id]?.deleted && c.enabled) ||
+        collections.find(c => c.id !== collectionId && !newPending[c.id]?.deleted) || null
+      setActiveCollectionId(replacement ? replacement.id : null)
+    }
 
     try {
       const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=false`, {
@@ -355,19 +361,24 @@ export function AdminPanel() {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) {
-        const err = await resp.json()
+        const err = await resp.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to delete collection')
       }
-      
-      // On success, update the collections list (which will trigger auto-clear)
-      setCollections(prev => prev.filter(c => c.id !== collectionId))
-      if (activeCollectionId === collectionId && collections.length > 1) {
-        const remaining = collections.filter(c => c.id !== collectionId)
-        setActiveCollectionId(remaining[0]?.id || null)
+      showToast('Deletion requested. Syncing…', 'info')
+      // Poll until collection disappears from server snapshot (eventual consistency)
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise(r => setTimeout(r, 200 * (attempt + 1)))
+        await loadCollections()
+        const stillExists = collections.some(c => c.id === collectionId)
+        if (!stillExists) {
+          showToast('Collection deleted')
+          break
+        } else if (attempt === 4) {
+          showToast('Still pending deletion; will clear automatically when server updates', 'info')
+        }
       }
-      showToast('Collection deleted')
     } catch (err: any) {
-      // Revert local pending on error
+      // Revert local pending deletion
       const revertPending = { ...localPendingCollectionChanges }
       delete revertPending[collectionId]
       setLocalPendingCollectionChanges(revertPending)
@@ -379,7 +390,7 @@ export function AdminPanel() {
           localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revertPending))
           localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
         }
-      } catch (e) {}
+      } catch {}
       showToast(err.message || 'Failed to delete collection', 'error')
     }
   }
