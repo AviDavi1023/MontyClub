@@ -7,6 +7,7 @@ import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
+import { Toggle } from '@/components/Toggle'
 
 export function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -46,7 +47,8 @@ export function AdminPanel() {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, { deleted?: boolean }>>({})
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; name?: string }
+  const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
   const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
@@ -168,6 +170,20 @@ export function AdminPanel() {
       return
     }
     setCreatingCollection(true)
+    const name = newCollectionName.trim()
+    const tempId = `temp-col-${Date.now()}-${Math.random().toString(36).substring(2,7)}`
+    // Add local pending created collection so it shows immediately
+    setLocalPendingCollectionChanges(prev => {
+      const next = { ...prev, [tempId]: { created: true, name, enabled: false } }
+      try {
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+      } catch {}
+      return next
+    })
+    // Select it right away
+    setActiveCollectionId(tempId)
+    setNewCollectionName('')
     try {
       const resp = await fetch('/api/registration-collections', {
         method: 'POST',
@@ -175,17 +191,55 @@ export function AdminPanel() {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify({ name: newCollectionName.trim(), enabled: false })
+        body: JSON.stringify({ name, enabled: false })
       })
       if (!resp.ok) {
         const err = await resp.json()
         throw new Error(err.error || 'Failed to create collection')
       }
       const data = await resp.json()
+      // Add the server-created collection to server snapshot
       setCollections(prev => [data.collection, ...prev])
-      setNewCollectionName('')
+      // Migrate any pending created state from tempId to real id
+      setLocalPendingCollectionChanges(prev => {
+        const temp = prev[tempId]
+        if (!temp) return prev
+        const rest = { ...prev }
+        delete rest[tempId]
+        // If user toggled enabled while creating, carry it forward as pending for real id
+        if (temp.enabled !== undefined && temp.enabled !== data.collection.enabled) {
+          rest[data.collection.id] = { ...(rest[data.collection.id] || {}), enabled: temp.enabled }
+        }
+        try {
+          if (Object.keys(rest).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
+          }
+        } catch {}
+        return rest
+      })
+      // Select the real id now
+      setActiveCollectionId(data.collection.id)
       showToast('Collection created successfully')
     } catch (err: any) {
+      // Revert local pending temp on error
+      setLocalPendingCollectionChanges(prev => {
+        const rest = { ...prev }
+        delete rest[tempId]
+        try {
+          if (Object.keys(rest).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
+          }
+        } catch {}
+        return rest
+      })
       showToast(err.message || 'Failed to create collection', 'error')
     } finally {
       setCreatingCollection(false)
@@ -195,6 +249,22 @@ export function AdminPanel() {
   const toggleCollectionEnabled = async (collectionId: string) => {
     if (!adminApiKey) {
       showToast('Set admin API key first', 'error')
+      return
+    }
+    // If it's a temp or pending-created collection, toggle locally only
+    const isTemp = collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created
+    if (isTemp) {
+      const current = localPendingCollectionChanges[collectionId]?.enabled ?? false
+      const nextEnabled = !current
+      setLocalPendingCollectionChanges(prev => {
+        const next = { ...prev, [collectionId]: { ...(prev[collectionId]||{}), created: true, enabled: nextEnabled } }
+        try {
+          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        } catch {}
+        return next
+      })
+      showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
       return
     }
     const collection = collections.find(c => c.id === collectionId)
@@ -227,6 +297,27 @@ export function AdminPanel() {
       return
     }
     if (!confirm('Are you sure you want to delete this collection? This cannot be undone.')) return
+
+    // If it's a temp/pending-created collection, just clear it locally
+    if (collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created) {
+      setLocalPendingCollectionChanges(prev => {
+        const rest = { ...prev }
+        delete rest[collectionId]
+        try {
+          if (Object.keys(rest).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
+          }
+        } catch {}
+        return rest
+      })
+      if (activeCollectionId === collectionId) setActiveCollectionId(null)
+      showToast('New collection creation canceled')
+      return
+    }
 
     // Mark as deleted in local pending changes
     const newPending = { ...localPendingCollectionChanges, [collectionId]: { deleted: true } }
@@ -1389,18 +1480,17 @@ export function AdminPanel() {
               {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={toggleAnnouncements}
-                disabled={savingSettings}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 ${announcementsEnabled ? 'btn-secondary' : 'btn-primary'}`}
-              >
-                {savingSettings ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
+              <div className="flex items-center justify-between w-full sm:w-auto sm:flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Megaphone className="h-4 w-4" />
-                )}
-                {announcementsEnabled ? 'Disable' : 'Enable'}
-              </button>
+                  <span>Show on site</span>
+                </div>
+                <Toggle
+                  checked={announcementsEnabled}
+                  onChange={() => { if (!savingSettings) toggleAnnouncements() }}
+                  disabled={savingSettings}
+                />
+              </div>
               <button
                 onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
                 className="btn-primary flex items-center justify-center gap-2"
@@ -1466,10 +1556,39 @@ export function AdminPanel() {
 
             {/* Collections List */}
             <div className="space-y-2 mb-4">
-              {collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
+              {(() => {
+                const overlayed = (() => {
+                  const map = new Map<string, RegistrationCollection>()
+                  // start with server snapshot
+                  for (const c of collections) map.set(c.id, { ...c })
+                  // apply pending changes
+                  for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
+                    if (change.deleted) {
+                      map.delete(id)
+                      continue
+                    }
+                    if (change.created) {
+                      if (!map.has(id)) {
+                        map.set(id, {
+                          id,
+                          name: change.name || 'New Collection',
+                          enabled: change.enabled ?? false,
+                          createdAt: new Date().toISOString()
+                        })
+                      }
+                    }
+                    const obj = map.get(id)
+                    if (obj) {
+                      if (change.enabled !== undefined) obj.enabled = change.enabled
+                      if (change.name) obj.name = change.name
+                    }
+                  }
+                  return Array.from(map.values())
+                })()
+                return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
               ) : (
-                collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
+                overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
                   <div
                     key={collection.id}
                     onClick={() => setActiveCollectionId(collection.id)}
@@ -1490,6 +1609,9 @@ export function AdminPanel() {
                           }`}>
                             {collection.enabled ? 'Enabled' : 'Disabled'}
                           </span>
+                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Created {new Date(collection.createdAt).toLocaleDateString()}
@@ -1511,17 +1633,11 @@ export function AdminPanel() {
                         )}
                       </div>
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => toggleCollectionEnabled(collection.id)}
+                        <Toggle
+                          checked={!!collection.enabled}
+                          onChange={() => toggleCollectionEnabled(collection.id)}
                           disabled={togglingCollection === collection.id}
-                          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                            collection.enabled
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-200'
-                              : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
-                          }`}
-                        >
-                          {togglingCollection === collection.id ? '...' : (collection.enabled ? 'Disable' : 'Enable')}
-                        </button>
+                        />
                         {collections.length > 1 && (
                           <button
                             onClick={(e) => {
@@ -1538,19 +1654,29 @@ export function AdminPanel() {
                     </div>
                   </div>
                 ))
-              )}
+              )
+              })()}
             </div>
 
             {/* View Registrations Button */}
-            <button
-              onClick={() => setShowRegistrations(!showRegistrations)}
-              disabled={!activeCollectionId}
-              className="btn-primary w-full flex items-center justify-center gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              {showRegistrations ? 'Close Registrations' : 'View Registrations'}
-              {activeCollectionId && ` (${collections.find(c => c.id === activeCollectionId)?.name || ''})`}
-            </button>
+              <button
+                onClick={() => setShowRegistrations(!showRegistrations)}
+                disabled={!activeCollectionId}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {showRegistrations ? 'Close Registrations' : 'View Registrations'}
+                {activeCollectionId && (() => {
+                  const overlayedName = (() => {
+                    // prefer overlay name if present
+                    const pending = localPendingCollectionChanges[activeCollectionId]
+                    if (pending?.name) return pending.name
+                    const found = collections.find(c => c.id === activeCollectionId)
+                    return found?.name || ''
+                  })()
+                  return ` (${overlayedName})`
+                })()}
+              </button>
           </div>
 
           {/* Pilot Analytics */}
@@ -1581,9 +1707,12 @@ export function AdminPanel() {
                     placeholder="e.g. pilot-1"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3 items-center">
                   <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
-                  <button onClick={toggleAnalyticsEnabled} className={`whitespace-nowrap flex items-center gap-2 ${analyticsEnabled ? 'btn-secondary' : 'btn-primary'}`}>{analyticsEnabled ? 'Disable Analytics' : 'Enable Analytics'}</button>
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Enable Analytics</span>
+                    <Toggle checked={analyticsEnabled} onChange={toggleAnalyticsEnabled} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1983,8 +2112,15 @@ export function AdminPanel() {
               </div>
               <RegistrationsList 
                 adminApiKey={adminApiKey} 
-                collectionSlug={collections.find(c => c.id === activeCollectionId)?.name.toLowerCase().replace(/\s+/g, '-') || ''}
-                collectionName={collections.find(c => c.id === activeCollectionId)?.name || ''}
+                collectionSlug={( (() => {
+                  const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  return baseName.toLowerCase().replace(/\s+/g, '-')
+                })() )}
+                collectionName={( (() => {
+                  const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                })() )}
               />
             </div>
           </div>
