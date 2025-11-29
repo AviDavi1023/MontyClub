@@ -1188,6 +1188,7 @@ export function AdminPanel() {
       }
       
       setAnnouncementsEnabled(newValue)
+      try { localStorage.setItem('settings:announcementsEnabled', String(newValue)) } catch {}
       showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
       
       // Refresh club data to apply changes

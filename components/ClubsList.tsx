@@ -15,6 +15,7 @@ export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(true)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   // Start with filters hidden on mobile, visible on desktop
@@ -84,6 +85,14 @@ export function ClubsList() {
         setClubs(data)
         setUpdateCounter(prev => prev + 1)  // Increment counter to force re-render
       }
+      // Also refresh announcementsEnabled from server
+      try {
+        const resp = await fetch('/api/settings', { cache: 'no-store' })
+        if (resp.ok) {
+          const s = await resp.json()
+          setAnnouncementsEnabled(s.announcementsEnabled !== false)
+        }
+      } catch {}
     } catch (error) {
       console.error('Error loading clubs:', error)
     } finally {
@@ -124,6 +133,13 @@ export function ClubsList() {
         const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
         if (primary) setLocalPendingAnnouncements(JSON.parse(primary))
       } catch {}
+      // pick up immediate local override if present
+      try {
+        const override = localStorage.getItem('settings:announcementsEnabled')
+        if (override === 'true' || override === 'false') {
+          setAnnouncementsEnabled(override === 'true')
+        }
+      } catch {}
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
@@ -143,6 +159,10 @@ export function ClubsList() {
               setLocalPendingAnnouncements({})
             }
           } catch {}
+        } else if (e.key === 'settings:announcementsEnabled') {
+          if (typeof e.newValue === 'string') {
+            setAnnouncementsEnabled(e.newValue === 'true')
+          }
         }
       } catch (err) {
         // ignore
@@ -166,6 +186,11 @@ export function ClubsList() {
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
+      // initial local override if present
+      const override = localStorage.getItem('settings:announcementsEnabled')
+      if (override === 'true' || override === 'false') {
+        setAnnouncementsEnabled(override === 'true')
+      }
       const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
       if (primary) {
         const parsed = JSON.parse(primary)
@@ -183,12 +208,13 @@ export function ClubsList() {
   }, [])
 
   const clubsOverlayed = useMemo(() => {
+    if (!announcementsEnabled) return clubs
     if (!localPendingAnnouncements || Object.keys(localPendingAnnouncements).length === 0) return clubs
     return clubs.map(c => ({
       ...c,
       announcement: (localPendingAnnouncements[c.id] ?? c.announcement) || ''
     }))
-  }, [clubs, localPendingAnnouncements])
+  }, [clubs, localPendingAnnouncements, announcementsEnabled])
 
   const filteredClubs = useMemo(() => {
     // Build a frequency map using normalized labels to group variants (e.g. "1st & 3rd weeks")
