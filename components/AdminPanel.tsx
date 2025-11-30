@@ -1236,10 +1236,8 @@ export function AdminPanel() {
       const resp = await fetch('/api/announcements')
       if (!resp.ok) throw new Error('Failed to fetch announcements')
       const data = await resp.json()
-      // Keep announcements as pure server snapshot
-      // localPendingAnnouncements will overlay at render time
-      console.log('=== FETCH ANNOUNCEMENTS ===')
-      console.log('Raw announcements from API/DB:', data)
+      // Keep announcements as pure server snapshot; overlay happens at render
+      try { console.log(JSON.stringify({ tag: 'ann-load', step: 'db', keys: Object.keys(data||{}) })) } catch {}
       setAnnouncements(data || {})
     } catch (err) {
       console.error('Error fetching announcements:', err)
