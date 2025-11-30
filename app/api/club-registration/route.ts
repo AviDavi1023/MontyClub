@@ -16,6 +16,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Import slugifyName for consistent slug comparison
+    const { slugifyName } = await import('@/lib/slug')
+    
     // Get collections and find by name slug with retry for eventual consistency
     let collection: RegistrationCollection | undefined
     const maxRetries = 3
@@ -25,7 +28,7 @@ export async function POST(request: NextRequest) {
       const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
       const collections: RegistrationCollection[] = collectionsData || []
       collection = collections.find(c => 
-        c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+        slugifyName(c.name) === slugifyName(collectionSlug)
       )
       
       if (collection) break
@@ -142,6 +145,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Import slugifyName for consistent slug comparison
+    const { slugifyName } = await import('@/lib/slug')
+    
     // Get collections and find by name slug with retry for eventual consistency
     const { listPaths } = await import('@/lib/supabase')
     let collection: RegistrationCollection | undefined
@@ -152,7 +158,7 @@ export async function GET(request: NextRequest) {
       const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
       const collections: RegistrationCollection[] = collectionsData || []
       collection = collections.find(c => 
-        c.name.toLowerCase().replace(/\s+/g, '-') === collectionSlug.toLowerCase()
+        slugifyName(c.name) === slugifyName(collectionSlug)
       )
       
       if (collection) break

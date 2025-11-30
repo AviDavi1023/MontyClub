@@ -208,7 +208,12 @@ export function ClubsList() {
   }, [])
 
   const clubsOverlayed = useMemo(() => {
-    if (!announcementsEnabled) return clubs
+    // If announcements are disabled, don't overlay any announcements
+    if (!announcementsEnabled) {
+      return clubs.map(c => ({ ...c, announcement: '' }))
+    }
+    
+    // If announcements are enabled, overlay pending announcements
     if (!localPendingAnnouncements || Object.keys(localPendingAnnouncements).length === 0) return clubs
     return clubs.map(c => ({
       ...c,

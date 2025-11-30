@@ -293,6 +293,16 @@ export function AdminPanel() {
     if (!collection) return
 
     setTogglingCollection(collectionId)
+    const nextEnabled = !collection.enabled
+    
+    // Optimistically update localStorage immediately
+    const newPending = { ...localPendingCollectionChanges, [collectionId]: { ...(localPendingCollectionChanges[collectionId] || {}), enabled: nextEnabled } }
+    setLocalPendingCollectionChanges(newPending)
+    try {
+      localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch {}
+    
     try {
       const resp = await fetch('/api/registration-collections', {
         method: 'PATCH',
@@ -300,13 +310,26 @@ export function AdminPanel() {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify({ id: collectionId, enabled: !collection.enabled })
+        body: JSON.stringify({ id: collectionId, enabled: nextEnabled })
       })
       if (!resp.ok) throw new Error('Failed to update collection')
       const data = await resp.json()
       setCollections(prev => prev.map(c => c.id === collectionId ? data.collection : c))
       showToast(`Collection ${data.collection.enabled ? 'enabled' : 'disabled'}`)
     } catch (err) {
+      // Revert on error
+      const revertPending = { ...localPendingCollectionChanges }
+      delete revertPending[collectionId]
+      setLocalPendingCollectionChanges(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+          localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch {}
       showToast('Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)
@@ -1209,6 +1232,16 @@ export function AdminPanel() {
     try {
       setSavingSettings(true)
       const newValue = !announcementsEnabled
+      
+      // Optimistically update localStorage immediately
+      setAnnouncementsEnabled(newValue)
+      try { 
+        localStorage.setItem('settings:announcementsEnabled', String(newValue))
+        // Dispatch event to notify ClubsList component
+        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
+        bcRef.current?.postMessage({ type: 'announcements-updated', settingsChanged: true })
+      } catch {}
+      
       const resp = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1220,14 +1253,19 @@ export function AdminPanel() {
         throw new Error(errorData.error || `Server returned ${resp.status}`)
       }
       
-      setAnnouncementsEnabled(newValue)
-      try { localStorage.setItem('settings:announcementsEnabled', String(newValue)) } catch {}
       showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
       
       // Refresh club data to apply changes
       await refreshData()
     } catch (err) {
       console.error('Error toggling announcements:', err)
+      // Revert on error
+      setAnnouncementsEnabled(!announcementsEnabled)
+      try { 
+        localStorage.setItem('settings:announcementsEnabled', String(!announcementsEnabled))
+        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
+        bcRef.current?.postMessage({ type: 'announcements-updated', settingsChanged: true })
+      } catch {}
       showToast(`Could not update settings: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingSettings(false)
@@ -2123,11 +2161,11 @@ export function AdminPanel() {
                     Share this link: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
                       const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
                       const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                      return baseName.toLowerCase().replace(/\s+/g, '-')
+                      return slugifyName(baseName)
                     })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
                       const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
                       const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                      return baseName.toLowerCase().replace(/\s+/g, '-')
+                      return slugifyName(baseName)
                     })()}</a>
                   </p>
                 </div>
