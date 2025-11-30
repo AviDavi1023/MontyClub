@@ -451,7 +451,11 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ id: collectionId, enabled: nextEnabled })
       })
-      if (!resp.ok) throw new Error('Failed to update collection')
+      if (!resp.ok) {
+        let errText = 'Failed to update collection'
+        try { const j = await resp.json(); if (j && j.error) errText = `${j.error}${j.detail ? ` (${j.detail})` : ''}` } catch {}
+        throw new Error(errText)
+      }
       const data = await resp.json()
       log({ step: 'patch-ok', collection: { id: data.collection.id, enabled: data.collection.enabled } })
       // Do NOT immediately update collections state to avoid premature auto-clear

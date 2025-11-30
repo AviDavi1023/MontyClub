@@ -26,7 +26,14 @@ async function getCollections(): Promise<RegistrationCollection[]> {
 }
 
 async function saveCollections(collections: RegistrationCollection[]): Promise<boolean> {
-  return await writeJSONToStorage(COLLECTIONS_PATH, collections)
+  // Retry saves to tolerate transient storage latency
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ok = await writeJSONToStorage(COLLECTIONS_PATH, collections)
+    if (ok) return true
+    // small backoff
+    await new Promise(r => setTimeout(r, 150 * (attempt + 1)))
+  }
+  return false
 }
 
 // GET - List all collections
@@ -129,6 +136,13 @@ export async function PATCH(request: NextRequest) {
   const currentOperation = updateLock.then(async () => {
     try { console.log(JSON.stringify({ tag: 'collections-api', step: 'lock-acquired', operationId })) } catch {}
     try {
+      // Environment sanity checks
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+        return NextResponse.json(
+          { error: 'Supabase environment not configured', detail: { url: !!process.env.NEXT_PUBLIC_SUPABASE_URL, serviceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY, anon: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY } },
+          { status: 500 }
+        )
+      }
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
 
@@ -205,7 +219,7 @@ export async function PATCH(request: NextRequest) {
 
       if (!success) {
         return NextResponse.json(
-          { error: 'Failed to update collection' },
+          { error: 'Failed to update collection', detail: 'storage-write-failed' },
           { status: 500 }
         )
       }
@@ -215,7 +229,7 @@ export async function PATCH(request: NextRequest) {
     } catch (error) {
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'error', operationId, error: String(error) })) } catch {}
       return NextResponse.json(
-        { error: 'Internal server error' },
+        { error: 'Internal server error', detail: String(error) },
         { status: 500 }
       )
     }
