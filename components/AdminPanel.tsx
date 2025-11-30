@@ -53,6 +53,7 @@ export function AdminPanel() {
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
   const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
+  const collectionsRefreshTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -196,6 +197,19 @@ export function AdminPanel() {
       setLocalPendingCollectionChanges(newPending)
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
+
+  // Debounced refresh function to batch multiple rapid toggles
+  const scheduleCollectionsRefresh = () => {
+    // Clear any existing timer
+    if (collectionsRefreshTimerRef.current) {
+      clearTimeout(collectionsRefreshTimerRef.current)
+    }
+    // Schedule a new refresh after 500ms of inactivity
+    collectionsRefreshTimerRef.current = setTimeout(() => {
+      loadCollections()
+      collectionsRefreshTimerRef.current = null
+    }, 500)
+  }
 
   const loadCollections = async () => {
     if (!adminApiKey) return
@@ -411,8 +425,8 @@ export function AdminPanel() {
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
-      // Poll to refresh and auto-clear pending changes once DB reflects the update
-      setTimeout(() => loadCollections(), 300)
+      // Use debounced refresh to handle rapid multiple toggles without race conditions
+      scheduleCollectionsRefresh()
     } catch (err) {
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
       setLocalPendingCollectionChanges(prev => {
@@ -614,6 +628,10 @@ export function AdminPanel() {
     }
     return () => {
       bcRef.current?.close()
+      // Clean up any pending refresh timer
+      if (collectionsRefreshTimerRef.current) {
+        clearTimeout(collectionsRefreshTimerRef.current)
+      }
     }
   }, [])
 

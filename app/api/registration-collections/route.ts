@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic'
 
 const COLLECTIONS_PATH = 'settings/registration-collections.json'
 
+// Simple in-memory lock to prevent concurrent writes
+let updateLock: Promise<void> = Promise.resolve()
+
 async function getCollections(): Promise<RegistrationCollection[]> {
   const data = await readJSONFromStorage(COLLECTIONS_PATH)
   if (!data || !Array.isArray(data)) {
@@ -118,91 +121,99 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update collection (name or enabled status)
 export async function PATCH(request: NextRequest) {
-  try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
+  // Serialize PATCH operations to prevent lost updates from concurrent requests
+  const currentOperation = updateLock.then(async () => {
+    try {
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
 
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const body = await request.json()
-    const { id, name, enabled } = body
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Collection ID is required' },
-        { status: 400 }
-      )
-    }
-
-    // Retry logic to handle eventual consistency from Supabase storage
-    let collections: RegistrationCollection[] = []
-    let collectionIndex = -1
-    const maxRetries = 3
-    const retryDelay = 200 // ms
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      collections = await getCollections()
-      collectionIndex = collections.findIndex(c => c.id === id)
-      
-      if (collectionIndex !== -1) break
-      
-      // If not found and not last attempt, wait before retry
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
-      }
-    }
-
-    if (collectionIndex === -1) {
-      return NextResponse.json(
-        { error: 'Collection not found' },
-        { status: 404 }
-      )
-    }
-
-    // Update fields if provided
-    if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim()) {
+      if (!adminKey || adminKey !== expectedKey) {
         return NextResponse.json(
-          { error: 'Invalid collection name' },
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
+      const body = await request.json()
+      const { id, name, enabled } = body
+
+      if (!id) {
+        return NextResponse.json(
+          { error: 'Collection ID is required' },
           { status: 400 }
         )
       }
-      // Check for duplicate names (excluding current collection)
-      if (collections.some((c, idx) => idx !== collectionIndex && c.name.toLowerCase() === name.trim().toLowerCase())) {
+
+      // Retry logic to handle eventual consistency from Supabase storage
+      let collections: RegistrationCollection[] = []
+      let collectionIndex = -1
+      const maxRetries = 3
+      const retryDelay = 200 // ms
+      
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        collections = await getCollections()
+        collectionIndex = collections.findIndex(c => c.id === id)
+        
+        if (collectionIndex !== -1) break
+        
+        // If not found and not last attempt, wait before retry
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+        }
+      }
+
+      if (collectionIndex === -1) {
         return NextResponse.json(
-          { error: 'Collection with this name already exists' },
-          { status: 400 }
+          { error: 'Collection not found' },
+          { status: 404 }
         )
       }
-      collections[collectionIndex].name = name.trim()
-    }
 
-    if (enabled !== undefined) {
-      collections[collectionIndex].enabled = Boolean(enabled)
-    }
+      // Update fields if provided
+      if (name !== undefined) {
+        if (typeof name !== 'string' || !name.trim()) {
+          return NextResponse.json(
+            { error: 'Invalid collection name' },
+            { status: 400 }
+          )
+        }
+        // Check for duplicate names (excluding current collection)
+        if (collections.some((c, idx) => idx !== collectionIndex && c.name.toLowerCase() === name.trim().toLowerCase())) {
+          return NextResponse.json(
+            { error: 'Collection with this name already exists' },
+            { status: 400 }
+          )
+        }
+        collections[collectionIndex].name = name.trim()
+      }
 
-    const success = await saveCollections(collections)
+      if (enabled !== undefined) {
+        collections[collectionIndex].enabled = Boolean(enabled)
+      }
 
-    if (!success) {
+      const success = await saveCollections(collections)
+
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Failed to update collection' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ success: true, collection: collections[collectionIndex] })
+    } catch (error) {
+      console.error('Error updating collection:', error)
       return NextResponse.json(
-        { error: 'Failed to update collection' },
+        { error: 'Internal server error' },
         { status: 500 }
       )
     }
+  })
 
-    return NextResponse.json({ success: true, collection: collections[collectionIndex] })
-  } catch (error) {
-    console.error('Error updating collection:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+  // Update the lock to point to this operation
+  updateLock = currentOperation.then(() => {}).catch(() => {})
+  
+  return currentOperation
 }
 
 // DELETE - Delete collection (and optionally its registrations)
