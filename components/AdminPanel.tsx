@@ -769,12 +769,12 @@ export function AdminPanel() {
       const resp = await fetch('/api/updates')
       if (!resp.ok) throw new Error('Failed to fetch updates')
       const data = await resp.json()
-
       // Keep `updates` as the last known server snapshot. We overlay
       // localPendingChanges at render time so that we can reliably compare
       // server vs local state when deciding when to clear pending changes.
-      console.log('=== FETCH UPDATES ===')
-      console.log('Raw data from API/DB:', data.map((item: any) => ({ id: item.id, clubName: item.clubName, reviewed: item.reviewed })))
+      try {
+        console.log(JSON.stringify({ tag: 'updates-load', step: 'db', items: data.map((item: any) => ({ id: String(item.id), reviewed: !!item.reviewed })) }))
+      } catch {}
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
@@ -796,15 +796,13 @@ export function AdminPanel() {
       [id]: { ...(localPendingChanges[id] || {}), reviewed: nextReviewed },
     }
     setLocalPendingChanges(newPending)
-    console.log('💾 SINGLE TOGGLE - Saving to localStorage:', newPending)
+    try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save', id, pending: newPending[id] })) } catch {}
     try {
       localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      console.log('✅ localStorage saved successfully')
-      const verify = localStorage.getItem(PENDING_KEY)
-      console.log('🔍 Verification read:', verify)
+      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save-ok' })) } catch {}
     } catch (e) {
-      console.error('❌ Failed to save to localStorage:', e)
+      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save-fail', error: String(e) })) } catch {}
     }
 
     try {
@@ -819,24 +817,21 @@ export function AdminPanel() {
       // from the database, at which point the auto-clear effect will prune it.
       showToast(`Marked ${nextReviewed ? 'reviewed' : 'unreviewed'}`)
     } catch (e) {
-      console.error('Single toggle failed', e)
+      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'patch-fail', error: String(e) })) } catch {}
       // Clear from pending on error (revert local override)
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
       setLocalPendingChanges(revertPending)
-      console.log('⚠️ REVERTING - Clearing from localStorage:', revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
           localStorage.removeItem(PENDING_KEY)
           localStorage.removeItem(PENDING_BACKUP_KEY)
-          console.log('🗑️ localStorage cleared (no pending changes)')
         } else {
           localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
-          console.log('💾 localStorage updated after revert')
         }
       } catch (e) {
-        console.error('❌ Failed to update localStorage on revert:', e)
+        try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-revert-fail', error: String(e) })) } catch {}
       }
       showToast('Failed to update status', 'error')
     } finally {
@@ -966,38 +961,36 @@ export function AdminPanel() {
 
   // Load pending changes from localStorage on mount (primary + backup fallback)
   useEffect(() => {
-    console.log('🔄 MOUNT - Loading pending changes (primary & backup)...')
+    const actionId = `UPDATES-MOUNT-${Date.now()}`
     try {
       const primary = localStorage.getItem(PENDING_KEY)
-      console.log('📖 Primary read:', primary)
       if (primary) {
         const parsed = JSON.parse(primary)
-        console.log('✅ Parsed pending (primary):', parsed)
+        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'primary', actionId, count: Object.keys(parsed||{}).length })) } catch {}
         setLocalPendingChanges(parsed)
       } else {
         const backup = localStorage.getItem(PENDING_BACKUP_KEY)
-        console.log('📖 Primary empty, backup read:', backup)
         if (backup) {
           try {
             const backupParsed = JSON.parse(backup)
             if (backupParsed && backupParsed.data) {
-              console.log('✅ Using backup data for pending changes')
+              try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup', actionId, count: Object.keys(backupParsed.data||{}).length })) } catch {}
               setLocalPendingChanges(backupParsed.data)
             } else {
-              console.log('ℹ️ Backup malformed or missing data')
+              try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup-malformed', actionId })) } catch {}
             }
           } catch (e) {
-            console.error('❌ Failed parsing backup pending changes', e)
+            try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup-parse-fail', actionId, error: String(e) })) } catch {}
           }
         } else {
-          console.log('ℹ️ No pending changes found (primary or backup)')
+          try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'none', actionId })) } catch {}
         }
       }
     } catch (e) {
-      console.error('❌ Failed loading pending changes', e)
+      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'load-fail', actionId, error: String(e) })) } catch {}
     } finally {
       setLocalStorageLoaded(true)
-      console.log('✅ localStorage load complete')
+      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'loaded', actionId })) } catch {}
     }
   }, [])
 
@@ -1008,30 +1001,25 @@ export function AdminPanel() {
       if (Object.keys(localPendingChanges).length === 0) {
         localStorage.removeItem(PENDING_KEY)
         localStorage.removeItem(PENDING_BACKUP_KEY)
-        console.log('🗑️ Cleared pending keys (no pending items)')
+        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'cleared' })) } catch {}
       } else {
         const serialized = JSON.stringify(localPendingChanges)
         localStorage.setItem(PENDING_KEY, serialized)
         localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingChanges }))
-        console.log('💾 Persisted pending changes redundantly:', localPendingChanges)
+        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'persisted', count: Object.keys(localPendingChanges).length })) } catch {}
       }
     } catch (e) {
-      console.error('❌ Redundant persistence failed', e)
+      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'persist-fail', error: String(e) })) } catch {}
     }
   }, [localPendingChanges, localStorageLoaded])
 
   // Auto-clear pending changes that now match database state
   useEffect(() => {
     // CRITICAL: Don't run until localStorage has been loaded on mount
-    if (!localStorageLoaded) {
-      console.log('⏸️ AUTO-CLEAR SKIPPED - localStorage not loaded yet')
-      return
-    }
+    if (!localStorageLoaded) return
     if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
-
-    console.log('🔍 AUTO-CLEAR CHECK - Pending changes:', localPendingChanges)
-    console.log('🔍 Current updates from DB:', updates.map(u => ({ id: u.id, reviewed: u.reviewed })))
+    try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'start', pendingIds: Object.keys(localPendingChanges), dbIds: updates.map(u=>String(u.id)) })) } catch {}
 
     const stillPending = { ...localPendingChanges }
     let hasCleared = false
@@ -1042,75 +1030,70 @@ export function AdminPanel() {
 
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
-        console.log(`🗑️ Clearing deleted item ${id} - no longer in DB`)
+        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'clear-deleted', id })) } catch {}
         delete stillPending[id]
         hasCleared = true
       }
       // If reviewed state matches DB, clear it
       else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
-        console.log(`✅ Clearing item ${id} - DB now matches (reviewed: ${pending.reviewed})`)
+        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'clear-reviewed', id, value: pending.reviewed })) } catch {}
         delete stillPending[id]
         hasCleared = true
       } else if (dbItem && pending.reviewed !== undefined) {
-        console.log(`⏳ Keeping item ${id} - DB mismatch (pending: ${pending.reviewed}, db: ${dbItem.reviewed})`)
+        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'still-pending', id, pending: pending.reviewed, db: dbItem.reviewed })) } catch {}
       }
     })
 
     if (hasCleared) {
-      console.log('📝 Updating localStorage with remaining pending:', stillPending)
       setLocalPendingChanges(stillPending)
       try {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(PENDING_KEY)
           localStorage.removeItem(PENDING_BACKUP_KEY)
-          console.log('🗑️ All pending changes synced - localStorage cleared')
+          try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'cleared-all' })) } catch {}
         } else {
           localStorage.setItem(PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          console.log('💾 localStorage updated with remaining pending changes')
+          try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'updated-remaining', count: Object.keys(stillPending).length })) } catch {}
         }
       } catch (e) {
-        console.error('❌ Failed to update localStorage', e)
+        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'update-fail', error: String(e) })) } catch {}
       }
-    } else {
-      console.log('ℹ️ No changes to clear')
     }
   }, [updates, localPendingChanges, localStorageLoaded])
 
   // Load pending announcements from localStorage on mount
   useEffect(() => {
-    console.log('🔄 MOUNT - Loading pending announcements (primary & backup)...')
+    const actionId = `ANNOUNCEMENTS-MOUNT-${Date.now()}`
     try {
       const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
-      console.log('📖 Announcements primary read:', primary)
       if (primary) {
         const parsed = JSON.parse(primary)
-        console.log('✅ Parsed pending announcements (primary):', parsed)
+        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'primary', actionId, count: Object.keys(parsed||{}).length })) } catch {}
         setLocalPendingAnnouncements(parsed)
       } else {
         const backup = localStorage.getItem(ANNOUNCEMENTS_BACKUP_KEY)
-        console.log('📖 Announcements primary empty, backup read:', backup)
         if (backup) {
           try {
             const backupParsed = JSON.parse(backup)
             if (backupParsed && backupParsed.data) {
-              console.log('✅ Using backup data for pending announcements')
+              try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup', actionId, count: Object.keys(backupParsed.data||{}).length })) } catch {}
               setLocalPendingAnnouncements(backupParsed.data)
             } else {
-              console.log('ℹ️ Announcements backup malformed or missing data')
+              try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup-malformed', actionId })) } catch {}
             }
           } catch (e) {
-            console.error('❌ Failed parsing backup pending announcements', e)
+            try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup-parse-fail', actionId, error: String(e) })) } catch {}
           }
         } else {
-          console.log('ℹ️ No pending announcements found (primary or backup)')
+          try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'none', actionId })) } catch {}
         }
       }
     } catch (e) {
-      console.error('❌ Failed loading pending announcements', e)
+      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'load-fail', actionId, error: String(e) })) } catch {}
     } finally {
       setAnnouncementsStorageLoaded(true)
-      console.log('✅ Announcements localStorage load complete')
+      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'loaded', actionId })) } catch {}
     }
   }, [])
 
@@ -1121,15 +1104,15 @@ export function AdminPanel() {
       if (Object.keys(localPendingAnnouncements).length === 0) {
         localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
         localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
-        console.log('🗑️ Cleared pending announcement keys (no pending items)')
+        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'cleared' })) } catch {}
       } else {
         const serialized = JSON.stringify(localPendingAnnouncements)
         localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, serialized)
         localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingAnnouncements }))
-        console.log('💾 Persisted pending announcements redundantly:', localPendingAnnouncements)
+        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'persisted', count: Object.keys(localPendingAnnouncements).length })) } catch {}
       }
     } catch (e) {
-      console.error('❌ Announcements redundant persistence failed', e)
+      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'persist-fail', error: String(e) })) } catch {}
     }
   }, [localPendingAnnouncements, announcementsStorageLoaded])
 
