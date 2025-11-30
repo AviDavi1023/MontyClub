@@ -96,11 +96,11 @@ export function AdminPanel() {
     }
   }, [])
 
-  // Load collections
+  // Load collections only after local pending storage is loaded to avoid flash of server-only state
   useEffect(() => {
-    if (!isAuthenticated || !adminApiKey) return
+    if (!isAuthenticated || !adminApiKey || !collectionsStorageLoaded) return
     loadCollections()
-  }, [isAuthenticated, adminApiKey])
+  }, [isAuthenticated, adminApiKey, collectionsStorageLoaded])
 
   // Load pending collection changes from localStorage on mount
   useEffect(() => {
@@ -304,6 +304,11 @@ export function AdminPanel() {
       })
       // Select the real id now
       setActiveCollectionId(data.collection.id)
+      // Broadcast creation so other tabs pick up overlay quickly
+      try {
+        bcRef.current?.postMessage({ type: 'collections-updated', id: data.collection.id })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: data.collection.id, t: Date.now() }))
+      } catch {}
       showToast('Collection created successfully')
     } catch (err: any) {
       // Revert local pending temp on error
@@ -343,6 +348,8 @@ export function AdminPanel() {
         try {
           localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
           localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return next
       })
@@ -364,6 +371,8 @@ export function AdminPanel() {
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
       return next
     })
@@ -380,6 +389,10 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to update collection')
       const data = await resp.json()
       setCollections(prev => prev.map(c => c.id === collectionId ? data.collection : c))
+      try {
+        bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
       showToast(`Collection ${data.collection.enabled ? 'enabled' : 'disabled'}`)
     } catch (err) {
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
@@ -394,6 +407,8 @@ export function AdminPanel() {
             localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
             localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
           }
+          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return revert
       })
@@ -423,6 +438,8 @@ export function AdminPanel() {
             localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
             localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
           }
+          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return rest
       })
@@ -436,6 +453,8 @@ export function AdminPanel() {
     try {
       localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+      localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
     } catch {}
 
     // Adjust active collection immediately if needed (choose an enabled non-deleted replacement)
