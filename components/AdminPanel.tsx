@@ -32,7 +32,7 @@ export function AdminPanel() {
   const [refreshingUpdates, setRefreshingUpdates] = useState(false)
   const [showStatistics, setShowStatistics] = useState(false)
   const statisticsRef = useRef<HTMLDivElement | null>(null)
-  const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
   // Analytics Pilot State
   const [analyticsEnabled, setAnalyticsEnabled] = useState(true)
@@ -75,6 +75,25 @@ export function AdminPanel() {
       const key = localStorage.getItem('analytics:adminKey')
       if (key) setAdminApiKey(key)
     } catch {}
+    // Announcements enabled: load from localStorage first, then server
+    try {
+      const local = localStorage.getItem('settings:announcementsEnabled')
+      if (local === 'true' || local === 'false') {
+        setAnnouncementsEnabled(local === 'true')
+      } else {
+        // fallback: fetch from server
+        fetch('/api/settings').then(async resp => {
+          if (resp.ok) {
+            const data = await resp.json()
+            setAnnouncementsEnabled(data.announcementsEnabled !== false)
+          } else {
+            setAnnouncementsEnabled(true)
+          }
+        }).catch(() => setAnnouncementsEnabled(true))
+      }
+    } catch {
+      setAnnouncementsEnabled(true)
+    }
   }, [])
 
   // Load collections
@@ -1597,7 +1616,7 @@ export function AdminPanel() {
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site'}
+              {announcementsEnabled === null ? '' : (announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site')}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex items-center justify-between w-full sm:w-auto sm:flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -1605,11 +1624,13 @@ export function AdminPanel() {
                   <Megaphone className="h-4 w-4" />
                   <span>Show on site</span>
                 </div>
-                <Toggle
-                  checked={announcementsEnabled}
-                  onChange={() => { if (!savingSettings) toggleAnnouncements() }}
-                  disabled={savingSettings}
-                />
+                {announcementsEnabled !== null && (
+                  <Toggle
+                    checked={announcementsEnabled}
+                    onChange={() => { if (!savingSettings) toggleAnnouncements() }}
+                    disabled={savingSettings}
+                  />
+                )}
               </div>
               <button
                 onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
