@@ -172,10 +172,50 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
       setCollections(data.collections || [])
-      // Set first enabled collection as active, or first collection if none enabled
-      if (data.collections && data.collections.length > 0) {
-        const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-        setActiveCollectionId(enabledCol?.id || data.collections[0].id)
+      // Choose active collection using localStorage overlay precedence
+      // Build an overlay that prioritizes locally pending created/enabled state
+      try {
+        const overlayMap = new Map<string, RegistrationCollection>()
+        for (const c of (data.collections || [])) overlayMap.set(c.id, { ...c })
+        for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
+          if (change.deleted) {
+            overlayMap.delete(id)
+            continue
+          }
+          if (change.created && !overlayMap.has(id)) {
+            overlayMap.set(id, {
+              id,
+              name: change.name || 'New Collection',
+              enabled: change.enabled ?? false,
+              createdAt: new Date().toISOString()
+            } as RegistrationCollection)
+          }
+          const obj = overlayMap.get(id)
+          if (obj) {
+            if (typeof change.enabled !== 'undefined') obj.enabled = !!change.enabled
+            if (change.name) obj.name = change.name
+          }
+        }
+        const overlayList = Array.from(overlayMap.values())
+        if (overlayList.length > 0) {
+          // Prefer previously active if it still exists
+          if (activeCollectionId && overlayMap.has(activeCollectionId)) {
+            setActiveCollectionId(activeCollectionId)
+          } else {
+            const enabledFirst = overlayList.find(c => c.enabled)
+            setActiveCollectionId((enabledFirst || overlayList[0]).id)
+          }
+        } else {
+          setActiveCollectionId(null)
+        }
+      } catch {
+        // Fallback to server-only selection
+        if (data.collections && data.collections.length > 0) {
+          const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
+          setActiveCollectionId(enabledCol?.id || data.collections[0].id)
+        } else {
+          setActiveCollectionId(null)
+        }
       }
     } catch (err) {
       console.error('Failed to load collections:', err)
