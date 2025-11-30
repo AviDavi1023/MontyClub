@@ -161,6 +161,10 @@ export function AdminPanel() {
     if (!collectionsStorageLoaded) return
     if (Object.keys(localPendingCollectionChanges).length === 0) return
 
+    console.log('\n🧹 AUTO-CLEAR: Checking pending changes against DB state')
+    console.log('🧹 Pending changes:', localPendingCollectionChanges)
+    console.log('🧹 Collections from DB:', collections.map(c => ({ id: c.id, enabled: c.enabled })))
+
     const newPending = { ...localPendingCollectionChanges }
     let hasChanges = false
 
@@ -169,6 +173,7 @@ export function AdminPanel() {
       const found = collections.find(c => c.id === collectionId)
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !found) {
+        console.log(`🧹 Clearing deleted collection ${collectionId} (not in DB)`)
         delete newPending[collectionId]
         hasChanges = true
         continue
@@ -176,8 +181,11 @@ export function AdminPanel() {
       if (found) {
         // If enabled matches DB, clear enabled flag
         if (pending.enabled !== undefined && found.enabled === pending.enabled) {
+          console.log(`🧹 ✅ Collection ${collectionId} matches DB (enabled: ${pending.enabled}) - clearing pending`)
           delete newPending[collectionId].enabled
           hasChanges = true
+        } else if (pending.enabled !== undefined) {
+          console.log(`🧹 ⏳ Collection ${collectionId} still pending (pending: ${pending.enabled}, DB: ${found.enabled})`)
         }
         // If name matches DB, clear name flag
         if (pending.name && found.name === pending.name) {
@@ -194,7 +202,10 @@ export function AdminPanel() {
     }
 
     if (hasChanges) {
+      console.log('🧹 Updating pending changes after auto-clear:', newPending)
       setLocalPendingCollectionChanges(newPending)
+    } else {
+      console.log('🧹 No changes to clear')
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
@@ -202,10 +213,13 @@ export function AdminPanel() {
   const scheduleCollectionsRefresh = () => {
     // Clear any existing timer
     if (collectionsRefreshTimerRef.current) {
+      console.log('⏱️  Clearing previous refresh timer')
       clearTimeout(collectionsRefreshTimerRef.current)
     }
     // Schedule a new refresh after 500ms of inactivity
+    console.log('⏱️  Scheduling refresh in 500ms')
     collectionsRefreshTimerRef.current = setTimeout(() => {
+      console.log('⏱️  ⚡ Debounced refresh executing now')
       loadCollections()
       collectionsRefreshTimerRef.current = null
     }, 500)
@@ -213,12 +227,15 @@ export function AdminPanel() {
 
   const loadCollections = async () => {
     if (!adminApiKey) return
+    console.log('\n🔄 loadCollections: Starting GET request...')
     try {
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
+      console.log('🔄 loadCollections: Received from DB:', data.collections.map((c: any) => ({ id: c.id, name: c.name, enabled: c.enabled })))
+      console.log('🔄 loadCollections: Current pending changes:', localPendingCollectionChanges)
       setCollections(data.collections || [])
       // Choose active collection using localStorage overlay precedence
       // Build an overlay that prioritizes locally pending created/enabled state
@@ -362,6 +379,9 @@ export function AdminPanel() {
   }
 
   const toggleCollectionEnabled = async (collectionId: string) => {
+    const toggleId = `TOGGLE-${collectionId}-${Date.now()}`
+    console.log(`\n[${toggleId}] 🎯 Toggle started for collection:`, collectionId)
+    
     if (!adminApiKey) {
       showToast('Set admin API key first', 'error')
       return
@@ -385,7 +405,10 @@ export function AdminPanel() {
       showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
       return
     }
-    if (!collection) return
+    if (!collection) {
+      console.log(`[${toggleId}] ❌ Collection not found in state`)
+      return
+    }
 
     setTogglingCollection(collectionId)
     // Determine effective current enabled state (prefer pending override over server snapshot)
@@ -393,19 +416,26 @@ export function AdminPanel() {
       ? !!localPendingCollectionChanges[collectionId]?.enabled
       : !!collection.enabled
     const nextEnabled = !effectiveCurrentEnabled
+    
+    console.log(`[${toggleId}] 📊 Current state - DB:`, collection.enabled, 'Pending:', localPendingCollectionChanges[collectionId]?.enabled, 'Effective:', effectiveCurrentEnabled, '-> Next:', nextEnabled)
 
     // Optimistically update localStorage immediately using functional updater to avoid stale closure
     setLocalPendingCollectionChanges(prev => {
       const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
+      console.log(`[${toggleId}] 💾 Saving to localStorage - Pending changes:`, next)
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
         bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
+        console.log(`[${toggleId}] ✅ localStorage saved`)
+      } catch (e) {
+        console.log(`[${toggleId}] ❌ localStorage save failed:`, e)
+      }
       return next
     })
     
+    console.log(`[${toggleId}] 🌐 Sending PATCH request...`)
     try {
       const resp = await fetch('/api/registration-collections', {
         method: 'PATCH',
@@ -417,6 +447,7 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error('Failed to update collection')
       const data = await resp.json()
+      console.log(`[${toggleId}] ✅ PATCH response received:`, data.collection)
       // Do NOT immediately update collections state to avoid premature auto-clear
       // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
       // This prevents showing stale DB state on reload due to eventual consistency
@@ -426,12 +457,15 @@ export function AdminPanel() {
       } catch {}
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
       // Use debounced refresh to handle rapid multiple toggles without race conditions
+      console.log(`[${toggleId}] ⏱️  Scheduling debounced refresh...`)
       scheduleCollectionsRefresh()
     } catch (err) {
+      console.log(`[${toggleId}] ❌ PATCH failed:`, err)
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
       setLocalPendingCollectionChanges(prev => {
         const revert = { ...prev }
         delete revert[collectionId]
+        console.log(`[${toggleId}] ↩️  Reverting localStorage pending changes`)
         try {
           if (Object.keys(revert).length === 0) {
             localStorage.removeItem(COLLECTIONS_PENDING_KEY)

@@ -121,8 +121,13 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update collection (name or enabled status)
 export async function PATCH(request: NextRequest) {
+  const body = await request.json()
+  const operationId = `PATCH-${body.id}-${Date.now()}`
+  console.log(`[${operationId}] 🔵 PATCH request received for collection:`, body.id, 'enabled:', body.enabled)
+  
   // Serialize PATCH operations to prevent lost updates from concurrent requests
   const currentOperation = updateLock.then(async () => {
+    console.log(`[${operationId}] 🟢 PATCH executing (lock acquired)`)
     try {
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
@@ -150,9 +155,11 @@ export async function PATCH(request: NextRequest) {
       const maxRetries = 3
       const retryDelay = 200 // ms
       
+      console.log(`[${operationId}] 📖 Reading collections from storage...`)
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         collections = await getCollections()
-        collectionIndex = collections.findIndex(c => c.id === id)
+        console.log(`[${operationId}] 📚 Collections read (attempt ${attempt + 1}):`, collections.map(c => ({ id: c.id, name: c.name, enabled: c.enabled })))
+        collectionIndex = collections.findIndex(c => c.id === body.id)
         
         if (collectionIndex !== -1) break
         
@@ -188,10 +195,13 @@ export async function PATCH(request: NextRequest) {
       }
 
       if (enabled !== undefined) {
+        console.log(`[${operationId}] ✏️  Updating collection ${body.id} enabled: ${collections[collectionIndex].enabled} -> ${Boolean(enabled)}`)
         collections[collectionIndex].enabled = Boolean(enabled)
       }
 
+      console.log(`[${operationId}] 💾 Saving collections to storage:`, collections.map(c => ({ id: c.id, enabled: c.enabled })))
       const success = await saveCollections(collections)
+      console.log(`[${operationId}] ${success ? '✅' : '❌'} Save result:`, success)
 
       if (!success) {
         return NextResponse.json(
@@ -200,9 +210,10 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
+      console.log(`[${operationId}] 🎉 PATCH completed successfully for collection:`, collections[collectionIndex].id, 'enabled:', collections[collectionIndex].enabled)
       return NextResponse.json({ success: true, collection: collections[collectionIndex] })
     } catch (error) {
-      console.error('Error updating collection:', error)
+      console.error(`[${operationId}] ❌ Error updating collection:`, error)
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -211,7 +222,9 @@ export async function PATCH(request: NextRequest) {
   })
 
   // Update the lock to point to this operation
-  updateLock = currentOperation.then(() => {}).catch(() => {})
+  updateLock = currentOperation.then(() => {
+    console.log(`[${operationId}] 🔓 PATCH lock released`)
+  }).catch(() => {})
   
   return currentOperation
 }
