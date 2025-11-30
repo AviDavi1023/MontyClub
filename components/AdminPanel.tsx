@@ -102,6 +102,21 @@ export function AdminPanel() {
     loadCollections()
   }, [isAuthenticated, adminApiKey, collectionsStorageLoaded])
 
+  // Reload collections when localStorage changes are detected (cross-tab or after operations)
+  useEffect(() => {
+    if (!collectionsStorageLoaded || !isAuthenticated || !adminApiKey) return
+    
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === 'montyclub:collectionsUpdated') {
+        // Small delay to ensure the pending changes are updated first
+        setTimeout(() => loadCollections(), 50)
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageUpdate)
+    return () => window.removeEventListener('storage', handleStorageUpdate)
+  }, [collectionsStorageLoaded, isAuthenticated, adminApiKey])
+
   // Load pending collection changes from localStorage on mount
   useEffect(() => {
     try {
@@ -388,12 +403,16 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error('Failed to update collection')
       const data = await resp.json()
-      setCollections(prev => prev.map(c => c.id === collectionId ? data.collection : c))
+      // Do NOT immediately update collections state to avoid premature auto-clear
+      // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
+      // This prevents showing stale DB state on reload due to eventual consistency
       try {
         bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
-      showToast(`Collection ${data.collection.enabled ? 'enabled' : 'disabled'}`)
+      showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
+      // Poll to refresh and auto-clear pending changes once DB reflects the update
+      setTimeout(() => loadCollections(), 300)
     } catch (err) {
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
       setLocalPendingCollectionChanges(prev => {
