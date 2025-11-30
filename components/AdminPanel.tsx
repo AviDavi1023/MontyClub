@@ -333,15 +333,21 @@ export function AdminPanel() {
     if (!collection) return
 
     setTogglingCollection(collectionId)
-    const nextEnabled = !collection.enabled
-    
-    // Optimistically update localStorage immediately
-    const newPending = { ...localPendingCollectionChanges, [collectionId]: { ...(localPendingCollectionChanges[collectionId] || {}), enabled: nextEnabled } }
-    setLocalPendingCollectionChanges(newPending)
-    try {
-      localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch {}
+    // Determine effective current enabled state (prefer pending override over server snapshot)
+    const effectiveCurrentEnabled = (localPendingCollectionChanges[collectionId]?.enabled !== undefined)
+      ? !!localPendingCollectionChanges[collectionId]?.enabled
+      : !!collection.enabled
+    const nextEnabled = !effectiveCurrentEnabled
+
+    // Optimistically update localStorage immediately using functional updater to avoid stale closure
+    setLocalPendingCollectionChanges(prev => {
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
+      try {
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+      } catch {}
+      return next
+    })
     
     try {
       const resp = await fetch('/api/registration-collections', {
@@ -357,19 +363,21 @@ export function AdminPanel() {
       setCollections(prev => prev.map(c => c.id === collectionId ? data.collection : c))
       showToast(`Collection ${data.collection.enabled ? 'enabled' : 'disabled'}`)
     } catch (err) {
-      // Revert on error
-      const revertPending = { ...localPendingCollectionChanges }
-      delete revertPending[collectionId]
-      setLocalPendingCollectionChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-          localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
-        }
-      } catch {}
+      // Revert on error using functional update to avoid clobbering subsequent rapid toggles
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
+      })
       showToast('Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)
