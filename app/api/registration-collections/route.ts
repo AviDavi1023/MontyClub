@@ -38,9 +38,9 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
 
 // GET - List all collections
 export async function GET(request: NextRequest) {
-  try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
+    try {
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
 
     if (!adminKey || adminKey !== expectedKey) {
       return NextResponse.json(
@@ -153,7 +153,7 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      const body = await request.json()
+      // Use already-read body from outer scope to avoid double-read errors
       const { id, name, enabled } = body
 
       if (!id) {
