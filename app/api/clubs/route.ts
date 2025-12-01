@@ -10,10 +10,13 @@ export async function GET() {
     const clubs = await fetchClubsFromExcel()
     return new NextResponse(JSON.stringify(clubs), {
       headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
         'Pragma': 'no-cache',
         'Expires': '0',
+        'X-Content-Type-Options': 'nosniff',
+        // Hint to enable compression (handled by hosting platform)
+        'Vary': 'Accept-Encoding',
       },
     })
   } catch (error) {
@@ -22,6 +25,7 @@ export async function GET() {
       status: 500,
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'X-Content-Type-Options': 'nosniff',
       }
     })
   }

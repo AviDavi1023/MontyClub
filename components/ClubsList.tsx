@@ -11,6 +11,7 @@ import { ClubCard } from '@/components/ClubCard'
 import { ClubsTable } from '@/components/ClubsTable'
 import { FilterPanel } from '@/components/FilterPanel'
 import { createDomainListener } from '@/lib/broadcast'
+import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
 
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -503,8 +504,17 @@ export function ClubsList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="space-y-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <input
+            type="text"
+            placeholder="Loading clubs..."
+            disabled
+            className="input-field w-full pl-10 pr-10 opacity-60"
+          />
+        </div>
+        {viewMode === 'grid' ? <SkeletonGrid count={9} /> : <SkeletonTable rows={10} />}
       </div>
     )
   }

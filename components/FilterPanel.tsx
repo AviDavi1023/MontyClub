@@ -55,10 +55,11 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
             </label>
             <button
               onClick={() => setFilters({ ...filters, category: [] })}
-              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors min-h-[32px] px-2 rounded"
               type="button"
+              aria-label="Clear category filters"
             >
-              Clear Filters
+              Clear
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
@@ -94,10 +95,11 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
             </label>
             <button
               onClick={() => setFilters({ ...filters, meetingDay: [] })}
-              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors min-h-[32px] px-2 rounded"
               type="button"
+              aria-label="Clear meeting day filters"
             >
-              Clear Filters
+              Clear
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
@@ -133,10 +135,11 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
             </label>
             <button
               onClick={() => setFilters({ ...filters, meetingFrequency: [] })}
-              className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+              className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors min-h-[32px] px-2 rounded"
               type="button"
+              aria-label="Clear frequency filters"
             >
-              Clear Filters
+              Clear
             </button>
           </div>
           <div className="space-y-1.5 sm:space-y-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800">
@@ -188,7 +191,8 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
         <button
           onClick={onClear}
           disabled={!canClear}
-          className={`w-full sm:w-auto rounded-lg px-4 py-2 font-medium transition-colors shadow-sm hover:shadow ${canClear ? 'btn-secondary' : 'bg-gray-200/60 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+          className={`w-full sm:w-auto rounded-lg px-4 py-2.5 font-medium transition-colors shadow-sm hover:shadow min-h-[44px] ${canClear ? 'btn-secondary' : 'bg-gray-200/60 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+          aria-label="Clear all filters"
         >
           Clear All Filters
         </button>
