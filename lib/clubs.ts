@@ -3,20 +3,28 @@ import { readData } from '@/lib/runtime-store'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import { slugifyName } from '@/lib/slug'
 
+import { listPaths, readJSONFromStorage } from '@/lib/supabase'
+
 export async function fetchClubsFromCollection(): Promise<Club[]> {
   // 1. Get all collections and find the enabled one
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
   const enabled = collections.find(c => c.enabled)
   if (!enabled) return []
 
-  // 2. Get all registrations for this collection
-  const registrations: ClubRegistration[] = await readData(`registrations/${enabled.id}`, [])
-  // 3. Only include approved clubs
-  const approved = registrations.filter(r => r.status === 'approved')
-  if (!approved.length) return []
+  // 2. List all registration files for this collection
+  const regPaths = await listPaths(`registrations/${enabled.id}`)
+  const registrations: ClubRegistration[] = []
+  for (const path of regPaths) {
+    if (!path.endsWith('.json')) continue
+    const reg = await readJSONFromStorage(path)
+    if (reg && typeof reg === 'object' && reg.status === 'approved') {
+      registrations.push(reg)
+    }
+  }
+  if (!registrations.length) return []
 
-  // 4. Map ClubRegistration to Club
-  return approved.map((r, idx) => ({
+  // 3. Map ClubRegistration to Club
+  return registrations.map((r, idx) => ({
     id: r.id || `club-${idx}`,
     name: r.clubName,
     category: '', // You may want to add a category field to the registration form
@@ -34,6 +42,7 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
     keywords: [],
   }))
 }
+
 import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
 import fs from 'fs'
