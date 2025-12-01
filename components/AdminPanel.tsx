@@ -12,6 +12,22 @@ import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
 
 export function AdminPanel() {
+  // Club data source: 'excel' or 'collection'
+  const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
+  // Persisted selection
+  useEffect(() => {
+    const stored = localStorage.getItem('montyclub:clubDataSource')
+    if (stored === 'excel' || stored === 'collection') setClubDataSource(stored)
+  }, [])
+  useEffect(() => {
+    localStorage.setItem('montyclub:clubDataSource', clubDataSource)
+    // Persist to backend for API
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clubDataSource }),
+    }).catch(() => {})
+  }, [clubDataSource])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
@@ -1740,6 +1756,41 @@ export function AdminPanel() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Quick Actions
         </h2>
+
+        {/* Club Data Source Selector */}
+        <div className="p-4 border border-primary-300 dark:border-primary-700 rounded-lg mb-4">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            Club Data Source
+          </h3>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="clubDataSource"
+                value="excel"
+                checked={clubDataSource === 'excel'}
+                onChange={() => setClubDataSource('excel')}
+                className="accent-primary-600"
+              />
+              <span className="text-sm">Excel File</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="clubDataSource"
+                value="collection"
+                checked={clubDataSource === 'collection'}
+                onChange={() => setClubDataSource('collection')}
+                className="accent-primary-600"
+              />
+              <span className="text-sm">Registration Collection</span>
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            This controls which clubs are shown on the main site. "Excel File" uses the uploaded spreadsheet; "Registration Collection" uses the currently enabled collection below.
+          </p>
+        </div>
         
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { fetchClubsFromExcel } from '@/lib/clubs'
+import { fetchClubsFromExcel, fetchClubsFromCollection } from '@/lib/clubs'
+import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 // Ensure this route is always dynamic and never statically cached
 export const dynamic = 'force-dynamic'
@@ -7,7 +8,20 @@ export const revalidate = 0
 
 export async function GET() {
   try {
-    const clubs = await fetchClubsFromExcel()
+    // Try to read the persisted data source selection (default to 'excel')
+    let dataSource: 'excel' | 'collection' = 'excel'
+    try {
+      const buf = await runtimeReadFile('clubDataSource.txt')
+      const val = buf?.toString().trim()
+      if (val === 'collection' || val === 'excel') dataSource = val
+    } catch {}
+
+    let clubs: any[] = []
+    if (dataSource === 'collection') {
+      clubs = await fetchClubsFromCollection()
+    } else {
+      clubs = await fetchClubsFromExcel()
+    }
     return new NextResponse(JSON.stringify(clubs), {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
@@ -15,7 +29,6 @@ export async function GET() {
         'Pragma': 'no-cache',
         'Expires': '0',
         'X-Content-Type-Options': 'nosniff',
-        // Hint to enable compression (handled by hosting platform)
         'Vary': 'Accept-Encoding',
       },
     })

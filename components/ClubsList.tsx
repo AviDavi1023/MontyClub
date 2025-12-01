@@ -136,6 +136,15 @@ export function ClubsList() {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
     }
 
+    // Listen for club data source changes (Excel/Collection)
+    let dataSourceChannel: BroadcastChannel | null = null
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      dataSourceChannel = new window.BroadcastChannel('clubDataSource')
+      dataSourceChannel.onmessage = (event) => {
+        if (event.data === 'changed') loadClubs()
+      }
+    }
+
     // localStorage fallback (storage events fire across tabs/browsers)
     const onStorage = (e: StorageEvent) => {
       try {
@@ -154,6 +163,8 @@ export function ClubsList() {
           if (typeof e.newValue === 'string') {
             setAnnouncementsEnabled(e.newValue === 'true')
           }
+        } else if (e.key === 'montyclub:clubDataSource') {
+          loadClubs()
         }
       } catch (err) {
         // ignore
@@ -170,6 +181,7 @@ export function ClubsList() {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
         window.removeEventListener('storage', onStorage)
       }
+      if (dataSourceChannel) dataSourceChannel.close()
     }
   }, [])
 

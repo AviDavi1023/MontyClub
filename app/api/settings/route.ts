@@ -1,3 +1,17 @@
+import { writeFile as runtimeWriteFile } from '@/lib/runtime-store'
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    if (body.clubDataSource === 'excel' || body.clubDataSource === 'collection') {
+      await runtimeWriteFile('clubDataSource.txt', Buffer.from(body.clubDataSource, 'utf-8'))
+      return NextResponse.json({ ok: true })
+    }
+    return NextResponse.json({ error: 'Invalid clubDataSource' }, { status: 400 })
+  } catch (err) {
+    console.error('Error persisting clubDataSource:', err)
+    return NextResponse.json({ error: 'Failed to persist clubDataSource' }, { status: 500 })
+  }
+}
 import { NextResponse } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
 
