@@ -64,14 +64,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const collections = await getCollections()
+    // Use cache if it's fresh (less than 10 seconds old) to avoid eventual consistency issues
+    // This ensures rapid GET requests after PATCH operations return the latest state
+    const CACHE_MAX_AGE_MS = 10000
+    let collections: RegistrationCollection[]
+    
+    if (collectionsCache !== null && (Date.now() - cacheTimestamp) < CACHE_MAX_AGE_MS) {
+      try { console.log(JSON.stringify({ tag: 'collections-get', step: 'cache-hit', cacheAge: Date.now() - cacheTimestamp })) } catch {}
+      collections = collectionsCache
+    } else {
+      try { console.log(JSON.stringify({ tag: 'collections-get', step: 'cache-miss', cacheExists: !!collectionsCache, cacheAge: collectionsCache ? Date.now() - cacheTimestamp : null })) } catch {}
+      collections = await getCollections()
+    }
     
     // Sort by creation date (newest first)
-    collections.sort((a, b) => 
+    const sorted = [...collections].sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
 
-    return NextResponse.json({ collections })
+    return NextResponse.json({ collections: sorted })
   } catch (error) {
     console.error('Error fetching collections:', error)
     return NextResponse.json(
@@ -178,18 +189,18 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      // Use in-memory cache to avoid eventual consistency issues
-      // Only fall back to storage read if cache is not populated
+      // Use in-memory cache as source of truth to avoid eventual consistency issues
+      // The cache is updated synchronously after each successful write
       let collections: RegistrationCollection[]
       
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-start', operationId, cacheAge: collectionsCache ? Date.now() - cacheTimestamp : null })) } catch {}
       
-      if (collectionsCache && collectionsCache.length > 0) {
+      if (collectionsCache !== null) {
         // Use cached version to avoid storage read-after-write consistency issues
         collections = JSON.parse(JSON.stringify(collectionsCache)) // Deep clone
         try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-cache', operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
       } else {
-        // Cache miss - read from storage with retry logic
+        // Cache not initialized - read from storage with retry logic
         const maxRetries = 5
         const retryDelay = 300 // ms
         collections = []
