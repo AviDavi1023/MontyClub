@@ -43,10 +43,16 @@ export async function readJSONFromStorage(path: string) {
 
 export async function writeJSONToStorage(path: string, data: any) {
   const client = getStorageClient()
-  if (!client) return false
+  if (!client) {
+    console.error('[writeJSONToStorage] No client available')
+    return false
+  }
 
   try {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
+    const jsonString = JSON.stringify(data, null, 2)
+    console.log(`[writeJSONToStorage] Writing to ${path}, size: ${jsonString.length} bytes`)
+    
+    const blob = new Blob([jsonString], {
       type: 'application/json',
     })
 
@@ -58,13 +64,14 @@ export async function writeJSONToStorage(path: string, data: any) {
       })
 
     if (error) {
-      console.warn('Error writing to Supabase:', error)
+      console.error('[writeJSONToStorage] Supabase error:', JSON.stringify(error))
       return false
     }
 
+    console.log(`[writeJSONToStorage] Success writing to ${path}`)
     return true
   } catch (e) {
-    console.warn('Error writing to Supabase:', e)
+    console.error('[writeJSONToStorage] Exception:', e)
     return false
   }
 }
