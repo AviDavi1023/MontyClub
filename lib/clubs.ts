@@ -1,9 +1,39 @@
 // Fetch clubs from the currently enabled registration collection
+import { readData } from '@/lib/runtime-store'
+import { ClubRegistration, RegistrationCollection } from '@/types/club'
+import { slugifyName } from '@/lib/slug'
+import { getMockClubs } from './clubs'
+
 export async function fetchClubsFromCollection(): Promise<Club[]> {
-  // TODO: Replace with real data source (e.g., database or runtime-store)
-  // For now, return mock clubs with a note indicating 'from collection'
-  const clubs = getMockClubs().map(c => ({ ...c, notes: (c.notes || '') + ' (from collection)' }))
-  return clubs
+  // 1. Get all collections and find the enabled one
+  const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+  const enabled = collections.find(c => c.enabled)
+  if (!enabled) return []
+
+  // 2. Get all registrations for this collection
+  const registrations: ClubRegistration[] = await readData(`registrations/${enabled.id}`, [])
+  // 3. Only include approved clubs
+  const approved = registrations.filter(r => r.status === 'approved')
+  if (!approved.length) return []
+
+  // 4. Map ClubRegistration to Club
+  return approved.map((r, idx) => ({
+    id: r.id || `club-${idx}`,
+    name: r.clubName,
+    category: '', // You may want to add a category field to the registration form
+    description: r.statementOfPurpose,
+    advisor: r.advisorName,
+    studentLeader: r.studentContactName,
+    meetingTime: '', // Not collected in registration, add if needed
+    meetingFrequency: r.meetingFrequency,
+    location: r.location,
+    contact: r.studentContactEmail,
+    socialMedia: '', // Not collected in registration, add if needed
+    active: true,
+    notes: '',
+    announcement: '',
+    keywords: [],
+  }))
 }
 import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
