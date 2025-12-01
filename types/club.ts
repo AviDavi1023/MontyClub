@@ -55,4 +55,5 @@ export interface ClubRegistration {
   status: 'pending' | 'approved' | 'rejected'
   collectionId: string // Reference to RegistrationCollection
   denialReason?: string // Optional reason for rejection
+  approvedAt?: string // Timestamp when the registration was approved
 }

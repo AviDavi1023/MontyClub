@@ -23,9 +23,16 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   }
   if (!registrations.length) return []
 
-  // 3. Map ClubRegistration to Club
+  // 3. Sort by approvedAt timestamp (newest first), fallback to submittedAt
+  registrations.sort((a, b) => {
+    const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
+    const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
+    return timeB - timeA
+  })
+
+  // 4. Map ClubRegistration to Club with sequential IDs (1, 2, 3...)
   return registrations.map((r, idx) => ({
-    id: r.id || `club-${idx}`,
+    id: String(idx + 1),
     name: r.clubName,
     category: '', // You may want to add a category field to the registration form
     description: r.statementOfPurpose,
@@ -48,6 +55,20 @@ import * as ExcelJS from 'exceljs'
 import fs from 'fs'
 import path from 'path'
 import { readFile as runtimeReadFile } from '@/lib/runtime-store'
+
+// Fetch clubs from the active data source (Excel or collection)
+export async function fetchClubs(): Promise<Club[]> {
+  try {
+    const settings = await readData('settings/data-source', { source: 'excel' })
+    if (settings.source === 'collection') {
+      return await fetchClubsFromCollection()
+    }
+    return await fetchClubsFromExcel()
+  } catch (error) {
+    console.error('Error fetching clubs:', error)
+    return getMockClubs()
+  }
+}
 
 export async function fetchClubsFromExcel(): Promise<Club[]> {
   try {

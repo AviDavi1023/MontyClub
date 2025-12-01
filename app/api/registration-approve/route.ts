@@ -38,8 +38,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Update status to approved
+      // Update status to approved and set approvedAt timestamp
       registration.status = 'approved'
+      registration.approvedAt = new Date().toISOString()
 
       // Save updated registration
       const success = await writeJSONToStorage(path, registration)

@@ -93,11 +93,11 @@ export const dynamicParams = true // Allow dynamic params that aren't generated 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-import { fetchClubsFromExcel } from '@/lib/clubs'
+import { fetchClubs } from '@/lib/clubs'
 
 export default async function ClubPage({ params }: { params: { id: string } }) {
   try {
-    const clubs = await fetchClubsFromExcel()
+    const clubs = await fetchClubs()
     const club = clubs.find((c: any) => c.id === params.id)
     
     if (!club) notFound()
