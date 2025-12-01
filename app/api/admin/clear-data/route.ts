@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeData, readData } from '@/lib/runtime-store'
 import { writeJSONToStorage, readJSONFromStorage, listPaths, removePaths } from '@/lib/supabase'
 import { updatesCache, announcementsCache, registrationActionsCache } from '@/lib/caches'
+import { verifyPassword } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,32 +62,11 @@ export async function POST(request: NextRequest) {
     let adminUser: any = null
     let matchedUsername: string | null = null
     
-    // Import bcrypt for password verification
-    const bcrypt = require('bcryptjs')
-    
     // Try to find any user whose password matches
     for (const [username, user] of Object.entries(users)) {
       if (user && user.passwordHash) {
-        // Try both bcrypt (new) and crypto PBKDF2 (old) password formats
-        let passwordMatch = false
-        
-        try {
-          // Try bcrypt first (if password hash starts with $2)
-          if (user.passwordHash.startsWith('$2')) {
-            passwordMatch = await bcrypt.compare(password, user.passwordHash)
-          } else {
-            // Try PBKDF2 format (salt:hash)
-            const crypto = require('crypto')
-            const [salt, hash] = user.passwordHash.split(':')
-            const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
-            passwordMatch = hash === verifyHash
-          }
-        } catch (err) {
-          // If password verification fails, try next user
-          continue
-        }
-        
-        if (passwordMatch) {
+        // Use the verifyPassword utility from lib/auth.ts
+        if (verifyPassword(password, user.passwordHash)) {
           adminUser = user
           matchedUsername = username
           break
