@@ -326,33 +326,31 @@ export function AdminPanel() {
         throw new Error(err.error || 'Failed to create collection')
       }
       const data = await resp.json()
-      // Don't immediately update collections state - let pending overlay handle display
-      // until the debounced refresh confirms DB persistence
-      // setCollections(prev => [data.collection, ...prev])  // REMOVED
-      
+      // Add the server-created collection to server snapshot
+      setCollections(prev => [data.collection, ...prev])
       // Migrate any pending created state from tempId to real id
       setLocalPendingCollectionChanges(prev => {
         const temp = prev[tempId]
         if (!temp) return prev
         const rest = { ...prev }
         delete rest[tempId]
-        // Keep the creation as pending with the real ID until DB confirms
-        rest[data.collection.id] = { 
-          created: true, 
-          name: data.collection.name,
-          enabled: data.collection.enabled,
-          ...(temp.enabled !== undefined && temp.enabled !== data.collection.enabled ? { enabled: temp.enabled } : {})
+        // If user toggled enabled while creating, carry it forward as pending for real id
+        if (temp.enabled !== undefined && temp.enabled !== data.collection.enabled) {
+          rest[data.collection.id] = { ...(rest[data.collection.id] || {}), enabled: temp.enabled }
         }
         try {
-          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
-          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
+          if (Object.keys(rest).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
+          }
         } catch {}
         return rest
       })
       // Select the real id now
       setActiveCollectionId(data.collection.id)
-      // Schedule refresh to pick up the persisted collection from DB
-      scheduleCollectionsRefresh()
       // Broadcast creation so other tabs pick up overlay quickly
       try {
         bcRef.current?.postMessage({ type: 'collections-updated', id: data.collection.id })
