@@ -236,6 +236,11 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
+      // Wait for storage propagation before releasing lock
+      // This ensures next queued request reads fresh data
+      await new Promise(r => setTimeout(r, 800))
+      try { console.log(JSON.stringify({ tag: 'collections-api', step: 'propagation-wait-done', operationId })) } catch {}
+
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id, enabled: collections[collectionIndex].enabled })) } catch {}
       return NextResponse.json({ success: true, collection: collections[collectionIndex] })
     } catch (error) {
