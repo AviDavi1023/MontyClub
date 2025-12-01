@@ -66,6 +66,20 @@ export function AdminPanel() {
   const [announcementsStorageLoaded, setAnnouncementsStorageLoaded] = useState(false)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
+  
+  // Data clearing state
+  const [showClearDataModal, setShowClearDataModal] = useState(false)
+  const [clearDataPassword, setClearDataPassword] = useState('')
+  const [clearDataApiKey, setClearDataApiKey] = useState('')
+  const [clearOptions, setClearOptions] = useState({
+    localStorage: true,
+    updateRequests: false,
+    announcements: false,
+    registrationCollections: false,
+    registrations: false,
+    analytics: false,
+  })
+  const [clearingData, setClearingData] = useState(false)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -768,6 +782,86 @@ export function AdminPanel() {
       setTimeout(() => {
         userManagementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
+    }
+  }
+
+  const handleClearData = async () => {
+    if (!clearDataPassword || !clearDataApiKey) {
+      showToast('Please enter both password and API key', 'error')
+      return
+    }
+
+    const hasSelections = Object.values(clearOptions).some(v => v)
+    if (!hasSelections) {
+      showToast('Please select at least one data type to clear', 'error')
+      return
+    }
+
+    setClearingData(true)
+    try {
+      const resp = await fetch('/api/admin/clear-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: clearDataPassword,
+          adminApiKey: clearDataApiKey,
+          clearOptions,
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to clear data')
+      }
+
+      // Clear client-side localStorage if selected
+      if (clearOptions.localStorage) {
+        try {
+          localStorage.clear()
+          showToast('Client localStorage cleared', 'success')
+        } catch (e) {
+          showToast('Failed to clear client localStorage', 'error')
+        }
+      }
+
+      // Show detailed success message
+      const clearedItems = Object.entries(data.cleared)
+        .filter(([_, count]) => (count as number) > 0)
+        .map(([key, count]) => `${key}: ${count}`)
+        .join(', ')
+      
+      showToast(
+        clearedItems 
+          ? `Data cleared successfully! ${clearedItems}` 
+          : 'Data cleared successfully',
+        'success'
+      )
+
+      // Reset form
+      setClearDataPassword('')
+      setClearDataApiKey('')
+      setClearOptions({
+        localStorage: true,
+        updateRequests: false,
+        announcements: false,
+        registrationCollections: false,
+        registrations: false,
+        analytics: false,
+      })
+      setShowClearDataModal(false)
+
+      // Refresh all data after clearing
+      setTimeout(() => {
+        refreshData()
+        fetchUpdates(true)
+        loadCollections()
+      }, 500)
+
+    } catch (err: any) {
+      showToast(err.message || 'Failed to clear data', 'error')
+    } finally {
+      setClearingData(false)
     }
   }
 
@@ -1764,6 +1858,20 @@ export function AdminPanel() {
             </button>
           </div>
 
+          <div className="p-4 border border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-950 rounded-lg">
+            <h3 className="font-medium text-red-900 dark:text-red-100 mb-2">⚠️ Clear Data (Factory Reset)</h3>
+            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+              Permanently delete selected data. This action cannot be undone. Requires authentication.
+            </p>
+            <button
+              onClick={() => setShowClearDataModal(true)}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors w-full sm:w-auto flex items-center gap-2 justify-center"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear Data
+            </button>
+          </div>
+
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -2360,6 +2468,170 @@ export function AdminPanel() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Clear Data Modal */}
+      {showClearDataModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Clear Data (Factory Reset)
+            </h3>
+            <p className="text-sm text-red-700 dark:text-red-300 mb-4 font-semibold">
+              ⚠️ WARNING: This action permanently deletes selected data and cannot be undone!
+            </p>
+
+            {/* Authentication */}
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Admin Password *
+                </label>
+                <input
+                  type="password"
+                  value={clearDataPassword}
+                  onChange={(e) => setClearDataPassword(e.target.value)}
+                  placeholder="Enter your admin password"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={clearingData}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Admin API Key *
+                </label>
+                <input
+                  type="password"
+                  value={clearDataApiKey}
+                  onChange={(e) => setClearDataApiKey(e.target.value)}
+                  placeholder="Enter admin API key"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={clearingData}
+                />
+              </div>
+            </div>
+
+            {/* Data Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Select data to clear:
+              </label>
+              <div className="space-y-2 pl-2">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.localStorage}
+                    onChange={(e) => setClearOptions({ ...clearOptions, localStorage: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Client LocalStorage</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear all client-side cached data</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.updateRequests}
+                    onChange={(e) => setClearOptions({ ...clearOptions, updateRequests: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Update Requests</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Delete all club update submissions</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.announcements}
+                    onChange={(e) => setClearOptions({ ...clearOptions, announcements: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Announcements</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear all club announcements</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.registrationCollections}
+                    onChange={(e) => setClearOptions({ ...clearOptions, registrationCollections: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Registration Collections</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Reset to single default collection</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.registrations}
+                    onChange={(e) => setClearOptions({ ...clearOptions, registrations: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">All Registrations</div>
+                    <div className="text-xs text-red-700 dark:text-red-300">⚠️ Delete all club registration submissions</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.analytics}
+                    onChange={(e) => setClearOptions({ ...clearOptions, analytics: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Analytics Events</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear all analytics tracking data</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowClearDataModal(false)
+                  setClearDataPassword('')
+                  setClearDataApiKey('')
+                }}
+                disabled={clearingData}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearData}
+                disabled={clearingData || !clearDataPassword || !clearDataApiKey}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {clearingData ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Clear Selected Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ToastContainer toasts={toasts} onClose={closeToast} />
