@@ -1,3 +1,10 @@
+// Fetch clubs from the currently enabled registration collection
+export async function fetchClubsFromCollection(): Promise<Club[]> {
+  // TODO: Replace with real data source (e.g., database or runtime-store)
+  // For now, return mock clubs with a note indicating 'from collection'
+  const clubs = getMockClubs().map(c => ({ ...c, notes: (c.notes || '') + ' (from collection)' }))
+  return clubs
+}
 import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
 import fs from 'fs'
