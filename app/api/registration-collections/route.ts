@@ -166,14 +166,14 @@ export async function PATCH(request: NextRequest) {
       // Retry logic to handle eventual consistency from Supabase storage
       let collections: RegistrationCollection[] = []
       let collectionIndex = -1
-      const maxRetries = 3
-      const retryDelay = 200 // ms
+      const maxRetries = 5
+      const retryDelay = 300 // ms
       
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-start', operationId })) } catch {}
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         collections = await getCollections()
         try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read', attempt: attempt + 1, operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
-        collectionIndex = collections.findIndex(c => c.id === body.id)
+        collectionIndex = collections.findIndex(c => c.id === id)
         
         if (collectionIndex !== -1) break
         
@@ -223,6 +223,10 @@ export async function PATCH(request: NextRequest) {
           { status: 500 }
         )
       }
+
+      // Critical: Wait for storage write to propagate before releasing lock
+      // This prevents next PATCH from reading stale state
+      await new Promise(r => setTimeout(r, 400))
 
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id, enabled: collections[collectionIndex].enabled })) } catch {}
       return NextResponse.json({ success: true, collection: collections[collectionIndex] })
