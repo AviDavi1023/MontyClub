@@ -9,6 +9,7 @@ import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
 import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
+import { createBroadcastListener, broadcast } from '@/lib/broadcast'
 
 export function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -353,7 +354,7 @@ export function AdminPanel() {
       setActiveCollectionId(data.collection.id)
       // Broadcast creation so other tabs pick up overlay quickly
       try {
-        bcRef.current?.postMessage({ type: 'collections-updated', id: data.collection.id })
+        broadcast('collections', 'update', { id: data.collection.id })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: data.collection.id, t: Date.now() }))
       } catch {}
       showToast('Collection created successfully')
@@ -403,7 +404,7 @@ export function AdminPanel() {
         try {
           localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
           localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          broadcast('collections', 'update', { id: collectionId })
           localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return next
@@ -432,7 +433,7 @@ export function AdminPanel() {
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+        broadcast('collections', 'update', { id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         log({ step: 'local-save-ok' })
       } catch (e) {
@@ -462,7 +463,7 @@ export function AdminPanel() {
       // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
       // This prevents showing stale DB state on reload due to eventual consistency
       try {
-        bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+        broadcast('collections', 'update', { id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
@@ -484,7 +485,7 @@ export function AdminPanel() {
             localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
             localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
           }
-          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          broadcast('collections', 'update', { id: collectionId })
           localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return revert
@@ -515,7 +516,7 @@ export function AdminPanel() {
             localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
             localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
           }
-          bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+          broadcast('collections', 'update', { id: collectionId })
           localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
         } catch {}
         return rest
@@ -530,7 +531,7 @@ export function AdminPanel() {
     try {
       localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      bcRef.current?.postMessage({ type: 'collections-updated', id: collectionId })
+      broadcast('collections', 'update', { id: collectionId })
       localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
     } catch {}
 
@@ -667,12 +668,27 @@ export function AdminPanel() {
   }
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      bcRef.current = new BroadcastChannel('montyclub')
-    }
+    const cleanup = createBroadcastListener((message) => {
+      // Handle updates domain messages
+      if (message.domain === 'updates' && message.action === 'create') {
+        fetchUpdates(true)
+      }
+      // Handle announcements domain messages
+      if (message.domain === 'announcements') {
+        fetchAnnouncements()
+      }
+      // Handle clubs domain messages
+      if (message.domain === 'clubs') {
+        refreshData()
+      }
+      // Handle collections domain messages
+      if (message.domain === 'collections') {
+        loadCollections()
+      }
+    })
+
     return () => {
-      bcRef.current?.close()
-      // Clean up any pending refresh timer
+      cleanup()
       if (collectionsRefreshTimerRef.current) {
         clearTimeout(collectionsRefreshTimerRef.current)
       }
@@ -767,10 +783,11 @@ export function AdminPanel() {
     }
   }
 
-  const fetchUpdates = async () => {
+  const fetchUpdates = async (forceFresh: boolean = false) => {
     setRefreshingUpdates(true)
     try {
-      const resp = await fetch('/api/updates')
+      const url = forceFresh ? '/api/updates?nocache=1' : '/api/updates'
+      const resp = await fetch(url)
       if (!resp.ok) throw new Error('Failed to fetch updates')
       const data = await resp.json()
       // Keep `updates` as the last known server snapshot. We overlay
@@ -1281,7 +1298,7 @@ export function AdminPanel() {
       
       // notify other tabs/windows
       try {
-        bcRef.current?.postMessage({ type: 'announcements-updated', id })
+        broadcast('announcements', 'update', { id })
       } catch (e) {
         // ignore
       }
@@ -1335,7 +1352,7 @@ export function AdminPanel() {
         showToast('Announcement cleared successfully')
       }
       try {
-        bcRef.current?.postMessage({ type: 'announcements-updated', id })
+        broadcast('announcements', 'update', { id })
       } catch (e) {
         // ignore
       }
@@ -1387,7 +1404,7 @@ export function AdminPanel() {
         localStorage.setItem('settings:announcementsEnabled', String(newValue))
         // Dispatch event to notify ClubsList component
         window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
-        bcRef.current?.postMessage({ type: 'announcements-updated', settingsChanged: true })
+        broadcast('announcements', 'update', { settingsChanged: true })
       } catch {}
       
       const resp = await fetch('/api/settings', {
@@ -1412,7 +1429,7 @@ export function AdminPanel() {
       try { 
         localStorage.setItem('settings:announcementsEnabled', String(!announcementsEnabled))
         window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
-        bcRef.current?.postMessage({ type: 'announcements-updated', settingsChanged: true })
+        broadcast('announcements', 'update', { settingsChanged: true })
       } catch {}
       showToast(`Could not update settings: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
@@ -1497,7 +1514,7 @@ export function AdminPanel() {
             Update Requests {updates.length > 0 && `(${updates.length})`}
           </h2>
           <button
-            onClick={fetchUpdates}
+            onClick={() => fetchUpdates()}
             className="btn-secondary p-2"
             title="Refresh requests"
             disabled={refreshingUpdates}
@@ -2109,14 +2126,14 @@ export function AdminPanel() {
               await saveAnnouncement(id, text)
               // refresh clubs so the gallery reflects updated announcement values
               await refreshData()
-              try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+              try { broadcast('announcements', 'update', { id }) } catch (e) {}
               // Also dispatch a custom event for same-tab updates
               window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
             }}
             clearAnnouncement={async (id: string) => {
               await clearAnnouncement(id)
               await refreshData()
-              try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+              try { broadcast('announcements', 'update', { id }) } catch (e) {}
               // Also dispatch a custom event for same-tab updates
               window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
             }}
@@ -2156,7 +2173,7 @@ export function AdminPanel() {
 
                 // Notify other tabs and same tab
                 deletedIds.forEach(id => {
-                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
                   window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
                   try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
                 })
@@ -2199,7 +2216,7 @@ export function AdminPanel() {
                   setConfirmClearId(null)
                   await clearAnnouncement(id)
                   await refreshData()
-                  try { bcRef.current?.postMessage({ type: 'announcements-updated', id }) } catch (e) {}
+                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
                   window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"

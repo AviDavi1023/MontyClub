@@ -10,6 +10,7 @@ import { getClubs } from '@/lib/clubs-client'
 import { ClubCard } from '@/components/ClubCard'
 import { ClubsTable } from '@/components/ClubsTable'
 import { FilterPanel } from '@/components/FilterPanel'
+import { createDomainListener } from '@/lib/broadcast'
 
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -103,28 +104,17 @@ export function ClubsList() {
   useEffect(() => {
     loadClubs()
 
-    // Only reload clubs when a change is made (cross-tab or same-tab update)
-    let bc: BroadcastChannel | null = null
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      bc = new BroadcastChannel('montyclub')
-      bc.onmessage = (ev) => {
-        try {
-          const data = ev.data
-          if (data && data.type === 'announcements-updated') {
-            loadClubs()
-            try {
-              const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
-              if (primary) {
-                const parsed = JSON.parse(primary)
-                if (parsed && typeof parsed === 'object') setLocalPendingAnnouncements(parsed)
-              }
-            } catch {}
-          }
-        } catch (e) {
-          // ignore
+    // Listen for announcements updates across tabs
+    const cleanup = createDomainListener('announcements', (action) => {
+      loadClubs()
+      try {
+        const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
+        if (primary) {
+          const parsed = JSON.parse(primary)
+          if (parsed && typeof parsed === 'object') setLocalPendingAnnouncements(parsed)
         }
-      }
-    }
+      } catch {}
+    })
 
     // Listen for same-tab updates (custom event)
     const onAnnouncementUpdate = () => {
@@ -174,7 +164,7 @@ export function ClubsList() {
 
     return () => {
       isMountedRef.current = false
-      if (bc) bc.close()
+      cleanup()
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
         window.removeEventListener('storage', onStorage)

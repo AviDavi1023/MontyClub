@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Send, CheckCircle } from 'lucide-react'
+import { broadcast } from '@/lib/broadcast'
 
 export function SubmitUpdateForm() {
   const [formData, setFormData] = useState({
@@ -28,6 +29,10 @@ export function SubmitUpdateForm() {
       if (!resp.ok) {
         throw new Error('Failed to submit update')
       }
+      const entry = await resp.json()
+
+      // Broadcast new update so admin panel can force a fresh fetch
+      broadcast('updates', 'create', entry)
 
       setIsSubmitted(true)
     } catch (error) {

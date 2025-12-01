@@ -1,29 +1,29 @@
-import { NextResponse } from 'next/server'
-import { readData, writeData, isReadOnlyFallback } from '@/lib/runtime-store'
+import { NextResponse, NextRequest } from 'next/server'
+import { readData, writeData } from '@/lib/runtime-store'
+import { createCachedGET, createLockedPOST } from '@/lib/api-patterns'
+import { updatesCache } from '@/lib/caches'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
-  try {
+// Cache-backed GET: serves cached data if < maxAge, otherwise refreshes storage
+export const GET = createCachedGET<any[]>(
+  updatesCache,
+  async (_request: NextRequest) => {
     const data = await readData('updates', [])
-    return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-    })
-  } catch (error) {
-    console.error('Error reading updates file:', error)
-    return NextResponse.json({ error: 'Failed to read updates' }, { status: 500 })
-  }
-}
+    // Ensure array
+    return Array.isArray(data) ? data : []
+  },
+  { maxAge: 10000 }
+)
 
-export async function POST(request: Request) {
-  try {
+// Locked POST prevents races when many updates are submitted rapidly
+export const POST = createLockedPOST<any>(
+  updatesCache,
+  async (request: NextRequest) => {
     const body = await request.json()
-    const arr = (await readData('updates', [])) || []
+    const current = updatesCache.get() ?? await readData('updates', [])
+    const arr: any[] = Array.isArray(current) ? [...current] : []
 
     const entry = {
       id: String(Date.now()),
@@ -32,16 +32,12 @@ export async function POST(request: Request) {
       reviewed: false,
     }
 
-    // Prepend newest first
     arr.unshift(entry)
-    const res = await writeData('updates', arr)
-    if (res.persisted === 'memory') {
-      console.warn('Running in read-only environment; updates are stored in-memory and will not persist across instances')
+    const writeResult = await writeData('updates', arr)
+    updatesCache.set(arr)
+    if (writeResult && (writeResult as any).persisted === 'memory') {
+      console.warn('[POST /api/updates] Read-only environment: data will not persist across instances')
     }
-
-    return NextResponse.json(entry, { status: 201 })
-  } catch (error) {
-    console.error('Error writing updates file:', error)
-    return NextResponse.json({ error: 'Failed to save update' }, { status: 500 })
+    return entry
   }
-}
+)
