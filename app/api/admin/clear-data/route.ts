@@ -54,22 +54,47 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Verify admin password by checking against stored users
-    const usersData = await readData('admin-users', [])
-    const users = Array.isArray(usersData) ? usersData : []
-    const adminUser = users.find((u: any) => u.role === 'admin')
+    const usersData = await readData('admin-users', {})
+    const users: Record<string, any> = typeof usersData === 'object' && usersData !== null ? usersData : {}
     
-    if (!adminUser) {
-      return NextResponse.json(
-        { error: 'No admin user found' },
-        { status: 401 }
-      )
-    }
-
+    // Find user by username matching the provided password
+    let adminUser: any = null
+    let matchedUsername: string | null = null
+    
     // Import bcrypt for password verification
     const bcrypt = require('bcryptjs')
-    const passwordMatch = await bcrypt.compare(password, adminUser.password)
     
-    if (!passwordMatch) {
+    // Try to find any user whose password matches
+    for (const [username, user] of Object.entries(users)) {
+      if (user && user.passwordHash) {
+        // Try both bcrypt (new) and crypto PBKDF2 (old) password formats
+        let passwordMatch = false
+        
+        try {
+          // Try bcrypt first (if password hash starts with $2)
+          if (user.passwordHash.startsWith('$2')) {
+            passwordMatch = await bcrypt.compare(password, user.passwordHash)
+          } else {
+            // Try PBKDF2 format (salt:hash)
+            const crypto = require('crypto')
+            const [salt, hash] = user.passwordHash.split(':')
+            const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
+            passwordMatch = hash === verifyHash
+          }
+        } catch (err) {
+          // If password verification fails, try next user
+          continue
+        }
+        
+        if (passwordMatch) {
+          adminUser = user
+          matchedUsername = username
+          break
+        }
+      }
+    }
+    
+    if (!adminUser) {
       return NextResponse.json(
         { error: 'Invalid password' },
         { status: 401 }
