@@ -19,14 +19,16 @@ function getStorageClient() {
   return supabase
 }
 
-export async function readJSONFromStorage(path: string) {
+export async function readJSONFromStorage(path: string, bustCache = false) {
   const client = getStorageClient()
   if (!client) return null
 
   try {
+    // Add cache-busting query param to force fresh reads
+    const cacheBust = bustCache ? `?cb=${Date.now()}` : ''
     const { data, error } = await client.storage
       .from('club-data')
-      .download(path)
+      .download(path + cacheBust)
 
     if (error) {
       console.warn('Error reading from Supabase:', error)
