@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Verify admin password by checking against stored users
-    const users = await readData('admin-users', [])
+    const usersData = await readData('admin-users', [])
+    const users = Array.isArray(usersData) ? usersData : []
     const adminUser = users.find((u: any) => u.role === 'admin')
     
     if (!adminUser) {

@@ -10,7 +10,13 @@ Secure data clearing feature in the Admin Panel that allows administrators to se
 - Both credentials must be valid for any data clearing operation to proceed
 
 ## Location
-**Admin Panel** → **Clear Data (Factory Reset)** section (highlighted with red border)
+**Admin Panel** → Scroll to bottom → **System Maintenance** section
+
+## UI Design
+- Subtle gray styling (not attention-grabbing)
+- Located at the bottom of the admin panel
+- Requires opening a modal to access the actual clearing interface
+- Designed to prevent accidental clicks
 
 ## Data Types Available for Clearing
 
@@ -91,10 +97,10 @@ Secure data clearing feature in the Admin Panel that allows administrators to se
 
 1. **Navigate to Admin Panel**
    - Log in with admin credentials
-   - Scroll to the "Clear Data (Factory Reset)" section (red background)
+   - Scroll to the bottom of the page to find "System Maintenance" section
 
 2. **Open Modal**
-   - Click the "Clear Data" button
+   - Click the "Clear Data" button (gray button at bottom)
 
 3. **Authenticate**
    - Enter your admin password
@@ -117,10 +123,11 @@ Secure data clearing feature in the Admin Panel that allows administrators to se
 ## Safety Features
 
 ### Visual Warnings
-- Red border around the Clear Data section
+- Modal has prominent red warnings
 - ⚠️ Warning emoji in modal header
-- Bold red text for destructive options
+- Bold red text for destructive options (All Registrations)
 - Confirmation message before clearing
+- Button positioned at bottom to reduce visibility
 
 ### Input Validation
 - Both password and API key are required

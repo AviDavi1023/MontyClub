@@ -1858,20 +1858,6 @@ export function AdminPanel() {
             </button>
           </div>
 
-          <div className="p-4 border border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-950 rounded-lg">
-            <h3 className="font-medium text-red-900 dark:text-red-100 mb-2">⚠️ Clear Data (Factory Reset)</h3>
-            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-              Permanently delete selected data. This action cannot be undone. Requires authentication.
-            </p>
-            <button
-              onClick={() => setShowClearDataModal(true)}
-              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors w-full sm:w-auto flex items-center gap-2 justify-center"
-            >
-              <Trash2 className="h-4 w-4" />
-              Clear Data
-            </button>
-          </div>
-
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -2469,6 +2455,23 @@ export function AdminPanel() {
           </div>
         </>
       )}
+
+      {/* Clear Data Section - at bottom */}
+      <div className="card">
+        <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">System Maintenance</h3>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+            Clear selected data for testing or maintenance. Requires authentication.
+          </p>
+          <button
+            onClick={() => setShowClearDataModal(true)}
+            className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-md transition-colors text-sm flex items-center gap-2"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear Data
+          </button>
+        </div>
+      </div>
 
       {/* Clear Data Modal */}
       {showClearDataModal && (
