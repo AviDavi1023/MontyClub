@@ -34,17 +34,10 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
     console.log(`[saveCollections] Attempt ${attempt + 1}/3`)
     const ok = await writeJSONToStorage(COLLECTIONS_PATH, collections)
     if (ok) {
-      console.log('[saveCollections] Write succeeded, verifying...')
-      // Wait and verify the write actually persisted
-      await new Promise(r => setTimeout(r, 200))
-      const readback = await readJSONFromStorage(COLLECTIONS_PATH)
-      if (readback && JSON.stringify(readback) === JSON.stringify(collections)) {
-        console.log('[saveCollections] Verification passed')
-        return true
-      }
-      // If verification failed, log and retry
-      console.error('[saveCollections] Verification failed - readback mismatch')
-      try { console.log(JSON.stringify({ tag: 'collections-api', step: 'verify-mismatch', attempt: attempt + 1 })) } catch {}
+      console.log('[saveCollections] Write succeeded')
+      // Trust the write - Supabase returns success when write is persisted
+      // Don't verify with readback due to eventual consistency causing false failures
+      return true
     } else {
       console.error(`[saveCollections] Write failed on attempt ${attempt + 1}`)
     }
@@ -182,12 +175,11 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      // Read current state with aggressive retry to handle eventual consistency
-      // In serverless environments, we can't rely on in-memory cache
+      // Read current state with retry to handle eventual consistency
       let collections: RegistrationCollection[] = []
       let collectionIndex = -1
-      const maxRetries = 10
-      const retryDelay = 500 // Longer delay to allow propagation
+      const maxRetries = 3
+      const retryDelay = 200
       
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-start', operationId })) } catch {}
       
