@@ -2,7 +2,6 @@
 import { readData } from '@/lib/runtime-store'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import { slugifyName } from '@/lib/slug'
-import { getMockClubs } from './clubs'
 
 export async function fetchClubsFromCollection(): Promise<Club[]> {
   // 1. Get all collections and find the enabled one
