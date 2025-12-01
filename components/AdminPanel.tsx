@@ -1123,7 +1123,7 @@ export function AdminPanel() {
   // Auto-clear pending announcements that now match database state
   useEffect(() => {
     if (!announcementsStorageLoaded) {
-      console.log('⏸️ ANNOUNCEMENTS AUTO-CLEAR SKIPPED - localStorage not loaded yet')
+      try { console.log(JSON.stringify({ tag: 'ann-autoclear', step: 'skip-not-loaded' })) } catch {}
       return
     }
     if (Object.keys(localPendingAnnouncements).length === 0) return

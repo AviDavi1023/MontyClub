@@ -6,6 +6,11 @@ export const dynamic = 'force-dynamic'
 
 const COLLECTIONS_PATH = 'settings/registration-collections.json'
 
+// In-memory cache to avoid eventual consistency issues with Supabase Storage
+// This cache is the source of truth for PATCH operations
+let collectionsCache: RegistrationCollection[] | null = null
+let cacheTimestamp = 0
+
 // Simple in-memory lock to prevent concurrent writes
 let updateLock: Promise<void> = Promise.resolve()
 
@@ -20,8 +25,13 @@ async function getCollections(): Promise<RegistrationCollection[]> {
       createdAt: new Date().toISOString()
     }
     await writeJSONToStorage(COLLECTIONS_PATH, [defaultCollection])
+    collectionsCache = [defaultCollection]
+    cacheTimestamp = Date.now()
     return [defaultCollection]
   }
+  // Update cache whenever we read from storage
+  collectionsCache = data
+  cacheTimestamp = Date.now()
   return data
 }
 
@@ -29,7 +39,12 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   // Retry saves to tolerate transient storage latency
   for (let attempt = 0; attempt < 3; attempt++) {
     const ok = await writeJSONToStorage(COLLECTIONS_PATH, collections)
-    if (ok) return true
+    if (ok) {
+      // Update cache on successful write
+      collectionsCache = collections
+      cacheTimestamp = Date.now()
+      return true
+    }
     // small backoff
     await new Promise(r => setTimeout(r, 150 * (attempt + 1)))
   }
@@ -163,25 +178,38 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      // Retry logic to handle eventual consistency from Supabase storage
-      let collections: RegistrationCollection[] = []
-      let collectionIndex = -1
-      const maxRetries = 5
-      const retryDelay = 300 // ms
+      // Use in-memory cache to avoid eventual consistency issues
+      // Only fall back to storage read if cache is not populated
+      let collections: RegistrationCollection[]
       
-      try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-start', operationId })) } catch {}
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        collections = await getCollections()
-        try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read', attempt: attempt + 1, operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
-        collectionIndex = collections.findIndex(c => c.id === id)
+      try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-start', operationId, cacheAge: collectionsCache ? Date.now() - cacheTimestamp : null })) } catch {}
+      
+      if (collectionsCache && collectionsCache.length > 0) {
+        // Use cached version to avoid storage read-after-write consistency issues
+        collections = JSON.parse(JSON.stringify(collectionsCache)) // Deep clone
+        try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-cache', operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
+      } else {
+        // Cache miss - read from storage with retry logic
+        const maxRetries = 5
+        const retryDelay = 300 // ms
+        collections = []
+        let collectionIndex = -1
         
-        if (collectionIndex !== -1) break
-        
-        // If not found and not last attempt, wait before retry
-        if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          collections = await getCollections()
+          try { console.log(JSON.stringify({ tag: 'collections-api', step: 'read-storage', attempt: attempt + 1, operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
+          collectionIndex = collections.findIndex(c => c.id === id)
+          
+          if (collectionIndex !== -1) break
+          
+          // If not found and not last attempt, wait before retry
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+          }
         }
       }
+      
+      const collectionIndex = collections.findIndex(c => c.id === id)
 
       if (collectionIndex === -1) {
         return NextResponse.json(
@@ -212,7 +240,6 @@ export async function PATCH(request: NextRequest) {
         try { console.log(JSON.stringify({ tag: 'collections-api', step: 'update', operationId, id: body.id, from: collections[collectionIndex].enabled, to: Boolean(enabled) })) } catch {}
         collections[collectionIndex].enabled = Boolean(enabled)
       }
-
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'save-start', operationId, collections: collections.map(c => ({ id: c.id, enabled: c.enabled })) })) } catch {}
       const success = await saveCollections(collections)
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'save-result', operationId, success })) } catch {}
@@ -223,10 +250,6 @@ export async function PATCH(request: NextRequest) {
           { status: 500 }
         )
       }
-
-      // Critical: Wait for storage write to propagate before releasing lock
-      // This prevents next PATCH from reading stale state
-      await new Promise(r => setTimeout(r, 400))
 
       try { console.log(JSON.stringify({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id, enabled: collections[collectionIndex].enabled })) } catch {}
       return NextResponse.json({ success: true, collection: collections[collectionIndex] })
