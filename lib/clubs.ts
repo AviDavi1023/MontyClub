@@ -59,8 +59,15 @@ import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 // Fetch clubs from the active data source (Excel or collection)
 export async function fetchClubs(): Promise<Club[]> {
   try {
-    const settings = await readData('settings/data-source', { source: 'excel' })
-    if (settings.source === 'collection') {
+    // Read the persisted data source selection (default to 'excel')
+    let dataSource: 'excel' | 'collection' = 'excel'
+    try {
+      const buf = await runtimeReadFile('clubDataSource.txt')
+      const val = buf?.toString().trim()
+      if (val === 'collection' || val === 'excel') dataSource = val
+    } catch {}
+
+    if (dataSource === 'collection') {
       return await fetchClubsFromCollection()
     }
     return await fetchClubsFromExcel()
