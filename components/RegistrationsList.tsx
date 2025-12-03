@@ -4,11 +4,24 @@ import { useState, useEffect } from 'react'
 import { ClubRegistration } from '@/types/club'
 import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList } from 'lucide-react'
 
-interface RegistrationsListProps {
   adminApiKey: string
   collectionSlug: string
   collectionName: string
 }
+
+const CATEGORY_OPTIONS = [
+  'Awareness',
+  'Business',
+  'Debate/Political',
+  'Education',
+  'Culture',
+  'Performing Arts',
+  'Cultural/Religious',
+  'Service',
+  'Social',
+  'STEM',
+  'Other',
+]
 
 export function RegistrationsList({ adminApiKey, collectionSlug, collectionName }: RegistrationsListProps) {
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
@@ -20,6 +33,42 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editReg, setEditReg] = useState<ClubRegistration | null>(null)
+  const [editFields, setEditFields] = useState<any>({})
+    const openEditModal = (reg: ClubRegistration) => {
+      setEditReg(reg)
+      setEditFields({ ...reg })
+      setShowEditModal(true)
+    }
+
+    const handleEditField = (field: string, value: any) => {
+      setEditFields((prev: any) => ({ ...prev, [field]: value }))
+    }
+
+    const saveEdit = async () => {
+      if (!editReg) return
+      setProcessingId(editReg.id)
+      try {
+        const response = await fetch('/api/registration-update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': adminApiKey
+          },
+          body: JSON.stringify({ registrationId: editReg.id, collection: editReg.collectionId, updates: editFields })
+        })
+        if (!response.ok) throw new Error('Failed to update registration')
+        setShowEditModal(false)
+        setEditReg(null)
+        setEditFields({})
+        await loadRegistrations()
+      } catch (err) {
+        alert('Failed to update registration')
+      } finally {
+        setProcessingId(null)
+      }
+    }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [localPendingRegistrationChanges, setLocalPendingRegistrationChanges] = useState<Record<string, { status?: string; denialReason?: string; deleted?: boolean }>>({})
   const [registrationStorageLoaded, setRegistrationStorageLoaded] = useState(false)
@@ -639,9 +688,92 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                             {reg.advisorName} • {reg.email}
                           </p>
                         </div>
-                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
-                          {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                        </button>
+                        <div className="flex gap-2">
+                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
+                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                          </button>
+                          <button className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-xs px-2 py-1 rounded border border-blue-200 dark:border-blue-700" onClick={() => openEditModal(reg)}>
+                            Edit
+                          </button>
+                        </div>
+                            {showEditModal && editReg && (
+                              <>
+                                <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowEditModal(false)} />
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                                  <form className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 pointer-events-auto" onSubmit={e => { e.preventDefault(); saveEdit(); }}>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Club Registration</h3>
+                                      <button type="button" onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4 mb-4">
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Name</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.clubName || ''} onChange={e => handleEditField('clubName', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Name</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.advisorName || ''} onChange={e => handleEditField('advisorName', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Email</span>
+                                        <input type="email" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.email || ''} onChange={e => handleEditField('email', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Location</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.location || ''} onChange={e => handleEditField('location', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Meeting Day</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.meetingDay || ''} onChange={e => handleEditField('meetingDay', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Frequency</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.meetingFrequency || ''} onChange={e => handleEditField('meetingFrequency', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Contact Name</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.studentContactName || ''} onChange={e => handleEditField('studentContactName', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Contact Email</span>
+                                        <input type="email" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.studentContactEmail || ''} onChange={e => handleEditField('studentContactEmail', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Agreement</span>
+                                        <input type="date" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.advisorAgreementDate || ''} onChange={e => handleEditField('advisorAgreementDate', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Agreement</span>
+                                        <input type="date" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.clubAgreementDate || ''} onChange={e => handleEditField('clubAgreementDate', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Statement of Purpose</span>
+                                        <textarea className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" rows={2} value={editFields.statementOfPurpose || ''} onChange={e => handleEditField('statementOfPurpose', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</span>
+                                        <select className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.category || ''} onChange={e => handleEditField('category', e.target.value)}>
+                                          <option value="">Select a category</option>
+                                          {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Social Media</span>
+                                        <input type="text" className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" value={editFields.socialMedia || ''} onChange={e => handleEditField('socialMedia', e.target.value)} />
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</span>
+                                        <textarea className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" rows={2} value={editFields.notes || ''} onChange={e => handleEditField('notes', e.target.value)} />
+                                      </label>
+                                    </div>
+                                    <div className="flex gap-3 justify-end">
+                                      <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors">Cancel</button>
+                                      <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">Save Changes</button>
+                                    </div>
+                                  </form>
+                                </div>
+                              </>
+                            )}
                       </div>
                     </div>
                     {isExpanded && (

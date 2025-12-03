@@ -28,6 +28,9 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [studentContactEmail, setStudentContactEmail] = useState('')
   const [advisorAgreementDate, setAdvisorAgreementDate] = useState('')
   const [clubAgreementDate, setClubAgreementDate] = useState('')
+  const [socialMedia, setSocialMedia] = useState('')
+  const [category, setCategory] = useState('')
+  const [notes, setNotes] = useState('')
 
   // Check collection status
   useEffect(() => {
@@ -98,7 +101,10 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           studentContactName,
           studentContactEmail,
           advisorAgreementDate,
-          clubAgreementDate
+          clubAgreementDate,
+          socialMedia,
+          category,
+          notes
         })
       })
 
@@ -125,6 +131,9 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         setStudentContactEmail('')
         setAdvisorAgreementDate('')
         setClubAgreementDate('')
+        setSocialMedia('')
+        setCategory('')
+        setNotes('')
         setSubmitted(false)
       }, 5000)
     } catch (err: any) {
@@ -393,6 +402,68 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             required
             value={studentContactEmail}
             onChange={(e) => setStudentContactEmail(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          />
+        </div>
+
+        {/* Social Media (optional) */}
+        <div className="mb-6">
+          <label htmlFor="socialMedia" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Social Media (optional)
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Provide an @ for Instagram, a link (website, YouTube, etc.), or you can skip this question.
+          </p>
+          <input
+            type="text"
+            id="socialMedia"
+            value={socialMedia}
+            onChange={(e) => setSocialMedia(e.target.value)}
+            placeholder="@yourclub or https://..."
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          />
+        </div>
+
+        {/* Category (required) */}
+        <div className="mb-6">
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Category <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="category"
+            required
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          >
+            <option value="">Select a category</option>
+            <option value="Awareness">Awareness</option>
+            <option value="Business">Business</option>
+            <option value="Debate/Political">Debate/Political</option>
+            <option value="Education">Education</option>
+            <option value="Culture">Culture</option>
+            <option value="Performing Arts">Performing Arts</option>
+            <option value="Cultural/Religious">Cultural/Religious</option>
+            <option value="Service">Service</option>
+            <option value="Social">Social</option>
+            <option value="STEM">STEM</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        {/* Notes (optional) */}
+        <div className="mb-6">
+          <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Notes (optional)
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Any public notes to be displayed on the clubs discovery site about registration, requirements, etc.
+          </p>
+          <textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
           />
         </div>

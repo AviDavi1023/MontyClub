@@ -537,13 +537,14 @@ export function ClubsList() {
       <div className="space-y-3 sm:space-y-4">
         {/* Search bar - full width */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500 h-5 w-5" />
           <input
             type="text"
-            placeholder="Search clubs, keywords, etc."
+            placeholder="🔍 Search clubs by name, keyword, advisor..."
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field w-full pl-9 sm:pl-10 pr-10 text-sm sm:text-base py-2.5 sm:py-2"
+            className="w-full pl-11 pr-10 text-base py-3 rounded-lg border border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-gray-900 shadow focus:ring-2 focus:ring-primary-400 focus:border-primary-500 transition placeholder:font-medium placeholder:text-primary-600 dark:placeholder:text-primary-300"
+            aria-label="Search clubs"
           />
           {searchInput && (
             <button
@@ -554,9 +555,9 @@ export function ClubsList() {
                 if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
                 setFiltersAndUpdate({ ...filters, search: '' })
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 dark:text-primary-300 dark:hover:text-primary-100 p-1 rounded"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           )}
         </div>

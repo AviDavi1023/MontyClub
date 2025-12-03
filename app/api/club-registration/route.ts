@@ -65,15 +65,18 @@ export async function POST(request: NextRequest) {
       studentContactName,
       studentContactEmail,
       advisorAgreementDate,
-      clubAgreementDate
+      clubAgreementDate,
+      socialMedia,
+      category,
+      notes
     } = body
 
     // Validate required fields
     if (!email || !clubName || !advisorName || !statementOfPurpose || !location || 
         !meetingDay || !meetingFrequency || !studentContactName || !studentContactEmail ||
-        !advisorAgreementDate || !clubAgreementDate) {
+        !advisorAgreementDate || !clubAgreementDate || !category) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'All required fields must be filled' },
         { status: 400 }
       )
     }
@@ -95,7 +98,10 @@ export async function POST(request: NextRequest) {
       clubAgreementDate,
       submittedAt: new Date().toISOString(),
       status: 'pending',
-      collectionId: collection.id
+      collectionId: collection.id,
+      socialMedia,
+      category,
+      notes
     }
 
     // Store in Supabase under collection folder

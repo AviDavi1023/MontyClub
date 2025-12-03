@@ -56,4 +56,7 @@ export interface ClubRegistration {
   collectionId: string // Reference to RegistrationCollection
   denialReason?: string // Optional reason for rejection
   approvedAt?: string // Timestamp when the registration was approved
+  socialMedia?: string // Optional social media handle or link
+  category: string // Club category
+  notes?: string // Optional public notes
 }
