@@ -2,17 +2,16 @@
 
 export function SkeletonCard() {
   return (
-    <div className="card p-4 sm:p-6 animate-pulse">
+    <div className="card p-4 sm:p-6 bg-gradient-to-br from-gray-200/60 to-gray-100/80 dark:from-gray-800/60 dark:to-gray-900/80 rounded-lg border border-gray-200 dark:border-gray-700 shadow animate-pulse relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-gray-700/40 animate-shimmer pointer-events-none" style={{ backgroundSize: '200% 100%' }} />
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
         <div className="h-6 w-16 bg-gray-300 dark:bg-gray-700 rounded"></div>
       </div>
-      
       <div className="space-y-2 mb-3">
         <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
         <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
       </div>
-      
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="h-4 w-4 bg-gray-300 dark:bg-gray-700 rounded"></div>
