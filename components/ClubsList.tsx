@@ -246,8 +246,7 @@ export function ClubsList() {
     return clubsOverlayed.filter(club => {
       // Search filter - use searchInput for immediate filtering
       if (searchInput) {
-        const searchLower = searchInput.toLowerCase()
-
+        const searchLower = searchInput.toLowerCase().trim()
         // Combine several club fields into a single searchable string
         const fields = [
           club.name,
@@ -256,24 +255,11 @@ export function ClubsList() {
           club.advisor,
           club.studentLeader,
           club.location,
+          ...(club.keywords || []),
         ]
-
-        // Split the text into words and check if any word starts with the search term
-        const words = fields
-          .map(f => (f || '').toLowerCase())
-          .join(' ')
-          .split(/\s+/)
-          .filter(Boolean)
-
-        const keywordsMatch = club.keywords && 
-          club.keywords.some(keyword => 
-            keyword.toLowerCase().split(/\s+/).some(word => word.startsWith(searchLower))
-          )
-
-        const wordStartsMatch = words.some(word => word.startsWith(searchLower))
-        const matchesSearch = wordStartsMatch || keywordsMatch
-
-        if (!matchesSearch) return false
+        // Normalize whitespace and lowercase
+        const haystack = fields.map(f => (f || '').toLowerCase()).join(' ').replace(/\s+/g, ' ').trim()
+        if (!haystack.includes(searchLower)) return false
       }
 
       // Category filter (support multi-select)
@@ -540,7 +526,7 @@ export function ClubsList() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500 h-5 w-5" />
           <input
             type="text"
-            placeholder="🔍 Search clubs by name, keyword, advisor..."
+            placeholder="Search clubs by name, keyword, advisor..."
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-11 pr-10 text-base py-3 rounded-lg border border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-gray-900 shadow focus:ring-2 focus:ring-primary-400 focus:border-primary-500 transition placeholder:font-medium placeholder:text-primary-600 dark:placeholder:text-primary-300"
