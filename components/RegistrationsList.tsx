@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { ClubRegistration } from '@/types/club'
 import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList } from 'lucide-react'
 
+interface RegistrationsListProps {
   adminApiKey: string
   collectionSlug: string
   collectionName: string
