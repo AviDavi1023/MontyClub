@@ -10,10 +10,10 @@ async function ensureAnnouncementsFile() {
   return null
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return announcementsCache.withLock(async () => {
     try {
-      const { id } = params
+      const { id } = await params
       const body = await request.json()
       if (!body || typeof body.announcement !== 'string') {
         return NextResponse.json({ error: 'Invalid payload, expected { announcement: string }' }, { status: 400 })
@@ -43,10 +43,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   })
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return announcementsCache.withLock(async () => {
     try {
-      const { id } = params
+      const { id } = await params
       const current = announcementsCache.get() ?? await readData('announcements', {})
       const updated: Record<string, string> = { ...(current || {}) } as Record<string, string>
       if (Object.prototype.hasOwnProperty.call(updated, id)) {

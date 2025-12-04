@@ -6,14 +6,15 @@ export const metadata: Metadata = {
   description: 'Submit a new club charter request for Carlmont High School',
 }
 
-export default function RegisterClubPage({
+export default async function RegisterClubPage({
   searchParams,
 }: {
-  searchParams: { collection?: string }
+  searchParams: Promise<{ collection?: string }>
 }) {
+  const { collection } = await searchParams
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-      <ClubRegistrationForm collectionSlug={searchParams.collection} />
+      <ClubRegistrationForm collectionSlug={collection} />
     </div>
   )
 }

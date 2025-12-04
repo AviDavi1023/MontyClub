@@ -5,10 +5,10 @@ import { updatesCache } from '@/lib/caches'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return updatesCache.withLock(async () => {
     try {
-      const { id } = params
+      const { id } = await params
       const body = await request.json()
       const current = updatesCache.get() ?? await readData('updates', [])
       const arr: any[] = Array.isArray(current) ? [...current] : []
@@ -43,10 +43,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   })
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return updatesCache.withLock(async () => {
     try {
-      const { id } = params
+      const { id } = await params
       const current = updatesCache.get() ?? await readData('updates', [])
       const arr: any[] = Array.isArray(current) ? [...current] : []
 

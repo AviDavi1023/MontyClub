@@ -95,10 +95,11 @@ export const revalidate = 0
 
 import { fetchClubs } from '@/lib/clubs'
 
-export default async function ClubPage({ params }: { params: { id: string } }) {
+export default async function ClubPage({ params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const clubs = await fetchClubs()
-    const club = clubs.find((c: any) => c.id === params.id)
+    const club = clubs.find((c: any) => c.id === id)
     
     if (!club) notFound()
 
