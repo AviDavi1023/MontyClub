@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, FormEvent, useEffect } from 'react'
-import { Send, CheckCircle2, XCircle } from 'lucide-react'
+import { Send, CheckCircle2, XCircle, Moon, Sun } from 'lucide-react'
 import { RegistrationCollection } from '@/types/club'
 
 interface ClubRegistrationFormProps {
@@ -14,6 +14,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [error, setError] = useState('')
   const [collection, setCollection] = useState<RegistrationCollection | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useState(false)
 
   // Form state
   const [email, setEmail] = useState('')
@@ -30,10 +31,16 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [clubAgreementDate, setClubAgreementDate] = useState('')
   const [socialMedia, setSocialMedia] = useState('')
   const [category, setCategory] = useState('')
+  const [customCategory, setCustomCategory] = useState('')
   const [notes, setNotes] = useState('')
 
   // Check collection status
   useEffect(() => {
+    // Check if dark mode is enabled
+    if (typeof window !== 'undefined') {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+    
     const checkCollectionStatus = async () => {
       if (!collectionSlug) {
         setError('No collection specified. Please use a valid registration link.')
@@ -72,6 +79,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
 
     try {
       const finalFrequency = meetingFrequency === 'Other' ? customFrequency : meetingFrequency
+      const finalCategory = category === 'Other' ? customCategory : category
 
       if (!meetingDay) {
         setError('Please select at least one meeting day.')
@@ -84,6 +92,20 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         setError('Please specify your custom frequency.')
         setSubmitting(false)
         document.getElementById('meetingFrequency')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (!finalCategory) {
+        setError('Please select a category.')
+        setSubmitting(false)
+        document.getElementById('category')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (category === 'Other' && !customCategory.trim()) {
+        setError('Please specify your category since you selected "Other".')
+        setSubmitting(false)
+        document.getElementById('customCategory')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         return
       }
 
@@ -103,7 +125,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           advisorAgreementDate,
           clubAgreementDate,
           socialMedia,
-          category,
+          category: finalCategory,
           notes
         })
       })
@@ -133,6 +155,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         setClubAgreementDate('')
         setSocialMedia('')
         setCategory('')
+        setCustomCategory('')
         setNotes('')
         setSubmitted(false)
       }, 5000)
@@ -207,9 +230,31 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         </div>
       )}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Club Charter Request
-        </h1>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Club Charter Request
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const html = document.documentElement
+              const isDark = html.classList.contains('dark')
+              if (isDark) {
+                html.classList.remove('dark')
+              } else {
+                html.classList.add('dark')
+              }
+              setIsDarkMode(!isDark)
+            }}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Toggle dark mode"
+            aria-label="Toggle dark mode"
+          >
+            {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+        </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
           This request must be completed by the advisor who must be a Carlmont teacher. Please note that the California Education Code states that clubs cannot raise funds for charitable causes. Clubs are not allowed to discriminate based on gender, race, ethnicity, religion, or ability level. If certain members do not have the required ability to perform for the club if necessary, they must be allowed to join the club as "board members." Club members cannot be required to pay membership dues.
         </p>
@@ -449,6 +494,16 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             <option value="STEM">STEM</option>
             <option value="Other">Other</option>
           </select>
+          {category === 'Other' && (
+            <input
+              type="text"
+              id="customCategory"
+              placeholder="Please specify your category"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              className="w-full px-4 py-2 mt-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
+          )}
         </div>
 
         {/* Notes (optional) */}
@@ -457,7 +512,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             Notes (optional)
           </label>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Any public notes to be displayed on the clubs discovery site about registration, requirements, etc.
+            Any public notes to be displayed on the clubs discovery site about registration, requirements, dates, etc.
           </p>
           <textarea
             id="notes"
