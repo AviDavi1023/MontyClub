@@ -27,6 +27,14 @@ export function AdminPanel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clubDataSource }),
     }).catch(() => {})
+    // Broadcast to other tabs/components that data source changed
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new window.BroadcastChannel('clubDataSource')
+        bc.postMessage('changed')
+        bc.close()
+      } catch {}
+    }
   }, [clubDataSource])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)

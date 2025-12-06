@@ -1,17 +1,3 @@
-import { writeFile as runtimeWriteFile } from '@/lib/runtime-store'
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    if (body.clubDataSource === 'excel' || body.clubDataSource === 'collection') {
-      await runtimeWriteFile('clubDataSource.txt', Buffer.from(body.clubDataSource, 'utf-8'))
-      return NextResponse.json({ ok: true })
-    }
-    return NextResponse.json({ error: 'Invalid clubDataSource' }, { status: 400 })
-  } catch (err) {
-    console.error('Error persisting clubDataSource:', err)
-    return NextResponse.json({ error: 'Failed to persist clubDataSource' }, { status: 500 })
-  }
-}
 import { NextResponse } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
 
@@ -31,6 +17,24 @@ export async function GET() {
   } catch (err) {
     console.error('Error reading settings:', err)
     return NextResponse.json({ error: 'Failed to read settings' }, { status: 500 })
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    if (body.clubDataSource === 'excel' || body.clubDataSource === 'collection') {
+      // Store clubDataSource in settings object for reliable persistence
+      const current = await readData('settings', { announcementsEnabled: true })
+      const updated = { ...current, clubDataSource: body.clubDataSource }
+      const writeResult = await writeData('settings', updated)
+      console.log('[POST /api/settings] Updated clubDataSource to:', body.clubDataSource, 'Result:', writeResult)
+      return NextResponse.json({ ok: true })
+    }
+    return NextResponse.json({ error: 'Invalid clubDataSource' }, { status: 400 })
+  } catch (err) {
+    console.error('Error persisting clubDataSource:', err)
+    return NextResponse.json({ error: 'Failed to persist clubDataSource' }, { status: 500 })
   }
 }
 

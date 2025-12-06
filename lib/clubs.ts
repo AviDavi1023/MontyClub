@@ -1,9 +1,9 @@
-// Fetch clubs from the currently enabled registration collection
 import { readData } from '@/lib/runtime-store'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import { slugifyName } from '@/lib/slug'
 
 import { listPaths, readJSONFromStorage } from '@/lib/supabase'
+import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 export async function fetchClubsFromCollection(): Promise<Club[]> {
   // 1. Get all collections and find the enabled one
@@ -54,18 +54,21 @@ import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
 import fs from 'fs'
 import path from 'path'
-import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 // Fetch clubs from the active data source (Excel or collection)
 export async function fetchClubs(): Promise<Club[]> {
   try {
-    // Read the persisted data source selection (default to 'excel')
+    // Read the persisted data source selection from settings (more reliable than clubDataSource.txt)
     let dataSource: 'excel' | 'collection' = 'excel'
     try {
-      const buf = await runtimeReadFile('clubDataSource.txt')
-      const val = buf?.toString().trim()
-      if (val === 'collection' || val === 'excel') dataSource = val
-    } catch {}
+      const settings = await readData('settings', {})
+      if (settings && typeof settings === 'object' && 'clubDataSource' in settings) {
+        const val = settings.clubDataSource
+        if (val === 'collection' || val === 'excel') dataSource = val
+      }
+    } catch (e) {
+      console.warn('Failed to read clubDataSource from settings:', e)
+    }
 
     if (dataSource === 'collection') {
       return await fetchClubsFromCollection()

@@ -64,6 +64,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         setEditReg(null)
         setEditFields({})
         await loadRegistrations()
+        // Broadcast to ClubsList to reload clubs
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new window.BroadcastChannel('clubDataSource')
+            bc.postMessage('reload')
+            bc.close()
+          } catch {}
+        }
       } catch (err) {
         alert('Failed to update registration')
       } finally {
@@ -258,6 +266,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
 
       // Success: keep pending until future GET shows same state
       alert('Registration approved successfully!')
+      // Broadcast to ClubsList to reload clubs
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        try {
+          const bc = new window.BroadcastChannel('clubDataSource')
+          bc.postMessage('reload')
+          bc.close()
+        } catch {}
+      }
     } catch (err: any) {
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingRegistrationChanges }
