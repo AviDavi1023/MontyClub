@@ -952,9 +952,10 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       await resp.json()
-      // Success: keep pending change until a future GET shows the same state
-      // from the database, at which point the auto-clear effect will prune it.
+      // Success: fetch fresh data to trigger auto-clear
       showToast(`Marked ${nextReviewed ? 'reviewed' : 'unreviewed'}`)
+      // Fetch fresh data with no-cache to ensure we get the latest state, but don't block
+      fetchUpdates(true).catch(() => {})
     } catch (e) {
       try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'patch-fail', error: String(e) })) } catch {}
       // Clear from pending on error (revert local override)
@@ -1001,6 +1002,8 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       await resp.json()
       showToast('Update request deleted')
+      // Fetch fresh data to trigger auto-clear, but don't block
+      fetchUpdates(true).catch(() => {})
     } catch (e) {
       console.error('Single delete failed', e)
       // Clear from pending on error (undo the local delete)
@@ -1062,11 +1065,10 @@ export function AdminPanel() {
       const data = await resp.json()
       if (!data.success) throw new Error('Batch failed')
 
-      // Success: leave `localPendingChanges` as-is so that a future GET
-      // from /api/updates can be compared against it. When the database
-      // snapshot matches, the auto-clear effect will prune these entries.
+      // Success: fetch fresh data to trigger auto-clear
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
-      // You can manually hit "Refresh" to force an immediate GET if needed.
+      // Fetch fresh data to trigger auto-clear, but don't block
+      fetchUpdates(true).catch(() => {})
     } catch (e) {
       console.error('Batch op failed', e)
       // Clear from pending on error
@@ -1411,7 +1413,7 @@ export function AdminPanel() {
       }
       
       await resp.json()
-      // Success: keep pending until future GET shows same state
+      // Success: fetch fresh data to trigger auto-clear
       showToast('Announcement saved successfully')
       
       // notify other tabs/windows
@@ -1425,6 +1427,9 @@ export function AdminPanel() {
       } catch (e) {
         // ignore
       }
+      
+      // Fetch fresh data to trigger auto-clear, but don't block
+      fetchAnnouncements()
     } catch (err) {
       console.error('Error saving announcement:', err)
       // Clear from pending on error (revert)
@@ -1465,7 +1470,7 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error('Failed to clear')
       await resp.json()
-      // Success: keep pending until future GET shows cleared state
+      // Success: fetch fresh data to trigger auto-clear
       if (!savingAnnouncements[`bulk-${id}`]) {
         showToast('Announcement cleared successfully')
       }
@@ -1477,6 +1482,9 @@ export function AdminPanel() {
       try {
         localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
       } catch (e) {}
+      
+      // Fetch fresh data to trigger auto-clear, but don't block
+      fetchAnnouncements()
     } catch (err) {
       console.error('Error clearing announcement:', err)
       // Clear from pending on error (revert)

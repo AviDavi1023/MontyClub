@@ -264,8 +264,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         throw new Error('Failed to approve registration')
       }
 
-      // Success: keep pending until future GET shows same state
+      // Success: fetch fresh data to trigger auto-clear
       alert('Registration approved successfully!')
+      await loadRegistrations()
       // Broadcast to ClubsList to reload clubs
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
@@ -332,8 +333,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         throw new Error('Failed to deny registration')
       }
 
-      // Success: keep pending until future GET shows same state
+      // Success: fetch fresh data to trigger auto-clear
       alert('Registration denied.')
+      await loadRegistrations()
     } catch (err: any) {
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingRegistrationChanges }
@@ -521,6 +523,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                     }
                   }
                   setSelectedIds(new Set())
+                  // Fetch fresh data to trigger auto-clear
+                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
               >Approve Selected</button>
@@ -553,6 +557,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                     }
                   }
                   setSelectedIds(new Set())
+                  // Fetch fresh data to trigger auto-clear
+                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg"
               >Deny Selected</button>
@@ -584,6 +590,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                     }
                   }
                   setSelectedIds(new Set())
+                  // Fetch fresh data to trigger auto-clear
+                  await loadRegistrations()
                 }}
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
               >Delete Selected</button>
