@@ -17,17 +17,10 @@ let updateLock: Promise<void> = Promise.resolve()
 async function getCollections(): Promise<RegistrationCollection[]> {
   const data = await readJSONFromStorage(COLLECTIONS_PATH)
   if (!data || !Array.isArray(data)) {
-    // Create default collection if none exist
-    const defaultCollection: RegistrationCollection = {
-      id: `col-${Date.now()}`,
-      name: `${new Date().getFullYear()} Club Requests`,
-      enabled: true,
-      createdAt: new Date().toISOString()
-    }
-    await writeJSONToStorage(COLLECTIONS_PATH, [defaultCollection])
-    collectionsCache = [defaultCollection]
-    cacheTimestamp = Date.now()
-    return [defaultCollection]
+    // Return empty array on read failure - do NOT create default collection
+    // This prevents the "default fallback" from overwriting real data during eventual consistency delays
+    // Default collections should only be created explicitly during initial setup
+    return []
   }
   // Update cache whenever we read from storage
   collectionsCache = data
@@ -75,6 +68,21 @@ export async function GET(request: NextRequest) {
     } else {
       try { console.log(JSON.stringify({ tag: 'collections-get', step: 'cache-miss', cacheExists: !!collectionsCache, cacheAge: collectionsCache ? Date.now() - cacheTimestamp : null })) } catch {}
       collections = await getCollections()
+      
+      // Only create default collection if database is truly empty (not just read failure)
+      // This prevents overwriting data during eventual consistency delays
+      if (collections.length === 0) {
+        const defaultCollection: RegistrationCollection = {
+          id: `col-${Date.now()}`,
+          name: `${new Date().getFullYear()} Club Requests`,
+          enabled: true,
+          createdAt: new Date().toISOString()
+        }
+        const ok = await saveCollections([defaultCollection])
+        if (ok) {
+          collections = [defaultCollection]
+        }
+      }
     }
     
     // Sort by creation date (newest first)
