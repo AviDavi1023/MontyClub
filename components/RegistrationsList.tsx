@@ -239,13 +239,17 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
 
     setProcessingId(reg.id)
 
-    // Do NOT mutate registrations optimistically; only update localPendingRegistrationChanges
-    const newPending = { ...localPendingRegistrationChanges, [reg.id]: { status: 'approved' } }
-    setLocalPendingRegistrationChanges(newPending)
-    try {
-      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
+    // Use functional update to avoid stale closures
+    setLocalPendingRegistrationChanges(prev => {
+      const newPending = { ...prev, [reg.id]: { status: 'approved' } }
+      try {
+        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      return newPending
+    })
 
     try {
       const response = await fetch('/api/registration-approve', {
@@ -276,19 +280,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         } catch {}
       }
     } catch (err: any) {
-      // Clear from pending on error (revert)
-      const revertPending = { ...localPendingRegistrationChanges }
-      delete revertPending[reg.id]
-      setLocalPendingRegistrationChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
-          localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+      // Revert on error using functional update
+      setLocalPendingRegistrationChanges(prev => {
+        const revertPending = { ...prev }
+        delete revertPending[reg.id]
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+            localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
-      } catch (e) {}
+        return revertPending
+      })
       alert(err.message || 'Failed to approve registration')
     } finally {
       setProcessingId(null)
@@ -307,13 +315,17 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
     setProcessingId(currentReg.id)
     setShowDenyModal(false)
 
-    // Do NOT mutate registrations optimistically; only update localPendingRegistrationChanges
-    const newPending = { ...localPendingRegistrationChanges, [currentReg.id]: { status: 'rejected', denialReason: denyReason } }
-    setLocalPendingRegistrationChanges(newPending)
-    try {
-      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
+    // Use functional update to avoid stale closures
+    setLocalPendingRegistrationChanges(prev => {
+      const newPending = { ...prev, [currentReg.id]: { status: 'rejected', denialReason: denyReason } }
+      try {
+        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      return newPending
+    })
 
     try {
       const response = await fetch('/api/registration-deny', {
@@ -337,19 +349,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
       alert('Registration denied.')
       await loadRegistrations()
     } catch (err: any) {
-      // Clear from pending on error (revert)
-      const revertPending = { ...localPendingRegistrationChanges }
-      delete revertPending[currentReg.id]
-      setLocalPendingRegistrationChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
-          localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+      // Revert on error using functional update
+      setLocalPendingRegistrationChanges(prev => {
+        const revertPending = { ...prev }
+        delete revertPending[currentReg.id]
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+            localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
-      } catch (e) {}
+        return revertPending
+      })
       alert(err.message || 'Failed to deny registration')
     } finally {
       setProcessingId(null)
@@ -498,18 +514,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
               <button
                 onClick={async () => {
                   if (!confirm(`Approve ${selectedIds.size} selected registrations?`)) return
-                  // Batch update localPendingRegistrationChanges
-                  const newPending = { ...localPendingRegistrationChanges }
-                  for (const id of Array.from(selectedIds)) {
-                    newPending[id] = { status: 'approved' }
-                  }
-                  setLocalPendingRegistrationChanges(newPending)
-                  try {
-                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                  } catch (e) {}
+                  const idsArray = Array.from(selectedIds)
+                  // Batch update localPendingRegistrationChanges using functional update
+                  setLocalPendingRegistrationChanges(prev => {
+                    const newPending = { ...prev }
+                    for (const id of idsArray) {
+                      newPending[id] = { status: 'approved' }
+                    }
+                    try {
+                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                    } catch (e) {
+                      // Ignore localStorage errors
+                    }
+                    return newPending
+                  })
                   
-                  for (const id of Array.from(selectedIds)) {
+                  for (const id of idsArray) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
                     try {
@@ -532,18 +553,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                 onClick={async () => {
                   const reason = prompt('Optional denial reason (applies to all selected):') || ''
                   if (!confirm(`Deny ${selectedIds.size} selected registrations?`)) return
-                  // Batch update localPendingRegistrationChanges
-                  const newPending = { ...localPendingRegistrationChanges }
-                  for (const id of Array.from(selectedIds)) {
-                    newPending[id] = { status: 'rejected', denialReason: reason }
-                  }
-                  setLocalPendingRegistrationChanges(newPending)
-                  try {
-                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                  } catch (e) {}
+                  const idsArray = Array.from(selectedIds)
+                  // Batch update localPendingRegistrationChanges using functional update
+                  setLocalPendingRegistrationChanges(prev => {
+                    const newPending = { ...prev }
+                    for (const id of idsArray) {
+                      newPending[id] = { status: 'rejected', denialReason: reason }
+                    }
+                    try {
+                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                    } catch (e) {
+                      // Ignore localStorage errors
+                    }
+                    return newPending
+                  })
 
-                  for (const id of Array.from(selectedIds)) {
+                  for (const id of idsArray) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
                     try {
@@ -565,18 +591,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
               <button
                 onClick={async () => {
                   if (!confirm(`Delete ${selectedIds.size} selected registrations? This cannot be undone.`)) return
-                  // Batch mark as deleted in localPendingRegistrationChanges
-                  const newPending = { ...localPendingRegistrationChanges }
-                  for (const id of Array.from(selectedIds)) {
-                    newPending[id] = { deleted: true }
-                  }
-                  setLocalPendingRegistrationChanges(newPending)
-                  try {
-                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                  } catch (e) {}
+                  const idsArray = Array.from(selectedIds)
+                  // Batch mark as deleted in localPendingRegistrationChanges using functional update
+                  setLocalPendingRegistrationChanges(prev => {
+                    const newPending = { ...prev }
+                    for (const id of idsArray) {
+                      newPending[id] = { deleted: true }
+                    }
+                    try {
+                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                    } catch (e) {
+                      // Ignore localStorage errors
+                    }
+                    return newPending
+                  })
 
-                  for (const id of Array.from(selectedIds)) {
+                  for (const id of idsArray) {
                     const reg = registrations.find(r => r.id === id)
                     if (!reg) continue
                     try {

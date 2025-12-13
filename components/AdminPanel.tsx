@@ -978,23 +978,26 @@ export function AdminPanel() {
   const handleToggleSingle = async (item: any) => {
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
-    const nextReviewed = !item.reviewed
+    // Get current state from pending changes or server state
+    const currentReviewed = localPendingChanges[id]?.reviewed !== undefined
+      ? localPendingChanges[id].reviewed
+      : item.reviewed
+    const nextReviewed = !currentReviewed
 
-    // Do NOT mutate `updates` optimistically; we want it to remain the last
-    // server snapshot. The UI overlay and badges come from localPendingChanges.
-    const newPending = {
-      ...localPendingChanges,
-      [id]: { ...(localPendingChanges[id] || {}), reviewed: nextReviewed },
-    }
-    setLocalPendingChanges(newPending)
-    // Debug logging removed
-    try {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      // Debug logging removed
-    } catch (e) {
-      // Debug logging removed
-    }
+    // Use functional update to avoid stale closures and race conditions
+    setLocalPendingChanges(prev => {
+      const newPending = {
+        ...prev,
+        [id]: { ...(prev[id] || {}), reviewed: nextReviewed },
+      }
+      try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      return newPending
+    })
 
     try {
       const resp = await fetch(`/api/updates/${id}`, {
@@ -1004,40 +1007,29 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const updated = await resp.json()
-      // Success: clear pending immediately based on server-confirmed value
       const confirmedReviewed = !!updated.reviewed
-      const cleared = { ...localPendingChanges }
-      delete cleared[id]
-      setLocalPendingChanges(cleared)
-      try {
-        if (Object.keys(cleared).length === 0) {
-          localStorage.removeItem(PENDING_KEY)
-          localStorage.removeItem(PENDING_BACKUP_KEY)
-        } else {
-          localStorage.setItem(PENDING_KEY, JSON.stringify(cleared))
-          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
-        }
-      } catch {}
       showToast(`Marked ${confirmedReviewed ? 'reviewed' : 'unreviewed'}`)
-      // Fetch fresh data with no-cache to ensure we get the latest state, but don't block
+      // Fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
+      // This ensures we don't clear before database confirms, and handles multiple rapid changes correctly
       fetchUpdates(true).catch(() => {})
     } catch (e) {
-      // Debug logging removed
-      // Clear from pending on error (revert local override)
-      const revertPending = { ...localPendingChanges }
-      delete revertPending[id]
-      setLocalPendingChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(PENDING_KEY)
-          localStorage.removeItem(PENDING_BACKUP_KEY)
-        } else {
-          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+      // Revert on error using functional update to avoid stale closures
+      setLocalPendingChanges(prev => {
+        const revertPending = { ...prev }
+        delete revertPending[id]
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(PENDING_KEY)
+            localStorage.removeItem(PENDING_BACKUP_KEY)
+          } else {
+            localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
-      } catch (e) {
-        // Debug logging removed
-      }
+        return revertPending
+      })
       showToast('Failed to update status', 'error')
     } finally {
       setSingleProcessingId(null)
@@ -1050,40 +1042,47 @@ export function AdminPanel() {
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     
-    // Mark as deleted in local pending changes; the render layer will hide
-    // it immediately while we wait for the server & database to catch up.
-    const newPending = {
-      ...localPendingChanges,
-      [id]: { ...(localPendingChanges[id] || {}), deleted: true },
-    }
-    setLocalPendingChanges(newPending)
-    try {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
+    // Mark as deleted in local pending changes using functional update
+    setLocalPendingChanges(prev => {
+      const newPending = {
+        ...prev,
+        [id]: { ...(prev[id] || {}), deleted: true },
+      }
+      try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      return newPending
+    })
 
     try {
       const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       await resp.json()
       showToast('Update request deleted')
-      // Fetch fresh data to trigger auto-clear, but don't block
+      // Fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
       fetchUpdates(true).catch(() => {})
     } catch (e) {
       console.error('Single delete failed', e)
-      // Clear from pending on error (undo the local delete)
-      const revertPending = { ...localPendingChanges }
-      delete revertPending[id]
-      setLocalPendingChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(PENDING_KEY)
-          localStorage.removeItem(PENDING_BACKUP_KEY)
-        } else {
-          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+      // Revert on error using functional update
+      setLocalPendingChanges(prev => {
+        const revertPending = { ...prev }
+        delete revertPending[id]
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(PENDING_KEY)
+            localStorage.removeItem(PENDING_BACKUP_KEY)
+          } else {
+            localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
-      } catch (e) {}
+        return revertPending
+      })
       showToast('Failed to delete update', 'error')
     } finally {
       setSingleProcessingId(null)
@@ -1100,26 +1099,28 @@ export function AdminPanel() {
     }
     setUpdatingBatch(true)
 
-    // Apply the batch intent only to localPendingChanges so that the UI
-    // reflects it immediately but `updates` stays as the last server fetch.
-    const newPending = { ...localPendingChanges }
-    if (action === 'delete') {
-      ids.forEach(id => {
-        newPending[id] = { ...(newPending[id] || {}), deleted: true }
-      })
-    } else {
-      const reviewedVal = action === 'review'
-      ids.forEach(id => {
-        newPending[id] = { ...(newPending[id] || {}), reviewed: reviewedVal }
-      })
-    }
+    // Apply the batch intent using functional update to avoid stale closures
+    setLocalPendingChanges(prev => {
+      const newPending = { ...prev }
+      if (action === 'delete') {
+        ids.forEach(id => {
+          newPending[id] = { ...(newPending[id] || {}), deleted: true }
+        })
+      } else {
+        const reviewedVal = action === 'review'
+        ids.forEach(id => {
+          newPending[id] = { ...(newPending[id] || {}), reviewed: reviewedVal }
+        })
+      }
+      try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      return newPending
+    })
 
-    // Save to localStorage for reload persistence
-    setLocalPendingChanges(newPending)
-    try {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-    } catch (e) {}
     try {
       const resp = await fetch('/api/updates/batch', {
         method: 'POST',
@@ -1130,25 +1131,28 @@ export function AdminPanel() {
       const data = await resp.json()
       if (!data.success) throw new Error('Batch failed')
 
-      // Success: fetch fresh data to trigger auto-clear
+      // Success: fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
-      // Fetch fresh data to trigger auto-clear, but don't block
       fetchUpdates(true).catch(() => {})
     } catch (e) {
       console.error('Batch op failed', e)
-      // Clear from pending on error
-      const revertPending = { ...localPendingChanges }
-      ids.forEach(id => { delete revertPending[id] })
-      setLocalPendingChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(PENDING_KEY)
-          localStorage.removeItem(PENDING_BACKUP_KEY)
-        } else {
-          localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+      // Revert on error using functional update
+      setLocalPendingChanges(prev => {
+        const revertPending = { ...prev }
+        ids.forEach(id => { delete revertPending[id] })
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(PENDING_KEY)
+            localStorage.removeItem(PENDING_BACKUP_KEY)
+          } else {
+            localStorage.setItem(PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
-      } catch (e) {}
+        return revertPending
+      })
       showToast('Batch operation failed', 'error')
     } finally {
       setSelectedUpdateIds(new Set())
@@ -1613,7 +1617,14 @@ export function AdminPanel() {
       const resp = await fetch('/api/settings')
       if (!resp.ok) throw new Error('Failed to fetch settings')
       const data = await resp.json()
-      setAnnouncementsEnabled(data.announcementsEnabled !== false)
+      const enabled = data.announcementsEnabled !== false
+      setAnnouncementsEnabled(enabled)
+      // Persist to localStorage so it survives reloads
+      try {
+        localStorage.setItem('settings:announcementsEnabled', String(enabled))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
     } catch (err) {
       console.error('Error fetching settings:', err)
     }
@@ -1622,16 +1633,24 @@ export function AdminPanel() {
   const toggleAnnouncements = async () => {
     try {
       setSavingSettings(true)
-      const newValue = !announcementsEnabled
+      // Use functional update to get current value and avoid stale closures
+      let previousValue: boolean
+      setAnnouncementsEnabled(prev => {
+        previousValue = prev !== null ? prev : true
+        const newValue = !previousValue
+        
+        // Optimistically update localStorage immediately
+        try { 
+          localStorage.setItem('settings:announcementsEnabled', String(newValue))
+          // Dispatch event to notify ClubsList component
+          window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
+          broadcast('announcements', 'update', { settingsChanged: true })
+        } catch {}
+        
+        return newValue
+      })
       
-      // Optimistically update localStorage immediately
-      setAnnouncementsEnabled(newValue)
-      try { 
-        localStorage.setItem('settings:announcementsEnabled', String(newValue))
-        // Dispatch event to notify ClubsList component
-        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
-        broadcast('announcements', 'update', { settingsChanged: true })
-      } catch {}
+      const newValue = !previousValue!
       
       const resp = await fetch('/api/settings', {
         method: 'PATCH',
@@ -1650,13 +1669,16 @@ export function AdminPanel() {
       await refreshData()
     } catch (err) {
       console.error('Error toggling announcements:', err)
-      // Revert on error
-      setAnnouncementsEnabled(!announcementsEnabled)
-      try { 
-        localStorage.setItem('settings:announcementsEnabled', String(!announcementsEnabled))
-        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
-        broadcast('announcements', 'update', { settingsChanged: true })
-      } catch {}
+      // Revert on error using functional update with captured previous value
+      setAnnouncementsEnabled(prev => {
+        const revertedValue = !prev
+        try { 
+          localStorage.setItem('settings:announcementsEnabled', String(revertedValue))
+          window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
+          broadcast('announcements', 'update', { settingsChanged: true })
+        } catch {}
+        return revertedValue
+      })
       showToast(`Could not update settings: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingSettings(false)
