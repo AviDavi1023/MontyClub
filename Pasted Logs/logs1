@@ -1,0 +1,79 @@
+{"tag":"fetch-updates","step":"start","fetchId":"fetch-1765649632743-um814","forceFresh":false,"currentPendingIds":["1765068222819","1765068213739"],"currentUpdatesCount":0} page-d789f3e4a07316ec.js:1:61060
+[FETCH] Getting fresh announcements from server page-d789f3e4a07316ec.js:1:73872
+Timestamp: 2025-12-13T18:13:52.745Z page-d789f3e4a07316ec.js:1:73937
+Response status: 200 page-d789f3e4a07316ec.js:1:74066
+Time taken: 200ms page-d789f3e4a07316ec.js:1:74116
+[FETCH] Fresh announcements from server: 
+Object {  }
+page-d789f3e4a07316ec.js:1:74233
+[FETCH] Keys: page-d789f3e4a07316ec.js:1:74291
+{"tag":"fetch-updates","step":"response-received","fetchId":"fetch-1765649632743-um814","status":200,"duration":217} page-d789f3e4a07316ec.js:1:61313
+{"tag":"fetch-updates","step":"data-parsed","fetchId":"fetch-1765649632743-um814","updatesCount":1,"updates":[{"id":"1765647772432","reviewed":true}]} page-d789f3e4a07316ec.js:1:61492
+{"tag":"fetch-updates","step":"state-updated","fetchId":"fetch-1765649632743-um814","pendingIds":["1765068222819","1765068213739"]} page-d789f3e4a07316ec.js:1:61696
+{"tag":"fetch-updates","step":"complete","fetchId":"fetch-1765649632743-um814"} page-d789f3e4a07316ec.js:1:61921
+{"tag":"autoclear","step":"start","autoClearId":"autoclear-1765649632964-z3htc","pendingIds":["1765068222819","1765068213739"],"pendingDetails":[{"id":"1765068222819","reviewed":true},{"id":"1765068213739","reviewed":true}],"updatesCount":1,"updatesDetails":[{"id":"1765647772432","reviewed":true}]} page-d789f3e4a07316ec.js:1:68165
+{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765649632964-z3htc","id":"1765068222819","pending":{"reviewed":true},"dbItem":null} page-d789f3e4a07316ec.js:1:68526
+{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765649632964-z3htc","id":"1765068222819","pending":{"reviewed":true},"hasDbItem":false} page-d789f3e4a07316ec.js:1:69210
+{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765649632964-z3htc","id":"1765068213739","pending":{"reviewed":true},"dbItem":null} page-d789f3e4a07316ec.js:1:68526
+{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765649632964-z3htc","id":"1765068213739","pending":{"reviewed":true},"hasDbItem":false} page-d789f3e4a07316ec.js:1:69210
+{"tag":"autoclear","step":"no-changes","autoClearId":"autoclear-1765649632964-z3htc","stillPendingIds":["1765068222819","1765068213739"]} page-d789f3e4a07316ec.js:1:70017
+[FETCH] Getting fresh announcements from server page-d789f3e4a07316ec.js:1:73872
+Timestamp: 2025-12-13T18:14:01.121Z page-d789f3e4a07316ec.js:1:73937
+Response status: 200 page-d789f3e4a07316ec.js:1:74066
+Time taken: 127ms page-d789f3e4a07316ec.js:1:74116
+[FETCH] Fresh announcements from server: 
+Object {  }
+page-d789f3e4a07316ec.js:1:74233
+[FETCH] Keys: page-d789f3e4a07316ec.js:1:74291
+{"tag":"collection-toggle","step":"start","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","collectionId":"col-1765129947522-lktzfdu"} page-d789f3e4a07316ec.js:1:51968
+{"tag":"collection-toggle","step":"calc","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","dbEnabled":false,"effective":false,"next":true} page-d789f3e4a07316ec.js:1:52918
+{"tag":"collection-toggle","step":"patch-send","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","nextEnabled":true} page-d789f3e4a07316ec.js:1:53712
+{"tag":"collection-toggle","step":"local-save","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","pending":{"enabled":true},"allPendingIds":["col-1765129947522-lktzfdu"]} page-d789f3e4a07316ec.js:1:53133
+{"tag":"collection-toggle","step":"local-save-ok","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c"} page-d789f3e4a07316ec.js:1:53498
+{"tag":"collection-toggle","step":"patch-response","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","status":200,"duration":404} page-d789f3e4a07316ec.js:1:54012
+{"tag":"collection-toggle","step":"patch-ok","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c","collection":{"id":"col-1765129947522-lktzfdu","enabled":true}} page-d789f3e4a07316ec.js:1:54322
+{"tag":"collection-toggle","step":"refresh-now","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c"} page-d789f3e4a07316ec.js:1:54657
+{"tag":"collection-toggle","step":"complete","toggleId":"TOGGLE-col-1765129947522-lktzfdu-1765649642562-3vs4c"} page-d789f3e4a07316ec.js:1:55387
+{"tag":"collection-toggle","step":"start","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","collectionId":"col-1764563900186"} page-d789f3e4a07316ec.js:1:51968
+{"tag":"collection-toggle","step":"calc","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","dbEnabled":true,"effective":true,"next":false} page-d789f3e4a07316ec.js:1:52918
+{"tag":"collection-toggle","step":"patch-send","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","nextEnabled":false} page-d789f3e4a07316ec.js:1:53712
+{"tag":"collection-toggle","step":"local-save","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","pending":{"enabled":false},"allPendingIds":["col-1765129947522-lktzfdu","col-1764563900186"]} page-d789f3e4a07316ec.js:1:53133
+{"tag":"collection-toggle","step":"local-save-ok","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t"} page-d789f3e4a07316ec.js:1:53498
+{"tag":"collection-toggle","step":"patch-response","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","status":200,"duration":373} page-d789f3e4a07316ec.js:1:54012
+{"tag":"collection-toggle","step":"patch-ok","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t","collection":{"id":"col-1764563900186","enabled":false}} page-d789f3e4a07316ec.js:1:54322
+{"tag":"collection-toggle","step":"refresh-now","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t"} page-d789f3e4a07316ec.js:1:54657
+{"tag":"collection-toggle","step":"complete","toggleId":"TOGGLE-col-1764563900186-1765649644076-vnh6t"} page-d789f3e4a07316ec.js:1:55387
+window.syncDiagnostics()
+=== COMPLETE SYNC DIAGNOSTICS === page-d789f3e4a07316ec.js:1:125745
+{
+  "timestamp": "2025-12-13T18:14:08.056Z",
+  "announcements": {
+    "pending": {},
+    "current": {}
+  },
+  "updates": {
+    "pending": {
+      "1765068222819": {
+        "reviewed": true
+      },
+      "1765068213739": {
+        "reviewed": true
+      }
+    }
+  },
+  "collections": {
+    "pending": {
+      "col-1765129947522-lktzfdu": {
+        "enabled": true
+      },
+      "col-1764563900186": {
+        "enabled": false
+      }
+    }
+  },
+  "registrations": {
+    "pending": {}
+  }
+} page-d789f3e4a07316ec.js:1:125796
+Object { timestamp: "2025-12-13T18:14:08.056Z", announcements: {…}, updates: {…}, collections: {…}, registrations: {…} }
+

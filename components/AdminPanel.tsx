@@ -162,6 +162,8 @@ export function AdminPanel() {
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
   const [localPendingChanges, setLocalPendingChanges] = useState<Record<string, { reviewed?: boolean; deleted?: boolean }>>({})
   const [localStorageLoaded, setLocalStorageLoaded] = useState(false)
+  // Track recent API operations to enable retry logic for Supabase eventual consistency
+  const recentOperationsRef = useRef<Map<string, number>>(new Map())
   const PENDING_KEY = 'montyclub:pendingUpdateChanges'
   const PENDING_BACKUP_KEY = 'montyclub:pendingUpdateChanges:backup'
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
@@ -1082,6 +1084,9 @@ export function AdminPanel() {
       : item.reviewed
     const nextReviewed = !currentReviewed
 
+    // Track this operation as recent
+    recentOperationsRef.current.set(id, Date.now())
+
     console.log(JSON.stringify({ 
       tag: 'toggle-single', 
       step: 'calculated-next', 
@@ -1164,30 +1169,67 @@ export function AdminPanel() {
       
       showToast(`Marked ${confirmedReviewed ? 'reviewed' : 'unreviewed'}`)
       
-      // Fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
-      // This ensures we don't clear before database confirms, and handles multiple rapid changes correctly
-      console.log(JSON.stringify({ 
-        tag: 'toggle-single', 
-        step: 'fetch-updates-start', 
-        operationId, 
-        id 
-      }))
-      fetchUpdates(true).then(() => {
+      // Immediately clear pending if the server response matches what we expected
+      // This handles the case where the API returns the updated item immediately
+      setLocalPendingChanges(prev => {
+        const pending = prev[id]
+        if (pending && pending.reviewed === confirmedReviewed) {
+          console.log(JSON.stringify({ 
+            tag: 'toggle-single', 
+            step: 'immediate-clear', 
+            operationId, 
+            id, 
+            confirmedReviewed 
+          }))
+          const cleared = { ...prev }
+          delete cleared[id]
+          try {
+            if (Object.keys(cleared).length === 0) {
+              localStorage.removeItem(PENDING_KEY)
+              localStorage.removeItem(PENDING_BACKUP_KEY)
+            } else {
+              localStorage.setItem(PENDING_KEY, JSON.stringify(cleared))
+              localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
+            }
+          } catch (e) {
+            console.error(JSON.stringify({ 
+              tag: 'toggle-single', 
+              step: 'immediate-clear-localStorage-error', 
+              operationId, 
+              error: String(e) 
+            }))
+          }
+          return cleared
+        }
+        return prev
+      })
+      
+      // Also fetch fresh data after a short delay to allow Supabase eventual consistency
+      // This ensures auto-clear can handle cases where immediate clear didn't work
+      setTimeout(() => {
         console.log(JSON.stringify({ 
           tag: 'toggle-single', 
-          step: 'fetch-updates-complete', 
+          step: 'fetch-updates-start', 
           operationId, 
           id 
         }))
-      }).catch((err) => {
-        console.error(JSON.stringify({ 
-          tag: 'toggle-single', 
-          step: 'fetch-updates-error', 
-          operationId, 
-          id, 
-          error: String(err) 
-        }))
-      })
+        fetchUpdates(true).then(() => {
+          console.log(JSON.stringify({ 
+            tag: 'toggle-single', 
+            step: 'fetch-updates-complete', 
+            operationId, 
+            id 
+          }))
+        }).catch((err) => {
+          console.error(JSON.stringify({ 
+            tag: 'toggle-single', 
+            step: 'fetch-updates-error', 
+            operationId, 
+            id, 
+            error: String(err) 
+          }))
+        })
+      }, 500) // 500ms delay to allow Supabase to propagate
     } catch (e) {
       console.error(JSON.stringify({ 
         tag: 'toggle-single', 
@@ -1333,9 +1375,79 @@ export function AdminPanel() {
       const data = await resp.json()
       if (!data.success) throw new Error('Batch failed')
 
-      // Success: fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
+      // Success: immediately clear pending for items that were successfully updated
+      const batchOperationId = `batch-${action}-${Date.now()}`
+      console.log(JSON.stringify({ 
+        tag: 'batch', 
+        step: 'api-success', 
+        batchOperationId, 
+        action, 
+        count: data.count,
+        items: data.items 
+      }))
+      
+      setLocalPendingChanges(prev => {
+        const cleared = { ...prev }
+        let hasCleared = false
+        
+        // Clear pending for items that were successfully updated
+        if (data.items && Array.isArray(data.items)) {
+          data.items.forEach((item: any) => {
+            const itemId = String(item.id)
+            const pending = cleared[itemId]
+            if (pending) {
+              if (action === 'delete') {
+                // For deletes, clear if pending was marked deleted
+                if (pending.deleted) {
+                  delete cleared[itemId]
+                  hasCleared = true
+                }
+              } else {
+                // For review/unreview, clear if pending matches server response
+                const expectedReviewed = action === 'review'
+                if (pending.reviewed === expectedReviewed && item.reviewed === expectedReviewed) {
+                  delete cleared[itemId]
+                  hasCleared = true
+                }
+              }
+            }
+          })
+        }
+        
+        if (hasCleared) {
+          console.log(JSON.stringify({ 
+            tag: 'batch', 
+            step: 'immediate-clear', 
+            batchOperationId, 
+            remainingIds: Object.keys(cleared) 
+          }))
+          try {
+            if (Object.keys(cleared).length === 0) {
+              localStorage.removeItem(PENDING_KEY)
+              localStorage.removeItem(PENDING_BACKUP_KEY)
+            } else {
+              localStorage.setItem(PENDING_KEY, JSON.stringify(cleared))
+              localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
+            }
+          } catch (e) {
+            console.error(JSON.stringify({ 
+              tag: 'batch', 
+              step: 'immediate-clear-localStorage-error', 
+              batchOperationId, 
+              error: String(e) 
+            }))
+          }
+        }
+        
+        return cleared
+      })
+      
       showToast(`${action === 'delete' ? 'Deleted' : 'Updated'} ${data.count} item${data.count === 1 ? '' : 's'}`)
-      fetchUpdates(true).catch(() => {})
+      
+      // Also fetch fresh data after a delay to handle any remaining items
+      setTimeout(() => {
+        fetchUpdates(true).catch(() => {})
+      }, 500)
     } catch (e) {
       console.error('Batch op failed', e)
       // Revert on error using functional update
@@ -1437,11 +1549,31 @@ export function AdminPanel() {
       return
     }
     if (updates.length === 0) {
-      console.log(JSON.stringify({ 
-        tag: 'autoclear', 
-        step: 'skip-no-updates', 
-        autoClearId 
-      }))
+      // If we have pending changes but no updates, and some operations are recent, retry fetch
+      const pendingIds = Object.keys(localPendingChanges)
+      const hasRecentOps = pendingIds.some(id => {
+        const opTime = recentOperationsRef.current.get(id)
+        return opTime && (Date.now() - opTime) < 5000 // Within last 5 seconds
+      })
+      
+      if (hasRecentOps) {
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'retry-fetch', 
+          autoClearId,
+          reason: 'pending-with-recent-ops-but-no-updates'
+        }))
+        // Retry fetch after a delay
+        setTimeout(() => {
+          fetchUpdates(true).catch(() => {})
+        }, 1000)
+      } else {
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'skip-no-updates', 
+          autoClearId 
+        }))
+      }
       return
     }
 
@@ -1497,7 +1629,12 @@ export function AdminPanel() {
         delete stillPending[id]
         hasCleared = true
         clearedIds.push(id)
+        // Remove from recent operations since it's now cleared
+        recentOperationsRef.current.delete(id)
       } else if (dbItem && pending.reviewed !== undefined) {
+        const opTime = recentOperationsRef.current.get(id)
+        const isRecent = opTime && (Date.now() - opTime) < 5000
+        
         console.log(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'still-pending', 
@@ -1505,8 +1642,24 @@ export function AdminPanel() {
           id,
           pendingReviewed: pending.reviewed,
           dbReviewed: dbItem.reviewed,
-          match: pending.reviewed === dbItem.reviewed
+          match: pending.reviewed === dbItem.reviewed,
+          isRecent,
+          opTime
         }))
+        
+        // If this is a recent operation and doesn't match, retry fetch once
+        if (isRecent) {
+          console.log(JSON.stringify({ 
+            tag: 'autoclear', 
+            step: 'schedule-retry', 
+            autoClearId, 
+            id 
+          }))
+          setTimeout(() => {
+            fetchUpdates(true).catch(() => {})
+          }, 1000)
+        }
+        
         stillPendingIds.push(id)
       } else {
         console.log(JSON.stringify({ 
