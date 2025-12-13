@@ -182,39 +182,114 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
 
   // Auto-clear pending registration changes that now match database state
   useEffect(() => {
-    if (!registrationStorageLoaded) return
-    if (Object.keys(localPendingRegistrationChanges).length === 0) return
+    const autoClearId = `reg-autoclear-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    
+    if (!registrationStorageLoaded) {
+      console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-not-loaded', autoClearId }))
+      return
+    }
+    if (Object.keys(localPendingRegistrationChanges).length === 0) {
+      console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-no-pending', autoClearId }))
+      return
+    }
+
+    console.log(JSON.stringify({ 
+      tag: 'reg-autoclear', 
+      step: 'start', 
+      autoClearId,
+      pendingIds: Object.keys(localPendingRegistrationChanges),
+      pendingDetails: Object.entries(localPendingRegistrationChanges).map(([id, p]) => ({ id, ...p })),
+      registrationsCount: registrations.length,
+      registrationsDetails: registrations.map((r: any) => ({ id: r.id, status: r.status }))
+    }))
 
     const stillPending = { ...localPendingRegistrationChanges }
     let hasCleared = false
+    const clearedIds: string[] = []
+    const stillPendingIds: string[] = []
 
     Object.keys(stillPending).forEach(id => {
       const pending = stillPending[id]
       const dbItem = registrations.find(r => r.id === id)
 
+      console.log(JSON.stringify({ 
+        tag: 'reg-autoclear', 
+        step: 'checking', 
+        autoClearId,
+        id,
+        pending: { status: pending.status, deleted: pending.deleted },
+        dbItem: dbItem ? { id: dbItem.id, status: dbItem.status } : null
+      }))
+
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
+        console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'clear-deleted', autoClearId, id }))
         delete stillPending[id]
         hasCleared = true
+        clearedIds.push(id)
       }
       // If status matches DB, clear it
       else if (dbItem && pending.status !== undefined && dbItem.status === pending.status) {
+        console.log(JSON.stringify({ 
+          tag: 'reg-autoclear', 
+          step: 'clear-match', 
+          autoClearId, 
+          id,
+          status: pending.status
+        }))
         delete stillPending[id]
         hasCleared = true
+        clearedIds.push(id)
+      } else {
+        console.log(JSON.stringify({ 
+          tag: 'reg-autoclear', 
+          step: 'still-pending', 
+          autoClearId, 
+          id,
+          pendingStatus: pending.status,
+          dbStatus: dbItem?.status,
+          match: dbItem && pending.status !== undefined ? pending.status === dbItem.status : false
+        }))
+        stillPendingIds.push(id)
       }
     })
 
     if (hasCleared) {
+      console.log(JSON.stringify({ 
+        tag: 'reg-autoclear', 
+        step: 'updating-state', 
+        autoClearId,
+        clearedIds,
+        stillPendingIds,
+        remainingCount: Object.keys(stillPending).length
+      }))
+      
       setLocalPendingRegistrationChanges(stillPending)
       try {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
           localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+          console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'localStorage-cleared', autoClearId }))
         } else {
           localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
+          console.log(JSON.stringify({ 
+            tag: 'reg-autoclear', 
+            step: 'localStorage-updated', 
+            autoClearId,
+            remainingIds: Object.keys(stillPending)
+          }))
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error(JSON.stringify({ tag: 'reg-autoclear', step: 'localStorage-error', autoClearId, error: String(e) }))
+      }
+    } else {
+      console.log(JSON.stringify({ 
+        tag: 'reg-autoclear', 
+        step: 'no-changes', 
+        autoClearId,
+        stillPendingIds
+      }))
     }
   }, [registrations, localPendingRegistrationChanges, registrationStorageLoaded])
 
@@ -237,21 +312,49 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
       return
     }
 
+    const operationId = `approve-${reg.id}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    console.log(JSON.stringify({ 
+      tag: 'registration-approve', 
+      step: 'start', 
+      operationId, 
+      registrationId: reg.id,
+      currentPendingIds: Object.keys(localPendingRegistrationChanges)
+    }))
+
     setProcessingId(reg.id)
 
     // Use functional update to avoid stale closures
     setLocalPendingRegistrationChanges(prev => {
       const newPending = { ...prev, [reg.id]: { status: 'approved' } }
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'pending-set', 
+        operationId, 
+        registrationId: reg.id,
+        allPendingIds: Object.keys(newPending)
+      }))
       try {
         localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
         localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
       } catch (e) {
-        // Ignore localStorage errors
+        console.error(JSON.stringify({ 
+          tag: 'registration-approve', 
+          step: 'localStorage-error', 
+          operationId, 
+          error: String(e) 
+        }))
       }
       return newPending
     })
 
     try {
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'api-call-start', 
+        operationId, 
+        registrationId: reg.id 
+      }))
+      const apiStartTime = Date.now()
       const response = await fetch('/api/registration-approve', {
         method: 'POST',
         headers: {
@@ -263,14 +366,40 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
           collection: reg.collectionId
         })
       })
+      const apiDuration = Date.now() - apiStartTime
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'api-call-complete', 
+        operationId, 
+        registrationId: reg.id,
+        status: response.status,
+        duration: apiDuration
+      }))
 
       if (!response.ok) {
         throw new Error('Failed to approve registration')
       }
 
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'api-success', 
+        operationId, 
+        registrationId: reg.id 
+      }))
+
       // Success: fetch fresh data to trigger auto-clear
       alert('Registration approved successfully!')
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'load-registrations-start', 
+        operationId 
+      }))
       await loadRegistrations()
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'load-registrations-complete', 
+        operationId 
+      }))
       // Broadcast to ClubsList to reload clubs
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
@@ -280,10 +409,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         } catch {}
       }
     } catch (err: any) {
+      console.error(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'api-error', 
+        operationId, 
+        registrationId: reg.id,
+        error: String(err) 
+      }))
       // Revert on error using functional update
       setLocalPendingRegistrationChanges(prev => {
         const revertPending = { ...prev }
         delete revertPending[reg.id]
+        console.log(JSON.stringify({ 
+          tag: 'registration-approve', 
+          step: 'revert-pending', 
+          operationId, 
+          registrationId: reg.id 
+        }))
         try {
           if (Object.keys(revertPending).length === 0) {
             localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
@@ -293,13 +435,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
             localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
           }
         } catch (e) {
-          // Ignore localStorage errors
+          console.error(JSON.stringify({ 
+            tag: 'registration-approve', 
+            step: 'revert-localStorage-error', 
+            operationId, 
+            error: String(e) 
+          }))
         }
         return revertPending
       })
       alert(err.message || 'Failed to approve registration')
     } finally {
       setProcessingId(null)
+      console.log(JSON.stringify({ 
+        tag: 'registration-approve', 
+        step: 'complete', 
+        operationId, 
+        registrationId: reg.id 
+      }))
     }
   }
 

@@ -67,12 +67,25 @@ if (typeof window !== 'undefined') {
       },
       collections: {
         pending: localStorage.getItem('montyclub:pendingCollectionChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingCollectionChanges')!) : {}
+      },
+      registrations: {
+        pending: localStorage.getItem('montyclub:pendingRegistrationChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingRegistrationChanges')!) : {}
       }
     }
     console.group('=== COMPLETE SYNC DIAGNOSTICS ===')
     console.log(JSON.stringify(report, null, 2))
     console.groupEnd()
     return report
+  }
+
+  // Helper to export all console logs for debugging
+  (window as any).exportLogs = () => {
+    console.log(JSON.stringify({ 
+      tag: 'log-export', 
+      step: 'instructions',
+      message: 'To export logs: 1) Open DevTools Console, 2) Right-click and "Save as...", or 3) Copy all JSON log lines and paste them here'
+    }))
+    return 'Check console for instructions. All logs are in JSON format with tags: toggle-single, fetch-updates, autoclear, collection-toggle, registration-approve, reg-autoclear'
   }
 }
 
@@ -477,9 +490,8 @@ export function AdminPanel() {
   }
 
   const toggleCollectionEnabled = async (collectionId: string) => {
-    const toggleId = `TOGGLE-${collectionId}-${Date.now()}`
-    const log = (_payload: any) => {}
-    log({ step: 'start', collectionId })
+    const toggleId = `TOGGLE-${collectionId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    console.log(JSON.stringify({ tag: 'collection-toggle', step: 'start', toggleId, collectionId }))
     
     if (!adminApiKey) {
       showToast('Set admin API key first', 'error')
@@ -505,7 +517,7 @@ export function AdminPanel() {
       return
     }
     if (!collection) {
-      log({ step: 'error', message: 'collection-not-found', collectionId })
+      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'error', toggleId, message: 'collection-not-found', collectionId }))
       return
     }
 
@@ -516,26 +528,41 @@ export function AdminPanel() {
       : !!collection.enabled
     const nextEnabled = !effectiveCurrentEnabled
     
-    log({ step: 'calc', dbEnabled: !!collection.enabled, pendingEnabled: localPendingCollectionChanges[collectionId]?.enabled, effective: effectiveCurrentEnabled, next: nextEnabled })
+    console.log(JSON.stringify({ 
+      tag: 'collection-toggle', 
+      step: 'calc', 
+      toggleId, 
+      dbEnabled: !!collection.enabled, 
+      pendingEnabled: localPendingCollectionChanges[collectionId]?.enabled, 
+      effective: effectiveCurrentEnabled, 
+      next: nextEnabled 
+    }))
 
     // Optimistically update localStorage immediately using functional updater to avoid stale closure
     setLocalPendingCollectionChanges(prev => {
       const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
-      log({ step: 'local-save', pending: next[collectionId] })
+      console.log(JSON.stringify({ 
+        tag: 'collection-toggle', 
+        step: 'local-save', 
+        toggleId, 
+        pending: next[collectionId],
+        allPendingIds: Object.keys(next)
+      }))
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
         broadcast('collections', 'update', { id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        log({ step: 'local-save-ok' })
+        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-save-ok', toggleId }))
       } catch (e) {
-        log({ step: 'local-save-fail', error: String(e) })
+        console.error(JSON.stringify({ tag: 'collection-toggle', step: 'local-save-fail', toggleId, error: String(e) }))
       }
       return next
     })
     
-    log({ step: 'patch-send' })
+    console.log(JSON.stringify({ tag: 'collection-toggle', step: 'patch-send', toggleId, nextEnabled }))
     try {
+      const apiStartTime = Date.now()
       const resp = await fetch('/api/registration-collections', {
         method: 'PATCH',
         headers: {
@@ -544,13 +571,27 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ id: collectionId, enabled: nextEnabled })
       })
+      const apiDuration = Date.now() - apiStartTime
+      console.log(JSON.stringify({ 
+        tag: 'collection-toggle', 
+        step: 'patch-response', 
+        toggleId, 
+        status: resp.status, 
+        duration: apiDuration 
+      }))
+      
       if (!resp.ok) {
         let errText = 'Failed to update collection'
         try { const j = await resp.json(); if (j && j.error) errText = `${j.error}${j.detail ? ` (${j.detail})` : ''}` } catch {}
         throw new Error(errText)
       }
       const data = await resp.json()
-      log({ step: 'patch-ok', collection: { id: data.collection.id, enabled: data.collection.enabled } })
+      console.log(JSON.stringify({ 
+        tag: 'collection-toggle', 
+        step: 'patch-ok', 
+        toggleId, 
+        collection: { id: data.collection.id, enabled: data.collection.enabled } 
+      }))
       // Do NOT immediately update collections state to avoid premature auto-clear
       // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
       // This prevents showing stale DB state on reload due to eventual consistency
@@ -560,15 +601,15 @@ export function AdminPanel() {
       } catch {}
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
       // Immediately refresh collections to ensure auto-clear runs with fresh DB state
-      log({ step: 'refresh-now' })
+      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-now', toggleId }))
       await loadCollections()
     } catch (err) {
-      log({ step: 'patch-fail', error: String(err) })
+      console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
       setLocalPendingCollectionChanges(prev => {
         const revert = { ...prev }
         delete revert[collectionId]
-        log({ step: 'local-revert' })
+        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-revert', toggleId }))
         try {
           if (Object.keys(revert).length === 0) {
             localStorage.removeItem(COLLECTIONS_PENDING_KEY)
@@ -585,6 +626,7 @@ export function AdminPanel() {
       showToast('Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)
+      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'complete', toggleId }))
     }
   }
 
@@ -956,26 +998,82 @@ export function AdminPanel() {
   }
 
   const fetchUpdates = async (forceFresh: boolean = false) => {
+    const fetchId = `fetch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    console.log(JSON.stringify({ 
+      tag: 'fetch-updates', 
+      step: 'start', 
+      fetchId, 
+      forceFresh,
+      currentPendingIds: Object.keys(localPendingChanges),
+      currentUpdatesCount: updates.length
+    }))
+    
     setRefreshingUpdates(true)
     try {
       const url = forceFresh ? '/api/updates?nocache=1' : '/api/updates'
+      const fetchStartTime = Date.now()
       const resp = await fetch(url)
+      const fetchDuration = Date.now() - fetchStartTime
+      
+      console.log(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'response-received', 
+        fetchId, 
+        status: resp.status, 
+        duration: fetchDuration 
+      }))
+      
       if (!resp.ok) throw new Error('Failed to fetch updates')
       const data = await resp.json()
+      
+      console.log(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'data-parsed', 
+        fetchId, 
+        updatesCount: Array.isArray(data) ? data.length : 0,
+        updates: Array.isArray(data) ? data.map((u: any) => ({ id: String(u.id), reviewed: u.reviewed })) : []
+      }))
+      
       // Keep `updates` as the last known server snapshot. We overlay
       // localPendingChanges at render time so that we can reliably compare
       // server vs local state when deciding when to clear pending changes.
-      // Debug logging removed for cleaner console
       setUpdates(data)
+      
+      console.log(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'state-updated', 
+        fetchId,
+        pendingIds: Object.keys(localPendingChanges)
+      }))
     } catch (err) {
-      console.error('Error fetching updates:', err)
+      console.error(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'error', 
+        fetchId, 
+        error: String(err) 
+      }))
     } finally {
       setRefreshingUpdates(false)
+      console.log(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'complete', 
+        fetchId 
+      }))
     }
   }
 
   // Fresh single-item handlers with optimistic UI via localPendingChanges only
   const handleToggleSingle = async (item: any) => {
+    const operationId = `toggle-${item.id}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    console.log(JSON.stringify({ 
+      tag: 'toggle-single', 
+      step: 'start', 
+      operationId, 
+      itemId: item.id, 
+      currentReviewed: item.reviewed,
+      pendingReviewed: localPendingChanges[String(item.id)]?.reviewed 
+    }))
+    
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     // Get current state from pending changes or server state
@@ -984,39 +1082,131 @@ export function AdminPanel() {
       : item.reviewed
     const nextReviewed = !currentReviewed
 
+    console.log(JSON.stringify({ 
+      tag: 'toggle-single', 
+      step: 'calculated-next', 
+      operationId, 
+      currentReviewed, 
+      nextReviewed 
+    }))
+
     // Use functional update to avoid stale closures and race conditions
     setLocalPendingChanges(prev => {
       const newPending = {
         ...prev,
         [id]: { ...(prev[id] || {}), reviewed: nextReviewed },
       }
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'pending-set', 
+        operationId, 
+        id, 
+        nextReviewed,
+        allPendingIds: Object.keys(newPending),
+        pendingState: newPending[id]
+      }))
       try {
         localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
         localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+        console.log(JSON.stringify({ 
+          tag: 'toggle-single', 
+          step: 'localStorage-saved', 
+          operationId, 
+          id 
+        }))
       } catch (e) {
-        // Ignore localStorage errors
+        console.error(JSON.stringify({ 
+          tag: 'toggle-single', 
+          step: 'localStorage-error', 
+          operationId, 
+          id, 
+          error: String(e) 
+        }))
       }
       return newPending
     })
 
     try {
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'api-call-start', 
+        operationId, 
+        id, 
+        nextReviewed 
+      }))
+      const apiStartTime = Date.now()
       const resp = await fetch(`/api/updates/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reviewed: nextReviewed }),
       })
+      const apiDuration = Date.now() - apiStartTime
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'api-call-complete', 
+        operationId, 
+        id, 
+        status: resp.status, 
+        duration: apiDuration 
+      }))
+      
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const updated = await resp.json()
       const confirmedReviewed = !!updated.reviewed
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'api-success', 
+        operationId, 
+        id, 
+        confirmedReviewed, 
+        serverResponse: updated 
+      }))
+      
       showToast(`Marked ${confirmedReviewed ? 'reviewed' : 'unreviewed'}`)
+      
       // Fetch fresh data to trigger auto-clear - let auto-clear effect handle clearing pending
       // This ensures we don't clear before database confirms, and handles multiple rapid changes correctly
-      fetchUpdates(true).catch(() => {})
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'fetch-updates-start', 
+        operationId, 
+        id 
+      }))
+      fetchUpdates(true).then(() => {
+        console.log(JSON.stringify({ 
+          tag: 'toggle-single', 
+          step: 'fetch-updates-complete', 
+          operationId, 
+          id 
+        }))
+      }).catch((err) => {
+        console.error(JSON.stringify({ 
+          tag: 'toggle-single', 
+          step: 'fetch-updates-error', 
+          operationId, 
+          id, 
+          error: String(err) 
+        }))
+      })
     } catch (e) {
+      console.error(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'api-error', 
+        operationId, 
+        id, 
+        error: String(e) 
+      }))
       // Revert on error using functional update to avoid stale closures
       setLocalPendingChanges(prev => {
         const revertPending = { ...prev }
         delete revertPending[id]
+        console.log(JSON.stringify({ 
+          tag: 'toggle-single', 
+          step: 'revert-pending', 
+          operationId, 
+          id, 
+          remainingPendingIds: Object.keys(revertPending) 
+        }))
         try {
           if (Object.keys(revertPending).length === 0) {
             localStorage.removeItem(PENDING_KEY)
@@ -1026,13 +1216,25 @@ export function AdminPanel() {
             localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
           }
         } catch (e) {
-          // Ignore localStorage errors
+          console.error(JSON.stringify({ 
+            tag: 'toggle-single', 
+            step: 'revert-localStorage-error', 
+            operationId, 
+            id, 
+            error: String(e) 
+          }))
         }
         return revertPending
       })
       showToast('Failed to update status', 'error')
     } finally {
       setSingleProcessingId(null)
+      console.log(JSON.stringify({ 
+        tag: 'toggle-single', 
+        step: 'complete', 
+        operationId, 
+        id 
+      }))
     }
   }
 
@@ -1215,50 +1417,155 @@ export function AdminPanel() {
 
   // Auto-clear pending changes that now match database state
   useEffect(() => {
+    const autoClearId = `autoclear-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    
     // CRITICAL: Don't run until localStorage has been loaded on mount
-    if (!localStorageLoaded) return
-    if (Object.keys(localPendingChanges).length === 0) return
-    if (updates.length === 0) return
-    // Debug logging removed for cleaner console
+    if (!localStorageLoaded) {
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'skip-not-loaded', 
+        autoClearId 
+      }))
+      return
+    }
+    if (Object.keys(localPendingChanges).length === 0) {
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'skip-no-pending', 
+        autoClearId 
+      }))
+      return
+    }
+    if (updates.length === 0) {
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'skip-no-updates', 
+        autoClearId 
+      }))
+      return
+    }
+
+    console.log(JSON.stringify({ 
+      tag: 'autoclear', 
+      step: 'start', 
+      autoClearId,
+      pendingIds: Object.keys(localPendingChanges),
+      pendingDetails: Object.entries(localPendingChanges).map(([id, p]) => ({ id, ...p })),
+      updatesCount: updates.length,
+      updatesDetails: updates.map((u: any) => ({ id: String(u.id), reviewed: u.reviewed }))
+    }))
 
     const stillPending = { ...localPendingChanges }
     let hasCleared = false
+    const clearedIds: string[] = []
+    const stillPendingIds: string[] = []
 
     Object.keys(stillPending).forEach(id => {
       const pending = stillPending[id]
       const dbItem = updates.find(u => String(u.id) === id)
 
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'checking', 
+        autoClearId,
+        id,
+        pending: { reviewed: pending.reviewed, deleted: pending.deleted },
+        dbItem: dbItem ? { id: String(dbItem.id), reviewed: dbItem.reviewed } : null
+      }))
+
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
-        // Debug logging removed
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'clear-deleted', 
+          autoClearId, 
+          id 
+        }))
         delete stillPending[id]
         hasCleared = true
+        clearedIds.push(id)
       }
       // If reviewed state matches DB, clear it
       else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
-        // Debug logging removed
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'clear-match', 
+          autoClearId, 
+          id,
+          reviewed: pending.reviewed
+        }))
         delete stillPending[id]
         hasCleared = true
+        clearedIds.push(id)
       } else if (dbItem && pending.reviewed !== undefined) {
-        // Debug logging removed
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'still-pending', 
+          autoClearId, 
+          id,
+          pendingReviewed: pending.reviewed,
+          dbReviewed: dbItem.reviewed,
+          match: pending.reviewed === dbItem.reviewed
+        }))
+        stillPendingIds.push(id)
+      } else {
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'no-match-logic', 
+          autoClearId, 
+          id,
+          pending: pending,
+          hasDbItem: !!dbItem
+        }))
+        stillPendingIds.push(id)
       }
     })
 
     if (hasCleared) {
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'updating-state', 
+        autoClearId,
+        clearedIds,
+        stillPendingIds,
+        remainingCount: Object.keys(stillPending).length
+      }))
+      
       setLocalPendingChanges(stillPending)
       try {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(PENDING_KEY)
           localStorage.removeItem(PENDING_BACKUP_KEY)
-          // Debug logging removed
+          console.log(JSON.stringify({ 
+            tag: 'autoclear', 
+            step: 'localStorage-cleared', 
+            autoClearId 
+          }))
         } else {
           localStorage.setItem(PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          // Debug logging removed
+          console.log(JSON.stringify({ 
+            tag: 'autoclear', 
+            step: 'localStorage-updated', 
+            autoClearId,
+            remainingIds: Object.keys(stillPending)
+          }))
         }
       } catch (e) {
-        // Debug logging removed
+        console.error(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'localStorage-error', 
+          autoClearId, 
+          error: String(e) 
+        }))
       }
+    } else {
+      console.log(JSON.stringify({ 
+        tag: 'autoclear', 
+        step: 'no-changes', 
+        autoClearId,
+        stillPendingIds
+      }))
     }
   }, [updates, localPendingChanges, localStorageLoaded])
 
