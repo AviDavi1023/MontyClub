@@ -570,9 +570,9 @@ export function AdminPanel() {
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
-      // Use debounced refresh to handle rapid multiple toggles without race conditions
-      log({ step: 'schedule-refresh', delayMs: 500 })
-      scheduleCollectionsRefresh()
+      // Immediately refresh collections to ensure auto-clear runs with fresh DB state
+      log({ step: 'refresh-now' })
+      await loadCollections()
     } catch (err) {
       log({ step: 'patch-fail', error: String(err) })
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
