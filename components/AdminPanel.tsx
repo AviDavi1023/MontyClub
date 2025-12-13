@@ -11,6 +11,71 @@ import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
 
+/**
+ * DEBUGGING: Paste these commands in the browser console to collect logs
+ */
+if (typeof window !== 'undefined') {
+  (window as any).getLogs = () => {
+    console.group('=== SYNC DEBUG LOGS ===')
+    console.log('Copy the entire console output above to share with support')
+    console.groupEnd()
+  }
+
+  (window as any).getAnnouncementsPending = () => {
+    const pending = localStorage.getItem('montyclub:pendingAnnouncements')
+    const announcements = localStorage.getItem('montyclub:announcements')
+    console.group('=== ANNOUNCEMENTS STATE ===')
+    console.log('Pending announcements:', JSON.parse(pending || '{}'))
+    console.log('Current announcements:', JSON.parse(announcements || '{}'))
+    console.groupEnd()
+  }
+
+  (window as any).getUpdatesPending = () => {
+    const pending = localStorage.getItem('montyclub:pendingUpdateChanges')
+    console.group('=== UPDATES PENDING STATE ===')
+    console.log('Pending updates:', JSON.parse(pending || '{}'))
+    console.groupEnd()
+  }
+
+  (window as any).getCollectionsPending = () => {
+    const pending = localStorage.getItem('montyclub:pendingCollectionChanges')
+    console.group('=== COLLECTIONS PENDING STATE ===')
+    console.log('Pending collections:', JSON.parse(pending || '{}'))
+    console.groupEnd()
+  }
+
+  (window as any).getAllPending = () => {
+    console.group('=== ALL PENDING CHANGES ===')
+    const pending1 = localStorage.getItem('montyclub:pendingAnnouncements')
+    const pending2 = localStorage.getItem('montyclub:pendingUpdateChanges')
+    const pending3 = localStorage.getItem('montyclub:pendingCollectionChanges')
+    console.log('Announcements pending:', JSON.parse(pending1 || '{}'))
+    console.log('Updates pending:', JSON.parse(pending2 || '{}'))
+    console.log('Collections pending:', JSON.parse(pending3 || '{}'))
+    console.groupEnd()
+  }
+
+  (window as any).syncDiagnostics = () => {
+    const report = {
+      timestamp: new Date().toISOString(),
+      announcements: {
+        pending: localStorage.getItem('montyclub:pendingAnnouncements') ? JSON.parse(localStorage.getItem('montyclub:pendingAnnouncements')!) : {},
+        current: localStorage.getItem('montyclub:announcements') ? JSON.parse(localStorage.getItem('montyclub:announcements')!) : {}
+      },
+      updates: {
+        pending: localStorage.getItem('montyclub:pendingUpdateChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingUpdateChanges')!) : {}
+      },
+      collections: {
+        pending: localStorage.getItem('montyclub:pendingCollectionChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingCollectionChanges')!) : {}
+      }
+    }
+    console.group('=== COMPLETE SYNC DIAGNOSTICS ===')
+    console.log(JSON.stringify(report, null, 2))
+    console.groupEnd()
+    return report
+  }
+}
+
 export function AdminPanel() {
   // Club data source: 'excel' or 'collection'
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
@@ -1374,18 +1439,37 @@ export function AdminPanel() {
 
   const fetchAnnouncements = async () => {
     try {
+      console.group('[FETCH] Getting fresh announcements from server')
+      console.log(`Timestamp: ${new Date().toISOString()}`)
+      const fetchStartTime = Date.now()
       const resp = await fetch('/api/announcements')
+      const fetchEndTime = Date.now()
+      console.log(`Response status: ${resp.status}`)
+      console.log(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
+      
       if (!resp.ok) throw new Error('Failed to fetch announcements')
       const data = await resp.json()
       // Keep announcements as pure server snapshot; overlay happens at render
-      try { console.log(JSON.stringify({ tag: 'ann-load', step: 'db', keys: Object.keys(data||{}) })) } catch {}
+      console.log(`[FETCH] Fresh announcements from server:`, data)
+      console.log(`[FETCH] Keys: ${Object.keys(data||{}).join(', ')}`)
+      console.groupEnd()
+      
       setAnnouncements(data || {})
     } catch (err) {
       console.error('Error fetching announcements:', err)
+      console.groupEnd()
     }
+
   }
 
   const saveAnnouncement = async (id: string, text: string) => {
+    const requestId = `ann-${id}-${Date.now()}`
+    console.group(`[CHECKPOINT 1] Saving announcement ${id}`)
+    console.log(`Request ID: ${requestId}`)
+    console.log(`Text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`)
+    console.log(`Timestamp: ${new Date().toISOString()}`)
+    console.groupEnd()
+
     setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
     
     // Do NOT mutate announcements optimistically; only update localPendingAnnouncements
@@ -1401,18 +1485,35 @@ export function AdminPanel() {
     }
 
     try {
+      console.group(`[API CALL] Sending PATCH request for announcement ${id}`)
+      console.log(`URL: /api/announcements/${id}`)
+      console.log(`Method: PATCH`)
+      console.log(`Body: ${JSON.stringify({ announcement: text || '' })}`)
+      console.log(`Timestamp: ${new Date().toISOString()}`)
+      console.groupEnd()
+
+      const fetchStartTime = Date.now()
       const resp = await fetch(`/api/announcements/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ announcement: text || '' }),
       })
+      const fetchEndTime = Date.now()
       
+      console.group(`[API RESPONSE] Response received for announcement ${id}`)
+      console.log(`Status: ${resp.status} ${resp.statusText}`)
+      console.log(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
+      console.log(`Timestamp: ${new Date().toISOString()}`)
+      console.groupEnd()
+
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => ({}))
         throw new Error(errorData.error || `Server returned ${resp.status}`)
       }
       
-      await resp.json()
+      const responseData = await resp.json()
+      console.log(`[API SUCCESS] Announcement ${id} response data:`, responseData)
+      
       // Success: fetch fresh data to trigger auto-clear
       showToast('Announcement saved successfully')
       
@@ -1428,10 +1529,17 @@ export function AdminPanel() {
         // ignore
       }
       
+      console.log(`[FETCH] Fetching fresh announcements after save...`)
       // Fetch fresh data to trigger auto-clear, but don't block
       fetchAnnouncements()
     } catch (err) {
       console.error('Error saving announcement:', err)
+      console.group(`[ERROR] Announcement save failed for ${id}`)
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      console.log(`Stack: ${err instanceof Error ? err.stack : 'N/A'}`)
+      console.log(`Timestamp: ${new Date().toISOString()}`)
+      console.groupEnd()
+
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingAnnouncements }
       delete revertPending[id]
@@ -1448,6 +1556,8 @@ export function AdminPanel() {
       showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
+      console.log(`[DONE] Saving announcement ${id} completed`)
+
     }
   }
 
