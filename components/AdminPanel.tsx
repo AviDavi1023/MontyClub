@@ -1172,7 +1172,6 @@ export function AdminPanel() {
       const primary = localStorage.getItem(PENDING_KEY)
       if (primary) {
         const parsed = JSON.parse(primary)
-        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'primary', actionId, count: Object.keys(parsed||{}).length })) } catch {}
         setLocalPendingChanges(parsed)
       } else {
         const backup = localStorage.getItem(PENDING_BACKUP_KEY)
@@ -1180,23 +1179,14 @@ export function AdminPanel() {
           try {
             const backupParsed = JSON.parse(backup)
             if (backupParsed && backupParsed.data) {
-              try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup', actionId, count: Object.keys(backupParsed.data||{}).length })) } catch {}
               setLocalPendingChanges(backupParsed.data)
-            } else {
-              try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup-malformed', actionId })) } catch {}
             }
-          } catch (e) {
-            try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'backup-parse-fail', actionId, error: String(e) })) } catch {}
-          }
-        } else {
-          try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'none', actionId })) } catch {}
+          } catch (e) {}
         }
       }
-    } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'load-fail', actionId, error: String(e) })) } catch {}
-    } finally {
+    } catch (e) {}
+    finally {
       setLocalStorageLoaded(true)
-      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'loaded', actionId })) } catch {}
     }
   }, [])
 
