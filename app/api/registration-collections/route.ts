@@ -7,6 +7,10 @@ export const dynamic = 'force-dynamic'
 const COLLECTIONS_PATH = 'settings/registration-collections.json'
 const DEBUG = process.env.NODE_ENV === 'development'
 
+// In-memory lock to prevent concurrent writes to the same file
+// This ensures read-modify-write operations are atomic across multiple requests
+let updateLock: Promise<any> = Promise.resolve()
+
 // Simple logging helper - only logs in development
 function log(data: object) {
   if (DEBUG) {
@@ -39,6 +43,38 @@ async function withRetry<T>(
   }
 
   throw lastError
+}
+
+/**
+ * Execute a function with exclusive lock to prevent concurrent modifications
+ * @param fn Async function to execute with lock
+ * @returns Result of the function
+ */
+async function withLock<R>(fn: () => Promise<R>): Promise<R> {
+  const operationId = `col-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  
+  log({ tag: 'collections-lock', step: 'wait', operationId })
+
+  // Create a new operation that waits for the previous one to complete
+  const currentOperation = (async () => {
+    // First, wait for the previous operation to complete
+    await updateLock.catch(() => {})
+    
+    log({ tag: 'collections-lock', step: 'acquired', operationId })
+
+    try {
+      const result = await fn()
+      return result
+    } finally {
+      log({ tag: 'collections-lock', step: 'released', operationId })
+    }
+  })()
+
+  // Update lock to point to current operation BEFORE returning
+  // This ensures the next request will wait for this one
+  updateLock = currentOperation.catch(() => {})
+
+  return currentOperation
 }
 
 async function getCollections(): Promise<RegistrationCollection[]> {
@@ -91,229 +127,235 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new collection
 export async function POST(request: NextRequest) {
-  try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
+  return withLock(async () => {
+    try {
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
 
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const body = await request.json()
-    const { name, enabled = false } = body
-
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return NextResponse.json(
-        { error: 'Collection name is required' },
-        { status: 400 }
-      )
-    }
-
-    const collections = await getCollections()
-
-    // Check for duplicate names
-    if (collections.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
-      return NextResponse.json(
-        { error: 'Collection with this name already exists' },
-        { status: 400 }
-      )
-    }
-
-    const newCollection: RegistrationCollection = {
-      id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      name: name.trim(),
-      enabled: Boolean(enabled),
-      createdAt: new Date().toISOString()
-    }
-
-    collections.push(newCollection)
-    const success = await saveCollections(collections)
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to create collection' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ success: true, collection: newCollection })
-  } catch (error) {
-    console.error('Error creating collection:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// PATCH - Update collection (name or enabled status)
-export async function PATCH(request: NextRequest) {
-  const body = await request.json()
-  const operationId = `PATCH-${body.id}-${Date.now()}`
-  log({ tag: 'collections-api', step: 'received', operationId, id: body.id, enabled: body.enabled })
-
-  try {
-    // Environment sanity checks
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-      return NextResponse.json(
-        { error: 'Supabase environment not configured' },
-        { status: 500 }
-      )
-    }
-
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const { id, name, enabled } = body
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Collection ID is required' },
-        { status: 400 }
-      )
-    }
-
-    // Read collections with retry
-    log({ tag: 'collections-api', step: 'read-start', operationId })
-    const collections = await getCollections()
-    const collectionIndex = collections.findIndex(c => c.id === id)
-
-    if (collectionIndex === -1) {
-      return NextResponse.json(
-        { error: 'Collection not found' },
-        { status: 404 }
-      )
-    }
-
-    // Update fields if provided
-    if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim()) {
+      if (!adminKey || adminKey !== expectedKey) {
         return NextResponse.json(
-          { error: 'Invalid collection name' },
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
+      const body = await request.json()
+      const { name, enabled = false } = body
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return NextResponse.json(
+          { error: 'Collection name is required' },
           { status: 400 }
         )
       }
-      // Check for duplicate names (excluding current collection)
-      if (collections.some((c, idx) => idx !== collectionIndex && c.name.toLowerCase() === name.trim().toLowerCase())) {
+
+      const collections = await getCollections()
+
+      // Check for duplicate names
+      if (collections.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
         return NextResponse.json(
           { error: 'Collection with this name already exists' },
           { status: 400 }
         )
       }
-      collections[collectionIndex].name = name.trim()
-    }
 
-    if (enabled !== undefined) {
-      log({ tag: 'collections-api', step: 'update', operationId, id, from: collections[collectionIndex].enabled, to: Boolean(enabled) })
-      collections[collectionIndex].enabled = Boolean(enabled)
-    }
+      const newCollection: RegistrationCollection = {
+        id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        name: name.trim(),
+        enabled: Boolean(enabled),
+        createdAt: new Date().toISOString()
+      }
 
-    log({ tag: 'collections-api', step: 'save-start', operationId })
-    const success = await saveCollections(collections)
-    log({ tag: 'collections-api', step: 'save-result', operationId, success })
+      collections.push(newCollection)
+      const success = await saveCollections(collections)
 
-    if (!success) {
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Failed to create collection' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ success: true, collection: newCollection })
+    } catch (error) {
+      console.error('Error creating collection:', error)
       return NextResponse.json(
-        { error: 'Failed to update collection' },
+        { error: 'Internal server error' },
         { status: 500 }
       )
     }
+  })
+}
 
-    log({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id })
-    return NextResponse.json({ success: true, collection: collections[collectionIndex] })
-  } catch (error) {
-    log({ tag: 'collections-api', step: 'error', operationId, error: String(error) })
-    return NextResponse.json(
-      { error: 'Internal server error', detail: String(error) },
-      { status: 500 }
-    )
-  }
+// PATCH - Update collection (name or enabled status)
+export async function PATCH(request: NextRequest) {
+  return withLock(async () => {
+    const body = await request.json()
+    const operationId = `PATCH-${body.id}-${Date.now()}`
+    log({ tag: 'collections-api', step: 'received', operationId, id: body.id, enabled: body.enabled })
+
+    try {
+      // Environment sanity checks
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+        return NextResponse.json(
+          { error: 'Supabase environment not configured' },
+          { status: 500 }
+        )
+      }
+
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
+
+      if (!adminKey || adminKey !== expectedKey) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
+      const { id, name, enabled } = body
+
+      if (!id) {
+        return NextResponse.json(
+          { error: 'Collection ID is required' },
+          { status: 400 }
+        )
+      }
+
+      // Read collections with retry
+      log({ tag: 'collections-api', step: 'read-start', operationId })
+      const collections = await getCollections()
+      const collectionIndex = collections.findIndex(c => c.id === id)
+
+      if (collectionIndex === -1) {
+        return NextResponse.json(
+          { error: 'Collection not found' },
+          { status: 404 }
+        )
+      }
+
+      // Update fields if provided
+      if (name !== undefined) {
+        if (typeof name !== 'string' || !name.trim()) {
+          return NextResponse.json(
+            { error: 'Invalid collection name' },
+            { status: 400 }
+          )
+        }
+        // Check for duplicate names (excluding current collection)
+        if (collections.some((c, idx) => idx !== collectionIndex && c.name.toLowerCase() === name.trim().toLowerCase())) {
+          return NextResponse.json(
+            { error: 'Collection with this name already exists' },
+            { status: 400 }
+          )
+        }
+        collections[collectionIndex].name = name.trim()
+      }
+
+      if (enabled !== undefined) {
+        log({ tag: 'collections-api', step: 'update', operationId, id, from: collections[collectionIndex].enabled, to: Boolean(enabled) })
+        collections[collectionIndex].enabled = Boolean(enabled)
+      }
+
+      log({ tag: 'collections-api', step: 'save-start', operationId })
+      const success = await saveCollections(collections)
+      log({ tag: 'collections-api', step: 'save-result', operationId, success })
+
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Failed to update collection' },
+          { status: 500 }
+        )
+      }
+
+      log({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id })
+      return NextResponse.json({ success: true, collection: collections[collectionIndex] })
+    } catch (error) {
+      log({ tag: 'collections-api', step: 'error', operationId, error: String(error) })
+      return NextResponse.json(
+        { error: 'Internal server error', detail: String(error) },
+        { status: 500 }
+      )
+    }
+  })
 }
 
 // DELETE - Delete collection (and optionally its registrations)
 export async function DELETE(request: NextRequest) {
-  try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
+  return withLock(async () => {
+    try {
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
 
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    const deleteRegistrations = searchParams.get('deleteRegistrations') === 'true'
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Collection ID is required' },
-        { status: 400 }
-      )
-    }
-
-    const collections = await getCollections()
-    const collectionIndex = collections.findIndex(c => c.id === id)
-
-    if (collectionIndex === -1) {
-      return NextResponse.json(
-        { error: 'Collection not found' },
-        { status: 404 }
-      )
-    }
-
-    // Prevent deleting last collection
-    if (collections.length === 1) {
-      return NextResponse.json(
-        { error: 'Cannot delete the last collection' },
-        { status: 400 }
-      )
-    }
-
-    const collection = collections[collectionIndex]
-
-    // Delete associated registrations if requested
-    if (deleteRegistrations) {
-      try {
-        const paths = await listPaths(`registrations/${collection.id}`)
-        if (paths.length > 0) {
-          await removePaths(paths)
-        }
-      } catch (err) {
-        console.error('Error deleting registrations:', err)
-        // Continue even if deletion fails
+      if (!adminKey || adminKey !== expectedKey) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
       }
-    }
 
-    // Remove collection from list
-    collections.splice(collectionIndex, 1)
-    const success = await saveCollections(collections)
+      const { searchParams } = new URL(request.url)
+      const id = searchParams.get('id')
+      const deleteRegistrations = searchParams.get('deleteRegistrations') === 'true'
 
-    if (!success) {
+      if (!id) {
+        return NextResponse.json(
+          { error: 'Collection ID is required' },
+          { status: 400 }
+        )
+      }
+
+      const collections = await getCollections()
+      const collectionIndex = collections.findIndex(c => c.id === id)
+
+      if (collectionIndex === -1) {
+        return NextResponse.json(
+          { error: 'Collection not found' },
+          { status: 404 }
+        )
+      }
+
+      // Prevent deleting last collection
+      if (collections.length === 1) {
+        return NextResponse.json(
+          { error: 'Cannot delete the last collection' },
+          { status: 400 }
+        )
+      }
+
+      const collection = collections[collectionIndex]
+
+      // Delete associated registrations if requested
+      if (deleteRegistrations) {
+        try {
+          const paths = await listPaths(`registrations/${collection.id}`)
+          if (paths.length > 0) {
+            await removePaths(paths)
+          }
+        } catch (err) {
+          console.error('Error deleting registrations:', err)
+          // Continue even if deletion fails
+        }
+      }
+
+      // Remove collection from list
+      collections.splice(collectionIndex, 1)
+      const success = await saveCollections(collections)
+
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Failed to delete collection' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error('Error deleting collection:', error)
       return NextResponse.json(
-        { error: 'Failed to delete collection' },
+        { error: 'Internal server error' },
         { status: 500 }
       )
     }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Error deleting collection:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+  })
 }

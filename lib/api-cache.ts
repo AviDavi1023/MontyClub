@@ -14,7 +14,7 @@ export interface CacheMetrics {
 export class ApiCache<T> {
   private cache: T | null = null
   private timestamp = 0
-  private updateLock: Promise<void> = Promise.resolve()
+  private updateLock: Promise<any> = Promise.resolve()
   private hits = 0
   private misses = 0
   private readonly name: string
@@ -139,7 +139,11 @@ export class ApiCache<T> {
       }))
     } catch {}
 
-    const currentOperation = this.updateLock.then(async () => {
+    // Create a new operation that waits for the previous one to complete
+    const currentOperation = (async () => {
+      // First, wait for the previous operation to complete
+      await this.updateLock.catch(() => {})
+      
       try {
         console.log(JSON.stringify({ 
           tag: 'api-cache', 
@@ -162,10 +166,11 @@ export class ApiCache<T> {
           }))
         } catch {}
       }
-    })
+    })()
 
-    // Update lock to point to current operation
-    this.updateLock = currentOperation.then(() => {}).catch(() => {})
+    // Update lock to point to current operation BEFORE returning
+    // This ensures the next request will wait for this one
+    this.updateLock = currentOperation.catch(() => {})
 
     return currentOperation
   }
