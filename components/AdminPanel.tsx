@@ -1692,16 +1692,6 @@ export function AdminPanel() {
           hasConfirmed: !!confirmed
         }))
         stillPendingIds.push(id)
-      } else {
-        console.log(JSON.stringify({ 
-          tag: 'autoclear', 
-          step: 'no-match-logic', 
-          autoClearId, 
-          id,
-          pending: pending,
-          hasDbItem: !!dbItem
-        }))
-        stillPendingIds.push(id)
       }
     })
 
