@@ -1,27 +1,26 @@
-{"tag":"fetch-updates","step":"start","fetchId":"fetch-1765649669328-hfygf","forceFresh":false,"currentPendingIds":["1765068222819","1765068213739"],"currentUpdatesCount":0} page-d789f3e4a07316ec.js:1:61060
-[FETCH] Getting fresh announcements from server page-d789f3e4a07316ec.js:1:73872
-Timestamp: 2025-12-13T18:14:29.330Z page-d789f3e4a07316ec.js:1:73937
-{"tag":"fetch-updates","step":"response-received","fetchId":"fetch-1765649669328-hfygf","status":200,"duration":175} page-d789f3e4a07316ec.js:1:61313
-{"tag":"fetch-updates","step":"data-parsed","fetchId":"fetch-1765649669328-hfygf","updatesCount":1,"updates":[{"id":"1765647772432","reviewed":true}]} page-d789f3e4a07316ec.js:1:61492
-{"tag":"fetch-updates","step":"state-updated","fetchId":"fetch-1765649669328-hfygf","pendingIds":["1765068222819","1765068213739"]} page-d789f3e4a07316ec.js:1:61696
-{"tag":"fetch-updates","step":"complete","fetchId":"fetch-1765649669328-hfygf"} page-d789f3e4a07316ec.js:1:61921
-{"tag":"autoclear","step":"start","autoClearId":"autoclear-1765649669513-by1t6","pendingIds":["1765068222819","1765068213739"],"pendingDetails":[{"id":"1765068222819","reviewed":true},{"id":"1765068213739","reviewed":true}],"updatesCount":1,"updatesDetails":[{"id":"1765647772432","reviewed":true}]} page-d789f3e4a07316ec.js:1:68165
-{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765649669513-by1t6","id":"1765068222819","pending":{"reviewed":true},"dbItem":null} page-d789f3e4a07316ec.js:1:68526
-{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765649669513-by1t6","id":"1765068222819","pending":{"reviewed":true},"hasDbItem":false} page-d789f3e4a07316ec.js:1:69210
-{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765649669513-by1t6","id":"1765068213739","pending":{"reviewed":true},"dbItem":null} page-d789f3e4a07316ec.js:1:68526
-{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765649669513-by1t6","id":"1765068213739","pending":{"reviewed":true},"hasDbItem":false} page-d789f3e4a07316ec.js:1:69210
-{"tag":"autoclear","step":"no-changes","autoClearId":"autoclear-1765649669513-by1t6","stillPendingIds":["1765068222819","1765068213739"]} page-d789f3e4a07316ec.js:1:70017
-Response status: 200 page-d789f3e4a07316ec.js:1:74066
-Time taken: 201ms page-d789f3e4a07316ec.js:1:74116
+{"tag":"fetch-updates","step":"start","fetchId":"fetch-1765650259316-rpbdn","forceFresh":false,"currentPendingIds":["1765068222819","1765068213739"],"currentUpdatesCount":0} page-39e08a4fdd959918.js:1:61085
+[FETCH] Getting fresh announcements from server page-39e08a4fdd959918.js:1:75859
+Timestamp: 2025-12-13T18:24:19.317Z page-39e08a4fdd959918.js:1:75924
+Response status: 200 page-39e08a4fdd959918.js:1:76053
+Time taken: 307ms page-39e08a4fdd959918.js:1:76103
 [FETCH] Fresh announcements from server: 
 Object {  }
-page-d789f3e4a07316ec.js:1:74233
-[FETCH] Keys: page-d789f3e4a07316ec.js:1:74291
-The resource at “https://monty-club.vercel.app/_next/static/media/e4af272ccee01ff0-s.p.woff2” preloaded with link preload was not used within a few seconds. Make sure all attributes of the preload tag are set correctly. admin
+page-39e08a4fdd959918.js:1:76220
+[FETCH] Keys: page-39e08a4fdd959918.js:1:76278
+{"tag":"fetch-updates","step":"response-received","fetchId":"fetch-1765650259316-rpbdn","status":200,"duration":316} page-39e08a4fdd959918.js:1:61338
+{"tag":"fetch-updates","step":"data-parsed","fetchId":"fetch-1765650259316-rpbdn","updatesCount":1,"updates":[{"id":"1765647772432","reviewed":true}]} page-39e08a4fdd959918.js:1:61517
+{"tag":"fetch-updates","step":"state-updated","fetchId":"fetch-1765650259316-rpbdn","pendingIds":["1765068222819","1765068213739"]} page-39e08a4fdd959918.js:1:61721
+{"tag":"fetch-updates","step":"complete","fetchId":"fetch-1765650259316-rpbdn"} page-39e08a4fdd959918.js:1:61946
+{"tag":"autoclear","step":"start","autoClearId":"autoclear-1765650259646-1axcy","pendingIds":["1765068222819","1765068213739"],"pendingDetails":[{"id":"1765068222819","reviewed":true},{"id":"1765068213739","reviewed":true}],"updatesCount":1,"updatesDetails":[{"id":"1765647772432","reviewed":true}]} page-39e08a4fdd959918.js:1:69900
+{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765650259646-1axcy","id":"1765068222819","pending":{"reviewed":true},"dbItem":null} page-39e08a4fdd959918.js:1:70264
+{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765650259646-1axcy","id":"1765068222819","pending":{"reviewed":true},"hasDbItem":false} page-39e08a4fdd959918.js:1:71198
+{"tag":"autoclear","step":"checking","autoClearId":"autoclear-1765650259646-1axcy","id":"1765068213739","pending":{"reviewed":true},"dbItem":null} page-39e08a4fdd959918.js:1:70264
+{"tag":"autoclear","step":"no-match-logic","autoClearId":"autoclear-1765650259646-1axcy","id":"1765068213739","pending":{"reviewed":true},"hasDbItem":false} page-39e08a4fdd959918.js:1:71198
+{"tag":"autoclear","step":"no-changes","autoClearId":"autoclear-1765650259646-1axcy","stillPendingIds":["1765068222819","1765068213739"]} page-39e08a4fdd959918.js:1:72004
 window.syncDiagnostics()
-=== COMPLETE SYNC DIAGNOSTICS === page-d789f3e4a07316ec.js:1:125745
+=== COMPLETE SYNC DIAGNOSTICS === page-39e08a4fdd959918.js:1:127732
 {
-  "timestamp": "2025-12-13T18:14:37.442Z",
+  "timestamp": "2025-12-13T18:24:25.868Z",
   "announcements": {
     "pending": {},
     "current": {}
@@ -39,13 +38,13 @@ window.syncDiagnostics()
   "collections": {
     "pending": {
       "col-1765129947522-lktzfdu": {
-        "enabled": true
+        "enabled": false
       }
     }
   },
   "registrations": {
     "pending": {}
   }
-} page-d789f3e4a07316ec.js:1:125796
-Object { timestamp: "2025-12-13T18:14:37.442Z", announcements: {…}, updates: {…}, collections: {…}, registrations: {…} }
+} page-39e08a4fdd959918.js:1:127783
+Object { timestamp: "2025-12-13T18:24:25.868Z", announcements: {…}, updates: {…}, collections: {…}, registrations: {…} }
 
