@@ -265,9 +265,7 @@ export function AdminPanel() {
     if (!collectionsStorageLoaded) return
     if (Object.keys(localPendingCollectionChanges).length === 0) return
 
-    try {
-      console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'start', pending: localPendingCollectionChanges, db: collections.map(c => ({ id: c.id, enabled: c.enabled })) }))
-    } catch {}
+    // Debug logging removed for cleaner console
 
     const newPending = { ...localPendingCollectionChanges }
     let hasChanges = false
@@ -277,7 +275,7 @@ export function AdminPanel() {
       const found = collections.find(c => c.id === collectionId)
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !found) {
-        try { console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'clear-deleted', id: collectionId })) } catch {}
+        // Debug logging removed
         delete newPending[collectionId]
         hasChanges = true
         continue
@@ -285,11 +283,11 @@ export function AdminPanel() {
       if (found) {
         // If enabled matches DB, clear enabled flag
         if (pending.enabled !== undefined && found.enabled === pending.enabled) {
-          try { console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'clear-enabled', id: collectionId, value: pending.enabled })) } catch {}
+          // Debug logging removed
           delete newPending[collectionId].enabled
           hasChanges = true
         } else if (pending.enabled !== undefined) {
-          try { console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'still-pending', id: collectionId, pending: pending.enabled, db: found.enabled })) } catch {}
+          // Debug logging removed
         }
         // If name matches DB, clear name flag
         if (pending.name && found.name === pending.name) {
@@ -306,10 +304,10 @@ export function AdminPanel() {
     }
 
     if (hasChanges) {
-      try { console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'updated', pending: newPending })) } catch {}
+      // Debug logging removed
       setLocalPendingCollectionChanges(newPending)
     } else {
-      try { console.log(JSON.stringify({ tag: 'collections-autoclear', step: 'no-change' })) } catch {}
+      // Debug logging removed
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
@@ -321,26 +319,21 @@ export function AdminPanel() {
     }
     // Schedule a new refresh after 500ms of inactivity
     collectionsRefreshTimerRef.current = setTimeout(() => {
-      try { console.log(JSON.stringify({ tag: 'collections-refresh', step: 'execute' })) } catch {}
       loadCollections()
       collectionsRefreshTimerRef.current = null
     }, 500)
-    try { console.log(JSON.stringify({ tag: 'collections-refresh', step: 'scheduled', delayMs: 500 })) } catch {}
   }
 
   const loadCollections = async () => {
     if (!adminApiKey) return
-    try { console.log(JSON.stringify({ tag: 'collections-load', step: 'start' })) } catch {}
+    // Debug logging removed
     try {
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      try {
-        console.log(JSON.stringify({ tag: 'collections-load', step: 'db', collections: (data.collections || []).map((c: any) => ({ id: c.id, enabled: c.enabled })) }))
-        console.log(JSON.stringify({ tag: 'collections-load', step: 'pending', pendingIds: Object.keys(localPendingCollectionChanges) }))
-      } catch {}
+      // Debug logging removed
       setCollections(data.collections || [])
       // Choose active collection using localStorage overlay precedence
       // Build an overlay that prioritizes locally pending created/enabled state
@@ -485,11 +478,7 @@ export function AdminPanel() {
 
   const toggleCollectionEnabled = async (collectionId: string) => {
     const toggleId = `TOGGLE-${collectionId}-${Date.now()}`
-    const log = (payload: any) => {
-      try {
-        console.log(JSON.stringify({ tag: 'collections-toggle', toggleId, ...payload }))
-      } catch {}
-    }
+    const log = (_payload: any) => {}
     log({ step: 'start', collectionId })
     
     if (!adminApiKey) {
@@ -976,9 +965,7 @@ export function AdminPanel() {
       // Keep `updates` as the last known server snapshot. We overlay
       // localPendingChanges at render time so that we can reliably compare
       // server vs local state when deciding when to clear pending changes.
-      try {
-        console.log(JSON.stringify({ tag: 'updates-load', step: 'db', items: data.map((item: any) => ({ id: String(item.id), reviewed: !!item.reviewed })) }))
-      } catch {}
+      // Debug logging removed for cleaner console
       setUpdates(data)
     } catch (err) {
       console.error('Error fetching updates:', err)
@@ -1000,13 +987,13 @@ export function AdminPanel() {
       [id]: { ...(localPendingChanges[id] || {}), reviewed: nextReviewed },
     }
     setLocalPendingChanges(newPending)
-    try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save', id, pending: newPending[id] })) } catch {}
+    // Debug logging removed
     try {
       localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save-ok' })) } catch {}
+      // Debug logging removed
     } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-save-fail', error: String(e) })) } catch {}
+      // Debug logging removed
     }
 
     try {
@@ -1016,13 +1003,26 @@ export function AdminPanel() {
         body: JSON.stringify({ reviewed: nextReviewed }),
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      await resp.json()
-      // Success: fetch fresh data to trigger auto-clear
-      showToast(`Marked ${nextReviewed ? 'reviewed' : 'unreviewed'}`)
+      const updated = await resp.json()
+      // Success: clear pending immediately based on server-confirmed value
+      const confirmedReviewed = !!updated.reviewed
+      const cleared = { ...localPendingChanges }
+      delete cleared[id]
+      setLocalPendingChanges(cleared)
+      try {
+        if (Object.keys(cleared).length === 0) {
+          localStorage.removeItem(PENDING_KEY)
+          localStorage.removeItem(PENDING_BACKUP_KEY)
+        } else {
+          localStorage.setItem(PENDING_KEY, JSON.stringify(cleared))
+          localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
+        }
+      } catch {}
+      showToast(`Marked ${confirmedReviewed ? 'reviewed' : 'unreviewed'}`)
       // Fetch fresh data with no-cache to ensure we get the latest state, but don't block
       fetchUpdates(true).catch(() => {})
     } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'patch-fail', error: String(e) })) } catch {}
+      // Debug logging removed
       // Clear from pending on error (revert local override)
       const revertPending = { ...localPendingChanges }
       delete revertPending[id]
@@ -1036,7 +1036,7 @@ export function AdminPanel() {
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
         }
       } catch (e) {
-        try { console.log(JSON.stringify({ tag: 'updates-toggle', step: 'local-revert-fail', error: String(e) })) } catch {}
+        // Debug logging removed
       }
       showToast('Failed to update status', 'error')
     } finally {
@@ -1225,7 +1225,7 @@ export function AdminPanel() {
     if (!localStorageLoaded) return
     if (Object.keys(localPendingChanges).length === 0) return
     if (updates.length === 0) return
-    try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'start', pendingIds: Object.keys(localPendingChanges), dbIds: updates.map(u=>String(u.id)) })) } catch {}
+    // Debug logging removed for cleaner console
 
     const stillPending = { ...localPendingChanges }
     let hasCleared = false
@@ -1236,17 +1236,17 @@ export function AdminPanel() {
 
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
-        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'clear-deleted', id })) } catch {}
+        // Debug logging removed
         delete stillPending[id]
         hasCleared = true
       }
       // If reviewed state matches DB, clear it
       else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
-        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'clear-reviewed', id, value: pending.reviewed })) } catch {}
+        // Debug logging removed
         delete stillPending[id]
         hasCleared = true
       } else if (dbItem && pending.reviewed !== undefined) {
-        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'still-pending', id, pending: pending.reviewed, db: dbItem.reviewed })) } catch {}
+        // Debug logging removed
       }
     })
 
@@ -1256,14 +1256,14 @@ export function AdminPanel() {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(PENDING_KEY)
           localStorage.removeItem(PENDING_BACKUP_KEY)
-          try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'cleared-all' })) } catch {}
+          // Debug logging removed
         } else {
           localStorage.setItem(PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'updated-remaining', count: Object.keys(stillPending).length })) } catch {}
+          // Debug logging removed
         }
       } catch (e) {
-        try { console.log(JSON.stringify({ tag: 'updates-autoclear', step: 'update-fail', error: String(e) })) } catch {}
+        // Debug logging removed
       }
     }
   }, [updates, localPendingChanges, localStorageLoaded])
