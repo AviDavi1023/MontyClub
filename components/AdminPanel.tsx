@@ -1085,9 +1085,6 @@ export function AdminPanel() {
       : item.reviewed
     const nextReviewed = !currentReviewed
 
-    // Track this operation as recent
-    recentOperationsRef.current.set(id, Date.now())
-
     console.log(JSON.stringify({ 
       tag: 'toggle-single', 
       step: 'calculated-next', 
