@@ -78,11 +78,20 @@ async function withLock<R>(fn: () => Promise<R>): Promise<R> {
 }
 
 async function getCollections(): Promise<RegistrationCollection[]> {
-  const data = await readJSONFromStorage(COLLECTIONS_PATH)
+  const data = await readJSONFromStorage(COLLECTIONS_PATH, true)
   if (!data || !Array.isArray(data)) {
     return []
   }
-  return data
+  // Back-compat defaults: accepting mirrors enabled; display is undefined unless explicitly set
+  const cols: RegistrationCollection[] = data.map((c: any) => ({
+    id: String(c.id),
+    name: String(c.name),
+    enabled: Boolean(c.enabled),
+    createdAt: String(c.createdAt),
+    display: typeof c.display === 'boolean' ? c.display : undefined,
+    accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
+  }))
+  return cols
 }
 
 async function saveCollections(collections: RegistrationCollection[]): Promise<boolean> {
@@ -203,7 +212,9 @@ export async function POST(request: NextRequest) {
         id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         name: name.trim(),
         enabled: Boolean(enabled),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        display: false,
+        accepting: Boolean(enabled),
       }
 
       collections.push(newCollection)
@@ -253,7 +264,7 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      const { id, name, enabled } = body
+      const { id, name, enabled, accepting, display } = body
 
       if (!id) {
         return NextResponse.json(
@@ -292,9 +303,33 @@ export async function PATCH(request: NextRequest) {
         collections[collectionIndex].name = name.trim()
       }
 
-      if (enabled !== undefined) {
-        log({ tag: 'collections-api', step: 'update', operationId, id, from: collections[collectionIndex].enabled, to: Boolean(enabled) })
-        collections[collectionIndex].enabled = Boolean(enabled)
+      // Back-compat: 'enabled' now maps to 'accepting' unless 'accepting' explicitly provided
+      if (enabled !== undefined && accepting === undefined) {
+        const val = Boolean(enabled)
+        log({ tag: 'collections-api', step: 'update-accepting-from-enabled', operationId, id, from: collections[collectionIndex].accepting, to: val })
+        collections[collectionIndex].accepting = val
+        // keep legacy field in sync for older clients
+        collections[collectionIndex].enabled = val
+      }
+
+      if (accepting !== undefined) {
+        const val = Boolean(accepting)
+        log({ tag: 'collections-api', step: 'update-accepting', operationId, id, from: collections[collectionIndex].accepting, to: val })
+        collections[collectionIndex].accepting = val
+        collections[collectionIndex].enabled = val
+      }
+
+      if (display !== undefined) {
+        const val = Boolean(display)
+        log({ tag: 'collections-api', step: 'update-display', operationId, id, to: val })
+        if (val === true) {
+          // ensure only one display=true
+          for (let i = 0; i < collections.length; i++) {
+            collections[i].display = (i === collectionIndex)
+          }
+        } else {
+          collections[collectionIndex].display = false
+        }
       }
 
       log({ tag: 'collections-api', step: 'save-start', operationId })

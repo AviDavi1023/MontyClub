@@ -36,6 +36,11 @@ export interface RegistrationCollection {
   name: string
   enabled: boolean
   createdAt: string
+  // New: separate concerns
+  // display: which collection powers the public catalog (only one should be true)
+  display?: boolean
+  // accepting: this collection is open for new submissions (can be many)
+  accepting?: boolean
 }
 
 export interface ClubRegistration {

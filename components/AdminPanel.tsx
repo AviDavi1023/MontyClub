@@ -175,7 +175,7 @@ export function AdminPanel() {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; name?: string }
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; name?: string }
   const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
@@ -390,12 +390,16 @@ export function AdminPanel() {
               id,
               name: change.name || 'New Collection',
               enabled: change.enabled ?? false,
+              display: change.display ?? false,
+              accepting: change.accepting ?? false,
               createdAt: new Date().toISOString()
             } as RegistrationCollection)
           }
           const obj = overlayMap.get(id)
           if (obj) {
             if (typeof change.enabled !== 'undefined') obj.enabled = !!change.enabled
+            if (typeof change.display !== 'undefined') obj.display = !!change.display
+            if (typeof change.accepting !== 'undefined') obj.accepting = !!change.accepting
             if (change.name) obj.name = change.name
           }
         }
@@ -513,6 +517,136 @@ export function AdminPanel() {
       showToast(err.message || 'Failed to create collection', 'error')
     } finally {
       setCreatingCollection(false)
+    }
+  }
+
+  const toggleCollectionDisplay = async (collectionId: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    setTogglingCollection(collectionId)
+    const effectiveCurrentDisplay = (localPendingCollectionChanges[collectionId]?.display !== undefined)
+      ? !!localPendingCollectionChanges[collectionId]?.display
+      : !!(collection.display || (!collection.display && !collection.accepting && collection.enabled)) // back-compat: legacy enabled means display
+    const nextDisplay = !effectiveCurrentDisplay
+
+    // Optimistically update display
+    setLocalPendingCollectionChanges(prev => {
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay } }
+      try {
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      return next
+    })
+
+    try {
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, display: nextDisplay })
+      })
+      if (!resp.ok) {
+        let errText = 'Failed to update display'
+        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
+        throw new Error(errText)
+      }
+      try {
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
+      await loadCollections()
+      try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
+    } catch (err) {
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.display
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
+      })
+      showToast('Failed to update display', 'error')
+    } finally {
+      setTogglingCollection(null)
+    }
+  }
+
+  const toggleCollectionAccepting = async (collectionId: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    setTogglingCollection(collectionId)
+    const effectiveCurrentAccepting = (localPendingCollectionChanges[collectionId]?.accepting !== undefined)
+      ? !!localPendingCollectionChanges[collectionId]?.accepting
+      : (collection.accepting ?? collection.enabled ?? false) // back-compat
+    const nextAccepting = !effectiveCurrentAccepting
+
+    setLocalPendingCollectionChanges(prev => {
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting } }
+      try {
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      return next
+    })
+
+    try {
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
+      })
+      if (!resp.ok) {
+        let errText = 'Failed to update accepting'
+        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
+        throw new Error(errText)
+      }
+      try {
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
+      await loadCollections()
+    } catch (err) {
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.accepting
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
+      })
+      showToast('Failed to update accepting', 'error')
+    } finally {
+      setTogglingCollection(null)
     }
   }
 
@@ -2626,7 +2760,7 @@ export function AdminPanel() {
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Manage multiple registration form collections (e.g., different years). Each has a unique form link and can be toggled on/off.
+              Manage multiple registration form collections (e.g., different years). <strong>Display</strong> (one only) controls which collection shows publicly. <strong>Accepting</strong> (multiple allowed) controls which forms accept submissions.
             </p>
             
             {/* Create New Collection */}
@@ -2671,6 +2805,8 @@ export function AdminPanel() {
                           id,
                           name: change.name || 'New Collection',
                           enabled: change.enabled ?? false,
+                          display: change.display ?? false,
+                          accepting: change.accepting ?? false,
                           createdAt: new Date().toISOString()
                         })
                       }
@@ -2678,6 +2814,8 @@ export function AdminPanel() {
                     const obj = map.get(id)
                     if (obj) {
                       if (change.enabled !== undefined) obj.enabled = change.enabled
+                      if (change.display !== undefined) obj.display = change.display
+                      if (change.accepting !== undefined) obj.accepting = change.accepting
                       if (change.name) obj.name = change.name
                     }
                   }
@@ -2700,42 +2838,80 @@ export function AdminPanel() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h5 className="font-medium text-gray-900 dark:text-white truncate">{collection.name}</h5>
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            collection.enabled
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                          }`}>
-                            {collection.enabled ? 'Enabled' : 'Disabled'}
-                          </span>
-                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
+                          {(() => {
+                            const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                            const isAccepting = collection.accepting ?? collection.enabled ?? false
+                            return (
+                              <>
+                                {isDisplay && (
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                    Public
+                                  </span>
+                                )}
+                                {isAccepting && (
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    Accepting
+                                  </span>
+                                )}
+                              </>
+                            )
+                          })()}
+                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
                           )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Created {new Date(collection.createdAt).toLocaleDateString()}
                         </p>
-                        {collection.enabled && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
-                            <a
-                              href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              /register-club?collection={slugifyName(collection.name)}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        )}
+                        {(() => {
+                          const isAccepting = collection.accepting ?? collection.enabled ?? false
+                          return isAccepting && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
+                              <a
+                                href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                /register-club?collection={slugifyName(collection.name)}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          )
+                        })()}
                       </div>
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Toggle
-                          checked={!!collection.enabled}
-                          onChange={() => toggleCollectionEnabled(collection.id)}
-                          disabled={togglingCollection === collection.id}
-                        />
+                      <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="displayCollection"
+                              checked={(() => {
+                                const pending = localPendingCollectionChanges[collection.id]?.display
+                                if (pending !== undefined) return pending
+                                return collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                              })()}
+                              onChange={() => toggleCollectionDisplay(collection.id)}
+                              disabled={togglingCollection === collection.id}
+                              className="w-3.5 h-3.5"
+                            />
+                            <span className="text-gray-700 dark:text-gray-300">Display</span>
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-700 dark:text-gray-300">Accepting</span>
+                          <Toggle
+                            checked={(() => {
+                              const pending = localPendingCollectionChanges[collection.id]?.accepting
+                              if (pending !== undefined) return pending
+                              return collection.accepting ?? collection.enabled ?? false
+                            })()}
+                            onChange={() => toggleCollectionAccepting(collection.id)}
+                            disabled={togglingCollection === collection.id}
+                          />
+                        </div>
                         {collections.length > 1 && (
                           <button
                             onClick={(e) => {

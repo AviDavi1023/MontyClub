@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!collection.enabled) {
+    // Accept if 'accepting' is true; fallback to legacy 'enabled'
+    const accepting = (typeof (collection as any).accepting === 'boolean') ? (collection as any).accepting : collection.enabled
+    if (!accepting) {
       return NextResponse.json(
         { error: 'Registration is currently closed for this collection' },
         { status: 403 }

@@ -6,16 +6,18 @@ import { listPaths, readJSONFromStorage } from '@/lib/supabase'
 import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 export async function fetchClubsFromCollection(): Promise<Club[]> {
-  // 1. Get all collections and find the enabled one
+  // 1. Get all collections and choose display collection (fallback to legacy enabled)
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
-  const enabled = collections.find(c => c.enabled)
-  if (!enabled) {
-    console.warn('No enabled collection found for club data')
+  const display = collections.find(c => c.display)
+  const legacy = collections.find(c => c.enabled)
+  const selected = display || legacy
+  if (!selected) {
+    console.warn('No display or enabled collection found for club data')
     return []
   }
 
   // 2. List all registration files for this collection
-  const regPaths = await listPaths(`registrations/${enabled.id}`)
+  const regPaths = await listPaths(`registrations/${selected.id}`)
   const registrations: ClubRegistration[] = []
   for (const path of regPaths) {
     if (!path.endsWith('.json')) continue
@@ -26,7 +28,7 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   }
   
   if (!registrations.length) {
-    console.warn('No approved registrations found in enabled collection:', enabled.name)
+    console.warn('No approved registrations found in selected collection:', selected.name)
     return []
   }
 
