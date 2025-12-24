@@ -9,7 +9,10 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   // 1. Get all collections and find the enabled one
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
   const enabled = collections.find(c => c.enabled)
-  if (!enabled) return []
+  if (!enabled) {
+    console.warn('No enabled collection found for club data')
+    return []
+  }
 
   // 2. List all registration files for this collection
   const regPaths = await listPaths(`registrations/${enabled.id}`)
@@ -21,7 +24,11 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
       registrations.push(reg)
     }
   }
-  if (!registrations.length) return []
+  
+  if (!registrations.length) {
+    console.warn('No approved registrations found in enabled collection:', enabled.name)
+    return []
+  }
 
   // 3. Sort by approvedAt timestamp (newest first), fallback to submittedAt
   registrations.sort((a, b) => {
@@ -30,21 +37,22 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
     return timeB - timeA
   })
 
-  // 4. Map ClubRegistration to Club with sequential IDs (1, 2, 3...)
-  return registrations.map((r, idx) => ({
-    id: String(idx + 1),
+  // 4. Map ClubRegistration to Club using the registration ID directly (unique and stable)
+  // Prevents ID changes and avoids collisions entirely
+  return registrations.map((r) => ({
+    id: r.id,
     name: r.clubName,
-    category: '', // You may want to add a category field to the registration form
+    category: r.category || '',
     description: r.statementOfPurpose,
     advisor: r.advisorName,
     studentLeader: r.studentContactName,
-    meetingTime: '', // Not collected in registration, add if needed
+    meetingTime: r.meetingDay,
     meetingFrequency: r.meetingFrequency,
     location: r.location,
     contact: r.studentContactEmail,
-    socialMedia: '', // Not collected in registration, add if needed
+    socialMedia: r.socialMedia || '',
     active: true,
-    notes: '',
+    notes: r.notes || '',
     announcement: '',
     keywords: [],
   }))
@@ -127,8 +135,15 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
       return getMockClubs()
     }
 
-    // Parse the data (skip header row)
-    const [, ...dataRows] = rows
+    // Validate header row before parsing
+    const [headerRow, ...dataRows] = rows
+    const isValidHeader = validateExcelHeaders(headerRow)
+    if (!isValidHeader) {
+      console.error('Excel file has invalid or missing headers. Using mock data.')
+      return getMockClubs()
+    }
+
+    // Parse the data
     const clubs = parseExcelData(dataRows)
 
 
@@ -178,6 +193,51 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     console.error('Error reading Excel file:', error)
     return getMockClubs()
   }
+}
+
+function validateExcelHeaders(headerRow: any[]): boolean {
+  if (!headerRow || headerRow.length < 10) {
+    console.error('Header row missing or too short')
+    return false
+  }
+
+  const cellToString = (v: any) => {
+    if (v === null || typeof v === 'undefined') return ''
+    if (typeof v === 'string') return v.trim().toLowerCase()
+    if (typeof v === 'object' && 'text' in v) return String(v.text).trim().toLowerCase()
+    return String(v).trim().toLowerCase()
+  }
+
+  // Expected headers with flexible matching
+  const expectedHeaders = [
+    { col: 0, names: ['id', 'club id', 'clubid'] },
+    { col: 1, names: ['name', 'club name', 'clubname'] },
+    { col: 2, names: ['category'] },
+    { col: 3, names: ['description'] },
+    { col: 4, names: ['advisor'] },
+    { col: 5, names: ['student leader', 'studentleader', 'leader'] },
+    { col: 6, names: ['meeting time', 'meetingtime', 'time'] },
+    { col: 7, names: ['location', 'room'] },
+    { col: 8, names: ['contact', 'email'] },
+    { col: 9, names: ['social media', 'socialmedia', 'social'] },
+  ]
+
+  let matchCount = 0
+  for (const expected of expectedHeaders) {
+    const cellValue = cellToString(headerRow[expected.col])
+    if (expected.names.some(name => cellValue.includes(name) || name.includes(cellValue))) {
+      matchCount++
+    }
+  }
+
+  // Require at least 8 out of 10 core headers to match
+  if (matchCount < 8) {
+    console.error(`Excel header validation failed. Only ${matchCount}/10 headers matched.`)
+    console.error('First 13 headers found:', headerRow.slice(0, 13).map(cellToString))
+    return false
+  }
+
+  return true
 }
 
 function parseExcelData(rows: any[][]): Club[] {

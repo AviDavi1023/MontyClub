@@ -87,8 +87,32 @@ async function getCollections(): Promise<RegistrationCollection[]> {
 
 async function saveCollections(collections: RegistrationCollection[]): Promise<boolean> {
   try {
-    await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)
-    return true
+    // Write with retry
+    const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)
+    if (!ok) return false
+
+    // Read-back verification to mitigate cross-instance races
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const after = await readJSONFromStorage(COLLECTIONS_PATH)
+      const equal = (() => {
+        try {
+          return JSON.stringify(after) === JSON.stringify(collections)
+        } catch {
+          return false
+        }
+      })()
+      if (equal) return true
+      // If mismatch, try writing again once
+      const retryOk = await writeJSONToStorage(COLLECTIONS_PATH, collections)
+      if (!retryOk) break
+    }
+    // Final read-back check
+    const final = await readJSONFromStorage(COLLECTIONS_PATH)
+    try {
+      return JSON.stringify(final) === JSON.stringify(collections)
+    } catch {
+      return false
+    }
   } catch {
     return false
   }
@@ -151,10 +175,22 @@ export async function POST(request: NextRequest) {
 
       const collections = await getCollections()
 
-      // Check for duplicate names
+      // Check for duplicate names (exact match)
       if (collections.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
         return NextResponse.json(
           { error: 'Collection with this name already exists' },
+          { status: 400 }
+        )
+      }
+
+      // Check for slug collisions (different names that produce same slug)
+      const { slugifyName } = await import('@/lib/slug')
+      const newSlug = slugifyName(name.trim())
+      const existingWithSameSlug = collections.find(c => slugifyName(c.name) === newSlug)
+      
+      if (existingWithSameSlug) {
+        return NextResponse.json(
+          { error: `Collection name would create duplicate URL (conflicts with "${existingWithSameSlug.name}"). Please choose a different name.` },
           { status: 400 }
         )
       }

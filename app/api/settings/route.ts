@@ -29,12 +29,23 @@ export async function POST(request: Request) {
       const updated = { ...current, clubDataSource: body.clubDataSource }
       const writeResult = await writeData('settings', updated)
       console.log('[POST /api/settings] Updated clubDataSource to:', body.clubDataSource, 'Result:', writeResult)
-      return NextResponse.json({ ok: true })
+      
+      // Verify the write was successful by reading back
+      const verification = await readData('settings', {})
+      if (verification.clubDataSource !== body.clubDataSource) {
+        console.error('[POST /api/settings] Verification failed! Written:', body.clubDataSource, 'Read back:', verification.clubDataSource)
+        return NextResponse.json({ 
+          error: 'Failed to persist setting', 
+          detail: 'Write succeeded but verification failed' 
+        }, { status: 500 })
+      }
+      
+      return NextResponse.json({ ok: true, verified: true })
     }
     return NextResponse.json({ error: 'Invalid clubDataSource' }, { status: 400 })
   } catch (err) {
     console.error('Error persisting clubDataSource:', err)
-    return NextResponse.json({ error: 'Failed to persist clubDataSource' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to persist clubDataSource', detail: String(err) }, { status: 500 })
   }
 }
 

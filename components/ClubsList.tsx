@@ -18,6 +18,7 @@ export function ClubsList() {
   const [loading, setLoading] = useState(true)
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
   const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(true)
+  const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   // Start with filters hidden on mobile, visible on desktop
@@ -87,12 +88,15 @@ export function ClubsList() {
         setClubs(data)
         setUpdateCounter(prev => prev + 1)  // Increment counter to force re-render
       }
-      // Also refresh announcementsEnabled from server
+      // Also refresh announcementsEnabled and dataSource from server
       try {
         const resp = await fetch('/api/settings', { cache: 'no-store' })
         if (resp.ok) {
           const s = await resp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
+          if (s.clubDataSource === 'excel' || s.clubDataSource === 'collection') {
+            setClubDataSource(s.clubDataSource)
+          }
         }
       } catch {}
     } catch (error) {
@@ -106,7 +110,7 @@ export function ClubsList() {
     loadClubs()
 
     // Listen for announcements updates across tabs
-    const cleanup = createDomainListener('announcements', (action) => {
+    const cleanupAnnouncements = createDomainListener('announcements', (action) => {
       loadClubs()
       try {
         const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
@@ -115,6 +119,11 @@ export function ClubsList() {
           if (parsed && typeof parsed === 'object') setLocalPendingAnnouncements(parsed)
         }
       } catch {}
+    })
+
+    // Listen for clubs domain events (e.g., collection changes)
+    const cleanupClubs = createDomainListener('clubs', (action) => {
+      loadClubs()
     })
 
     // Listen for same-tab updates (custom event)
@@ -176,7 +185,8 @@ export function ClubsList() {
 
     return () => {
       isMountedRef.current = false
-      cleanup()
+      cleanupAnnouncements()
+      cleanupClubs()
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
         window.removeEventListener('storage', onStorage)
@@ -640,12 +650,30 @@ export function ClubsList() {
 
         {filteredClubs.length === 0 ? (
           <div className="text-center py-12 px-4">
-            <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">
-              No clubs found
-            </p>
-            <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm mt-2">
-              Try adjusting your search or filters
-            </p>
+            {clubs.length === 0 && clubDataSource === 'collection' ? (
+              <>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6 max-w-2xl mx-auto">
+                  <p className="text-amber-900 dark:text-amber-100 text-base sm:text-lg font-semibold mb-2">
+                    Collection Mode Active - No Clubs Available
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base">
+                    The site is currently using Collection mode, but no club registrations have been approved yet.
+                  </p>
+                  <p className="text-amber-600 dark:text-amber-400 text-xs sm:text-sm mt-3">
+                    Admins: Switch to Excel mode or approve registrations to display clubs.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">
+                  No clubs found
+                </p>
+                <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm mt-2">
+                  Try adjusting your search or filters
+                </p>
+              </>
+            )}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

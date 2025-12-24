@@ -99,12 +99,28 @@ export function AdminPanel() {
   }, [])
   useEffect(() => {
     localStorage.setItem('montyclub:clubDataSource', clubDataSource)
-    // Persist to backend for API
+    // Persist to backend for API with error handling
     fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clubDataSource }),
-    }).catch(() => {})
+    })
+      .then(async (resp) => {
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}))
+          console.error('Failed to persist clubDataSource:', data)
+          showToast('Warning: Data source may not persist across sessions', 'error')
+        } else {
+          const data = await resp.json()
+          if (data.verified) {
+            console.log('Data source persisted and verified:', clubDataSource)
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error persisting clubDataSource:', err)
+        showToast('Warning: Data source may not persist across sessions', 'error')
+      })
     // Broadcast to other tabs/components that data source changed
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
@@ -606,6 +622,11 @@ export function AdminPanel() {
       // Immediately refresh collections to ensure auto-clear runs with fresh DB state
       console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-now', toggleId }))
       await loadCollections()
+      
+      // Broadcast to ClubsList to refresh if in Collection mode
+      try {
+        broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
+      } catch {}
     } catch (err) {
       console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
       // Revert on error using functional update to avoid clobbering subsequent rapid toggles
@@ -1000,13 +1021,14 @@ export function AdminPanel() {
     }
   }
 
-  const fetchUpdates = async (forceFresh: boolean = false) => {
+  const fetchUpdates = async (forceFresh: boolean = false, retryCount: number = 0) => {
     const fetchId = `fetch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     console.log(JSON.stringify({ 
       tag: 'fetch-updates', 
       step: 'start', 
       fetchId, 
       forceFresh,
+      retryCount,
       currentPendingIds: Object.keys(localPendingChanges),
       currentUpdatesCount: updates.length
     }))
@@ -1015,7 +1037,14 @@ export function AdminPanel() {
     try {
       const url = forceFresh ? '/api/updates?nocache=1' : '/api/updates'
       const fetchStartTime = Date.now()
-      const resp = await fetch(url)
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+      
+      const resp = await fetch(url, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      
       const fetchDuration = Date.now() - fetchStartTime
       
       console.log(JSON.stringify({ 
@@ -1026,7 +1055,7 @@ export function AdminPanel() {
         duration: fetchDuration 
       }))
       
-      if (!resp.ok) throw new Error('Failed to fetch updates')
+      if (!resp.ok) throw new Error(`Failed to fetch updates: ${resp.status}`)
       const data = await resp.json()
       
       console.log(JSON.stringify({ 
@@ -1042,7 +1071,7 @@ export function AdminPanel() {
       // server vs local state when deciding when to clear pending changes.
       setUpdates(data)
       
-      console.log(JSON.stringify({ 
+      console.log(JSON.stringify({
         tag: 'fetch-updates', 
         step: 'state-updated', 
         fetchId,
@@ -1052,9 +1081,34 @@ export function AdminPanel() {
       console.error(JSON.stringify({ 
         tag: 'fetch-updates', 
         step: 'error', 
-        fetchId, 
+        fetchId,
+        retryCount,
         error: String(err) 
       }))
+      
+      // Retry with exponential backoff (max 2 retries)
+      if (retryCount < 2) {
+        const delay = Math.pow(2, retryCount) * 1000 // 1s, 2s
+        console.log(JSON.stringify({ 
+          tag: 'fetch-updates', 
+          step: 'retry-scheduled', 
+          fetchId, 
+          delay 
+        }))
+        setTimeout(() => {
+          fetchUpdates(forceFresh, retryCount + 1).catch(() => {
+            // Final retry failed - clear syncing state to prevent infinite trap
+            console.error(JSON.stringify({ 
+              tag: 'fetch-updates', 
+              step: 'all-retries-failed', 
+              fetchId 
+            }))
+          })
+        }, delay)
+      } else {
+        // All retries exhausted - show error toast
+        showToast('Failed to refresh updates. Some changes may not sync.', 'error')
+      }
     } finally {
       setRefreshingUpdates(false)
       console.log(JSON.stringify({ 
@@ -1097,7 +1151,7 @@ export function AdminPanel() {
     setLocalPendingChanges(prev => {
       const newPending = {
         ...prev,
-        [id]: { ...(prev[id] || {}), reviewed: nextReviewed },
+        [id]: { ...(prev[id] || {}), reviewed: nextReviewed, _timestamp: Date.now() },
       }
       console.log(JSON.stringify({ 
         tag: 'toggle-single', 
@@ -1517,6 +1571,35 @@ export function AdminPanel() {
   // Redundant persistence effect (writes both keys after any change once loaded)
   useEffect(() => {
     if (!localStorageLoaded) return
+    
+    // Clean up old pending changes (older than 5 minutes) to prevent infinite syncing
+    const now = Date.now()
+    const staleThreshold = 5 * 60 * 1000 // 5 minutes
+    const cleaned = { ...localPendingChanges }
+    let hasStale = false
+    
+    Object.keys(cleaned).forEach(id => {
+      const pending = cleaned[id]
+      // Check if pending has a timestamp and if it's stale
+      const pendingTimestamp = (pending as any)._timestamp
+      if (pendingTimestamp && (now - pendingTimestamp) > staleThreshold) {
+        console.log(JSON.stringify({ 
+          tag: 'updates-pending', 
+          step: 'remove-stale', 
+          id, 
+          age: now - pendingTimestamp 
+        }))
+        delete cleaned[id]
+        hasStale = true
+      }
+    })
+    
+    // If we cleaned stale entries, update state
+    if (hasStale) {
+      setLocalPendingChanges(cleaned)
+      return // The updated state will trigger this effect again to persist
+    }
+    
     try {
       if (Object.keys(localPendingChanges).length === 0) {
         localStorage.removeItem(PENDING_KEY)
@@ -2139,6 +2222,13 @@ export function AdminPanel() {
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => ({}))
         throw new Error(errorData.error || `Server returned ${resp.status}`)
+      }
+      
+      // Verify the setting was saved correctly
+      const savedData = await resp.json()
+      if (savedData.announcementsEnabled !== newValue) {
+        console.error('Verification failed: expected', newValue, 'but server has', savedData.announcementsEnabled)
+        throw new Error('Setting saved but verification failed')
       }
       
       showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
