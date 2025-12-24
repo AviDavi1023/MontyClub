@@ -8,6 +8,7 @@ const COLLECTIONS_PATH = 'settings/registration-collections.json'
 const DEBUG = process.env.NODE_ENV === 'development'
 
 // In-memory lock to prevent concurrent writes to the same file
+// Force test comment
 // This ensures read-modify-write operations are atomic across multiple requests
 let updateLock: Promise<any> = Promise.resolve()
 
