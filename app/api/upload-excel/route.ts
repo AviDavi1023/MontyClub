@@ -89,44 +89,79 @@ export async function POST(request: Request) {
     // Create registrations in the collection
     let successCount = 0
     let errorCount = 0
+    const errors: string[] = []
     
-    for (const regData of registrations) {
-      try {
-        const registration: ClubRegistration = {
-          id: nanoid(),
-          collectionId: collectionId,
-          email: regData.studentContactEmail || '',
-          clubName: regData.clubName || '',
-          advisorName: regData.advisorName || '',
-          statementOfPurpose: regData.statementOfPurpose || '',
-          location: regData.location || '',
-          meetingDay: regData.meetingDay || '',
-          meetingFrequency: regData.meetingFrequency || '',
-          studentContactName: regData.studentContactName || '',
-          studentContactEmail: regData.studentContactEmail || '',
-          advisorAgreementDate: new Date().toISOString(),
-          clubAgreementDate: new Date().toISOString(),
-          submittedAt: regData.submittedAt || new Date().toISOString(),
-          status: 'approved',
-          category: regData.category || '',
-          socialMedia: regData.socialMedia || '',
-          notes: regData.notes || '',
-          approvedAt: new Date().toISOString(),
+    // Helper function to write with retry logic
+    const writeWithRetry = async (path: string, data: any, retries = 3): Promise<boolean> => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          await writeJSONToStorage(path, data)
+          return true
+        } catch (err: any) {
+          const is502 = err?.originalError?.status === 502 || err?.message?.includes('502')
+          const isRateLimit = err?.originalError?.status === 429 || err?.message?.includes('429')
+          
+          if ((is502 || isRateLimit) && attempt < retries) {
+            // Wait with exponential backoff for transient errors
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+            continue
+          }
+          throw err
         }
+      }
+      return false
+    }
+    
+    // Process in batches to avoid overwhelming Supabase
+    const batchSize = 5
+    for (let i = 0; i < registrations.length; i += batchSize) {
+      const batch = registrations.slice(i, i + batchSize)
+      
+      await Promise.all(batch.map(async (regData) => {
+        try {
+          const registration: ClubRegistration = {
+            id: nanoid(),
+            collectionId: collectionId,
+            email: regData.studentContactEmail || '',
+            clubName: regData.clubName || '',
+            advisorName: regData.advisorName || '',
+            statementOfPurpose: regData.statementOfPurpose || '',
+            location: regData.location || '',
+            meetingDay: regData.meetingDay || '',
+            meetingFrequency: regData.meetingFrequency || '',
+            studentContactName: regData.studentContactName || '',
+            studentContactEmail: regData.studentContactEmail || '',
+            advisorAgreementDate: new Date().toISOString(),
+            clubAgreementDate: new Date().toISOString(),
+            submittedAt: regData.submittedAt || new Date().toISOString(),
+            status: 'approved',
+            category: regData.category || '',
+            socialMedia: regData.socialMedia || '',
+            notes: regData.notes || '',
+            approvedAt: new Date().toISOString(),
+          }
 
-        await writeJSONToStorage(`registrations/${collectionId}/${registration.id}.json`, registration)
-        successCount++
-      } catch (err) {
-        console.error('Error creating registration:', err)
-        errorCount++
+          await writeWithRetry(`registrations/${collectionId}/${registration.id}.json`, registration)
+          successCount++
+        } catch (err) {
+          console.error('Error creating registration:', err)
+          errors.push(`${regData.clubName || 'Unknown'}: ${err}`)
+          errorCount++
+        }
+      }))
+      
+      // Delay between batches to avoid rate limiting
+      if (i + batchSize < registrations.length) {
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
     }
 
     return NextResponse.json({
-      message: `Imported ${successCount} clubs into ${targetCollection.name}`,
+      message: `Imported ${successCount} clubs into ${targetCollection.name}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       successCount,
       errorCount,
-      totalProcessed: registrations.length
+      totalProcessed: registrations.length,
+      errors: errorCount > 0 ? errors.slice(0, 5) : undefined // Include first 5 errors if any
     })
   } catch (error) {
     console.error('Error importing Excel file:', error)
