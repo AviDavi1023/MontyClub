@@ -37,6 +37,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editReg, setEditReg] = useState<ClubRegistration | null>(null)
   const [editFields, setEditFields] = useState<any>({})
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<'submitted' | 'name' | 'status' | 'category'>('submitted')
     const openEditModal = (reg: ClubRegistration) => {
       setEditReg(reg)
       setEditFields({ ...reg })
@@ -305,7 +307,34 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
     return overlayed
   }).filter(reg => !localPendingRegistrationChanges[reg.id]?.deleted)
 
-  const visible = registrationsOverlayed
+  // Filter and sort registrations
+  const filtered = registrationsOverlayed.filter(reg => {
+    const search = searchTerm.toLowerCase()
+    return (
+      reg.clubName.toLowerCase().includes(search) ||
+      reg.category?.toLowerCase().includes(search) ||
+      reg.advisorName?.toLowerCase().includes(search) ||
+      reg.studentContactName?.toLowerCase().includes(search) ||
+      reg.studentContactEmail?.toLowerCase().includes(search) ||
+      reg.statementOfPurpose?.toLowerCase().includes(search)
+    )
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return a.clubName.localeCompare(b.clubName)
+      case 'category':
+        return (a.category || '').localeCompare(b.category || '')
+      case 'status':
+        return a.status.localeCompare(b.status)
+      case 'submitted':
+      default:
+        return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    }
+  })
+
+  const visible = sorted
 
   const handleApprove = async (reg: ClubRegistration) => {
     if (!confirm(`Approve "${reg.clubName}"?`)) {
@@ -626,6 +655,36 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
 
   return (
     <div className="space-y-4">
+      {/* Search and Sort Controls */}
+      <div className="flex flex-col gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Search by club name, category, advisor, student..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            />
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            <option value="submitted">Sort: Newest First</option>
+            <option value="name">Sort: Club Name (A-Z)</option>
+            <option value="category">Sort: Category (A-Z)</option>
+            <option value="status">Sort: Status</option>
+          </select>
+        </div>
+        {searchTerm && (
+          <div className="text-xs text-gray-600 dark:text-gray-400">
+            Showing {visible.length} of {registrations.length} registrations
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5 text-gray-600 dark:text-gray-400" />
