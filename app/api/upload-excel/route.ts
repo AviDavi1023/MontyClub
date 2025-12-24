@@ -107,9 +107,9 @@ export async function POST(request: Request) {
           clubAgreementDate: new Date().toISOString(),
           submittedAt: regData.submittedAt || new Date().toISOString(),
           status: 'approved',
-          category: regData.category,
-          socialMedia: regData.socialMedia,
-          notes: regData.notes,
+          category: regData.category || '',
+          socialMedia: regData.socialMedia || '',
+          notes: regData.notes || '',
           approvedAt: new Date().toISOString(),
         }
 
