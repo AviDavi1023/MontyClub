@@ -2898,17 +2898,17 @@ export function AdminPanel() {
                   return Array.from(map.values())
                 })()
                 return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
-              ) : (
-                overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
-                  <div
-                    key={collection.id}
-                    onClick={() => setActiveCollectionId(collection.id)}
-                    className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                      activeCollectionId === collection.id
-                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-primary-50/50 dark:hover:border-primary-700 dark:hover:bg-primary-900/10'
-                    }`}
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
+                ) : (
+                  <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
+                    <div
+                      key={collection.id}
+                      onClick={() => setActiveCollectionId(collection.id)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                        activeCollectionId === collection.id
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-primary-50/50 dark:hover:border-primary-700 dark:hover:bg-primary-900/10'
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -2958,7 +2958,7 @@ export function AdminPanel() {
                           )
                         })()}
                       </div>
-                      <div className="flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col gap-3 flex-shrink-0 w-48" onClick={(e) => e.stopPropagation()}>
                         <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Public Catalog</div>
                           <label className="flex items-center gap-1.5 cursor-pointer text-xs">
@@ -2992,7 +2992,6 @@ export function AdminPanel() {
                             />
                           </div>
                         </div>
-                        </div>
                         {collections.length > 1 && (
                           <button
                             onClick={(e) => {
@@ -3008,8 +3007,9 @@ export function AdminPanel() {
                         )}
                       </div>
                     </div>
-                  )
-                ))
+                  </div>
+                ))}</> 
+                )
               })()}
             </div>
 
