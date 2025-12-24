@@ -186,16 +186,14 @@ export async function GET(request: NextRequest) {
 
     // Get all registrations from storage for this collection
     const paths = await listPaths(`registrations/${collection.id}`)
-    const registrations: ClubRegistration[] = []
+    const jsonPaths = paths.filter(p => p.endsWith('.json'))
     
-    for (const path of paths) {
-      if (path.endsWith('.json')) {
-        const data = await readJSONFromStorage(path)
-        if (data && data.collectionId === collection.id) {
-          registrations.push(data)
-        }
-      }
-    }
+    // Read all registrations in parallel for performance
+    const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+    const allRegs = await Promise.all(registrationPromises)
+    const registrations: ClubRegistration[] = allRegs.filter(
+      data => data && data.collectionId === collection.id
+    )
 
     // Sort by submission date (newest first)
     registrations.sort((a, b) => 

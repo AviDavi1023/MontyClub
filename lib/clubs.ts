@@ -18,14 +18,15 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
 
   // 2. List all registration files for this collection
   const regPaths = await listPaths(`registrations/${selected.id}`)
-  const registrations: ClubRegistration[] = []
-  for (const path of regPaths) {
-    if (!path.endsWith('.json')) continue
-    const reg = await readJSONFromStorage(path)
-    if (reg && typeof reg === 'object' && reg.status === 'approved') {
-      registrations.push(reg)
-    }
-  }
+  const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+  
+  // 3. Read all registrations in parallel for performance
+  const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+  const allRegs = await Promise.all(registrationPromises)
+  
+  const registrations: ClubRegistration[] = allRegs.filter(
+    reg => reg && typeof reg === 'object' && reg.status === 'approved'
+  )
   
   if (!registrations.length) {
     console.warn('No approved registrations found in selected collection:', selected.name)
