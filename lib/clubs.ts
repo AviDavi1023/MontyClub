@@ -65,25 +65,10 @@ import * as ExcelJS from 'exceljs'
 import fs from 'fs'
 import path from 'path'
 
-// Fetch clubs from the active data source (Excel or collection)
+// Fetch clubs from the active collection
 export async function fetchClubs(): Promise<Club[]> {
   try {
-    // Read the persisted data source selection from settings (more reliable than clubDataSource.txt)
-    let dataSource: 'excel' | 'collection' = 'excel'
-    try {
-      const settings = await readData('settings', {})
-      if (settings && typeof settings === 'object' && 'clubDataSource' in settings) {
-        const val = settings.clubDataSource
-        if (val === 'collection' || val === 'excel') dataSource = val
-      }
-    } catch (e) {
-      console.warn('Failed to read clubDataSource from settings:', e)
-    }
-
-    if (dataSource === 'collection') {
-      return await fetchClubsFromCollection()
-    }
-    return await fetchClubsFromExcel()
+    return await fetchClubsFromCollection()
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return getMockClubs()
@@ -292,6 +277,49 @@ function parseExcelData(rows: any[][]): Club[] {
     announcement: row[16] ? cellToString(row[16]).trim() : '',
   keywords: row[12] ? cellToString(row[12]).split(',').map((k: string) => k.trim()).filter((k: string) => k) : [],
   })).filter(club => club.name) // Filter out empty rows
+}
+
+// Parse Excel rows into ClubRegistration objects for importing into a collection
+export function parseExcelToRegistrations(rows: any[][]): Partial<ClubRegistration>[] {
+  const cellToString = (v: any) => {
+    if (v === null || typeof v === 'undefined') return ''
+    if (typeof v === 'string') return v
+    if (typeof v === 'number') return String(v)
+    if (typeof v === 'object') {
+      if ('hyperlink' in v && v.hyperlink) return String(v.hyperlink)
+      if ('text' in v && v.text) return String(v.text)
+      if (Array.isArray((v as any).richText)) return (v as any).richText.map((r: any) => r.text || '').join('')
+      if ('result' in v && v.result) return String((v as any).result)
+      try {
+        return JSON.stringify(v)
+      } catch (e) {
+        return String(v)
+      }
+    }
+    return String(v)
+  }
+
+  return rows.map((row, index) => {
+    const clubName = cellToString(row[1])
+    if (!clubName) return null // Skip empty rows
+    
+    return {
+      clubName,
+      category: cellToString(row[2]),
+      statementOfPurpose: cellToString(row[3]),
+      advisorName: cellToString(row[4]),
+      studentContactName: cellToString(row[5]),
+      meetingDay: cellToString(row[6]),
+      location: cellToString(row[7]),
+      studentContactEmail: cellToString(row[8]),
+      socialMedia: cellToString(row[9]),
+      meetingFrequency: row[13] ? cellToString(row[13]) : '',
+      notes: cellToString(row[11]),
+      status: 'approved' as const,
+      submittedAt: new Date().toISOString(),
+      approvedAt: new Date().toISOString(),
+    }
+  }).filter(Boolean) as Partial<ClubRegistration>[]
 }
 
 export function getMockClubs(): Club[] {

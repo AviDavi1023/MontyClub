@@ -90,54 +90,6 @@ if (typeof window !== 'undefined') {
 }
 
 export function AdminPanel() {
-  // Club data source: 'excel' or 'collection'
-  const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
-  const clubDataSourceInitRef = useRef(false)
-  // Persisted selection
-  useEffect(() => {
-    const stored = localStorage.getItem('montyclub:clubDataSource')
-    if (stored === 'excel' || stored === 'collection') setClubDataSource(stored)
-  }, [])
-  useEffect(() => {
-    // Skip the very first effect run to avoid persisting default value before hydration
-    if (!clubDataSourceInitRef.current) {
-      clubDataSourceInitRef.current = true
-      return
-    }
-
-    localStorage.setItem('montyclub:clubDataSource', clubDataSource)
-    // Persist to backend for API with error handling
-    fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clubDataSource }),
-    })
-      .then(async (resp) => {
-        const data = await resp.json().catch(() => ({}))
-        if (!resp.ok) {
-          console.warn('Failed to persist clubDataSource:', data)
-          showToast('Warning: Data source may not persist across sessions', 'error')
-        } else {
-          if (data.verified) {
-            console.log('Data source persisted and verified:', clubDataSource)
-          } else if (data.ok && data.verified === false) {
-            console.warn('Data source write not verified; current on server:', data.current)
-          }
-        }
-      })
-      .catch((err) => {
-        console.error('Error persisting clubDataSource:', err)
-        showToast('Warning: Data source may not persist across sessions', 'error')
-      })
-    // Broadcast to other tabs/components that data source changed
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        const bc = new window.BroadcastChannel('clubDataSource')
-        bc.postMessage('changed')
-        bc.close()
-      } catch {}
-    }
-  }, [clubDataSource])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
@@ -175,6 +127,7 @@ export function AdminPanel() {
   const [collections, setCollections] = useState<RegistrationCollection[]>([])
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
   const [newCollectionName, setNewCollectionName] = useState('')
+  const [importingExcel, setImportingExcel] = useState(false)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
   type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; name?: string }
@@ -2680,106 +2633,8 @@ export function AdminPanel() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Quick Actions
         </h2>
-
-        {/* Club Data Source Selector */}
-        <div className="p-4 border border-primary-300 dark:border-primary-700 rounded-lg mb-4">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            Club Data Source
-          </h3>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="clubDataSource"
-                value="excel"
-                checked={clubDataSource === 'excel'}
-                onChange={() => setClubDataSource('excel')}
-                className="accent-primary-600"
-              />
-              <span className="text-sm">Excel File</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="clubDataSource"
-                value="collection"
-                checked={clubDataSource === 'collection'}
-                onChange={() => setClubDataSource('collection')}
-                className="accent-primary-600"
-              />
-              <span className="text-sm">Registration Collection</span>
-            </label>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            This controls which clubs are shown on the main site. "Excel File" uses the uploaded spreadsheet; "Registration Collection" uses the currently enabled collection below.
-          </p>
-        </div>
         
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-              Excel File
-            </h3>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Upload a new club data Excel file
-              </p>
-              <div className="flex flex-col gap-2">
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={async (e) => {
-                    if (!e.target.files?.[0]) return
-                    
-                    const file = e.target.files[0]
-                    if (!file.name.endsWith('.xlsx')) {
-                      alert('Please upload an Excel (.xlsx) file')
-                      return
-                    }
-
-                    const formData = new FormData()
-                    formData.append('file', file)
-
-                    try {
-                      setLoading(true)
-                      const response = await fetch('/api/upload-excel', {
-                        method: 'POST',
-                        body: formData,
-                      })
-
-                      if (!response.ok) {
-                        throw new Error('Upload failed')
-                      }
-
-                      await refreshData() // Refresh the club data after successful upload
-                      showToast('File uploaded successfully!')
-                    } catch (error) {
-                      console.error('Error uploading file:', error)
-                      showToast('Failed to upload file. Please try again.', 'error')
-                    } finally {
-                      setLoading(false)
-                      // Clear the input
-                      e.target.value = ''
-                    }
-                  }}
-                  className="block w-full text-sm text-gray-500 dark:text-gray-400
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-lg file:border-0
-                    file:text-sm file:font-medium
-                    file:bg-primary-50 file:text-primary-700
-                    dark:file:bg-primary-900/20 dark:file:text-primary-300
-                    hover:file:bg-primary-100 dark:hover:file:bg-primary-900/30
-                    file:cursor-pointer
-                  "
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Drag and drop or click to select a file
-                </p>
-              </div>
-            </div>
-          </div>
-
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -2861,6 +2716,71 @@ export function AdminPanel() {
                 </button>
               </div>
             </div>
+
+            {/* Import from Excel */}
+            {activeCollectionId && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Import from Excel
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  Upload an Excel file to import clubs into the selected collection
+                </p>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  disabled={importingExcel}
+                  onChange={async (e) => {
+                    if (!e.target.files?.[0] || !activeCollectionId) return
+                    
+                    const file = e.target.files[0]
+                    if (!file.name.endsWith('.xlsx')) {
+                      showToast('Please upload an Excel (.xlsx) file', 'error')
+                      return
+                    }
+
+                    const formData = new FormData()
+                    formData.append('file', file)
+                    formData.append('collectionId', activeCollectionId)
+
+                    try {
+                      setImportingExcel(true)
+                      const response = await fetch('/api/upload-excel', {
+                        method: 'POST',
+                        body: formData,
+                      })
+
+                      if (!response.ok) {
+                        const error = await response.json()
+                        throw new Error(error.error || 'Upload failed')
+                      }
+
+                      const result = await response.json()
+                      showToast(result.message || 'Import successful!', 'success')
+                      
+                      // Clear the input
+                      e.target.value = ''
+                      
+                      // Broadcast club data change
+                      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                        try {
+                          const bc = new window.BroadcastChannel('clubData')
+                          bc.postMessage('changed')
+                          bc.close()
+                        } catch {}
+                      }
+                    } catch (error) {
+                      console.error('Excel import error:', error)
+                      showToast(String(error), 'error')
+                    } finally {
+                      setImportingExcel(false)
+                    }
+                  }}
+                  className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            )}
 
             {/* Collections List */}
             <div className="space-y-2 mb-4">

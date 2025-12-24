@@ -20,33 +20,6 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    if (body.clubDataSource === 'excel' || body.clubDataSource === 'collection') {
-      // Store clubDataSource in settings object for reliable persistence
-      const current = await readData('settings', { announcementsEnabled: true })
-      const updated = { ...current, clubDataSource: body.clubDataSource }
-      const writeResult = await writeData('settings', updated)
-      console.log('[POST /api/settings] Updated clubDataSource to:', body.clubDataSource, 'Result:', writeResult)
-      
-      // Verify the write was successful by reading back
-      const verification = await readData('settings', {})
-      if (verification.clubDataSource !== body.clubDataSource) {
-        console.warn('[POST /api/settings] Verification failed! Written:', body.clubDataSource, 'Read back:', verification.clubDataSource)
-        // Non-fatal: report unverified but include current server value so clients can decide
-        return NextResponse.json({ ok: true, verified: false, current: verification.clubDataSource })
-      }
-      
-      return NextResponse.json({ ok: true, verified: true })
-    }
-    return NextResponse.json({ error: 'Invalid clubDataSource' }, { status: 400 })
-  } catch (err) {
-    console.error('Error persisting clubDataSource:', err)
-    return NextResponse.json({ error: 'Failed to persist clubDataSource', detail: String(err) }, { status: 500 })
-  }
-}
-
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
