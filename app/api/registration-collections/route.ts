@@ -91,28 +91,32 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
     const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)
     if (!ok) return false
 
-    // Read-back verification to mitigate cross-instance races
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const after = await readJSONFromStorage(COLLECTIONS_PATH)
-      const equal = (() => {
-        try {
-          return JSON.stringify(after) === JSON.stringify(collections)
-        } catch {
-          return false
-        }
-      })()
+    // Normalize helper to compare regardless of key ordering
+    const normalize = (arr: RegistrationCollection[] | any): RegistrationCollection[] => {
+      if (!Array.isArray(arr)) return []
+      const out = arr.map((c: any) => ({
+        id: String(c.id || ''),
+        name: String(c.name || ''),
+        enabled: Boolean(c.enabled),
+        createdAt: String(c.createdAt || ''),
+      }))
+      out.sort((a, b) => a.id.localeCompare(b.id))
+      return out
+    }
+
+    const target = normalize(collections)
+    // Read-back verification with cache-busting, a couple of attempts
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // small backoff on subsequent attempts to allow storage propagation
+      if (attempt > 0) await new Promise(r => setTimeout(r, 100 * attempt))
+      const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
+      const current = normalize(after)
+      const equal = JSON.stringify(current) === JSON.stringify(target)
       if (equal) return true
-      // If mismatch, try writing again once
-      const retryOk = await writeJSONToStorage(COLLECTIONS_PATH, collections)
-      if (!retryOk) break
+      // Attempt a single re-write if mismatch, then re-verify in next loop
+      await writeJSONToStorage(COLLECTIONS_PATH, collections)
     }
-    // Final read-back check
-    const final = await readJSONFromStorage(COLLECTIONS_PATH)
-    try {
-      return JSON.stringify(final) === JSON.stringify(collections)
-    } catch {
-      return false
-    }
+    return false
   } catch {
     return false
   }
