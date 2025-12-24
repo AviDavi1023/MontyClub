@@ -33,7 +33,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
   const [denyReason, setDenyReason] = useState('')
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table')
   const [showEditModal, setShowEditModal] = useState(false)
   const [editReg, setEditReg] = useState<ClubRegistration | null>(null)
   const [editFields, setEditFields] = useState<any>({})
@@ -818,6 +818,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Submitted</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Club Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advisor</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advisor Email</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Contact</th>
@@ -825,6 +826,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Meeting Day</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Frequency</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Social Media</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Purpose</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -845,6 +850,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{new Date(reg.submittedAt).toLocaleString()}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.clubName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.category || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.advisorName}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.email}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.studentContactName}</td>
@@ -852,6 +858,22 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.meetingDay}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.meetingFrequency}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.location}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.socialMedia || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.statementOfPurpose}>{reg.statementOfPurpose || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.notes}>{reg.notes || '—'}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <div className="flex gap-1">
+                          <button onClick={() => openEditModal(reg)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">Edit</button>
+                          <span className="text-gray-300">•</span>
+                          <button onClick={() => {setCurrentReg(reg); setShowDenyModal(true);}} className="text-red-600 dark:text-red-400 hover:underline text-xs">Deny</button>
+                          {reg.status === 'pending' && (
+                            <>
+                              <span className="text-gray-300">•</span>
+                              <button onClick={() => handleApprove(reg)} className="text-green-600 dark:text-green-400 hover:underline text-xs">Approve</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

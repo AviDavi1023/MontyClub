@@ -2836,7 +2836,7 @@ export function AdminPanel() {
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Manage multiple registration form collections (e.g., different years). <strong>Display</strong> (one only) controls which collection shows publicly. <strong>Accepting</strong> (multiple allowed) controls which forms accept submissions.
+              Manage multiple registration form collections (e.g., different years). <strong>Public Catalog</strong> (one only) selects which collection appears in the club directory. <strong>Registration Form</strong> (multiple allowed) controls which collections accept submissions.
             </p>
             
             {/* Create New Collection */}
@@ -2921,7 +2921,7 @@ export function AdminPanel() {
                               <>
                                 {isDisplay && (
                                   <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                    Public
+                                    Displayed
                                   </span>
                                 )}
                                 {isAccepting && (
@@ -2958,9 +2958,10 @@ export function AdminPanel() {
                           )
                         })()}
                       </div>
-                      <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2 text-xs">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
+                      <div className="flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Public Catalog</div>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                             <input
                               type="radio"
                               name="displayCollection"
@@ -2973,20 +2974,24 @@ export function AdminPanel() {
                               disabled={togglingCollection === collection.id}
                               className="w-3.5 h-3.5"
                             />
-                            <span className="text-gray-700 dark:text-gray-300">Display</span>
+                            <span className="text-gray-700 dark:text-gray-300">Display?</span>
                           </label>
                         </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-gray-700 dark:text-gray-300">Accepting</span>
-                          <Toggle
-                            checked={(() => {
-                              const pending = localPendingCollectionChanges[collection.id]?.accepting
-                              if (pending !== undefined) return pending
-                              return collection.accepting ?? collection.enabled ?? false
-                            })()}
-                            onChange={() => toggleCollectionAccepting(collection.id)}
-                            disabled={togglingCollection === collection.id}
-                          />
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Registration Form</div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-gray-700 dark:text-gray-300">Enable</span>
+                            <Toggle
+                              checked={(() => {
+                                const pending = localPendingCollectionChanges[collection.id]?.accepting
+                                if (pending !== undefined) return pending
+                                return collection.accepting ?? collection.enabled ?? false
+                              })()}
+                              onChange={() => toggleCollectionAccepting(collection.id)}
+                              disabled={togglingCollection === collection.id}
+                            />
+                          </div>
+                        </div>
                         </div>
                         {collections.length > 1 && (
                           <button
@@ -2994,17 +2999,17 @@ export function AdminPanel() {
                               e.stopPropagation()
                               deleteCollection(collection.id)
                             }}
-                            className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                            className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium"
                             title="Delete collection"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 inline mr-1" />
+                            Delete Collection
                           </button>
                         )}
                       </div>
                     </div>
-                  </div>
+                  )
                 ))
-              )
               })()}
             </div>
 
