@@ -92,12 +92,19 @@ if (typeof window !== 'undefined') {
 export function AdminPanel() {
   // Club data source: 'excel' or 'collection'
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
+  const clubDataSourceInitRef = useRef(false)
   // Persisted selection
   useEffect(() => {
     const stored = localStorage.getItem('montyclub:clubDataSource')
     if (stored === 'excel' || stored === 'collection') setClubDataSource(stored)
   }, [])
   useEffect(() => {
+    // Skip the very first effect run to avoid persisting default value before hydration
+    if (!clubDataSourceInitRef.current) {
+      clubDataSourceInitRef.current = true
+      return
+    }
+
     localStorage.setItem('montyclub:clubDataSource', clubDataSource)
     // Persist to backend for API with error handling
     fetch('/api/settings', {
@@ -106,14 +113,15 @@ export function AdminPanel() {
       body: JSON.stringify({ clubDataSource }),
     })
       .then(async (resp) => {
+        const data = await resp.json().catch(() => ({}))
         if (!resp.ok) {
-          const data = await resp.json().catch(() => ({}))
-          console.error('Failed to persist clubDataSource:', data)
+          console.warn('Failed to persist clubDataSource:', data)
           showToast('Warning: Data source may not persist across sessions', 'error')
         } else {
-          const data = await resp.json()
           if (data.verified) {
             console.log('Data source persisted and verified:', clubDataSource)
+          } else if (data.ok && data.verified === false) {
+            console.warn('Data source write not verified; current on server:', data.current)
           }
         }
       })

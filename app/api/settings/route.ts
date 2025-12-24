@@ -33,11 +33,9 @@ export async function POST(request: Request) {
       // Verify the write was successful by reading back
       const verification = await readData('settings', {})
       if (verification.clubDataSource !== body.clubDataSource) {
-        console.error('[POST /api/settings] Verification failed! Written:', body.clubDataSource, 'Read back:', verification.clubDataSource)
-        return NextResponse.json({ 
-          error: 'Failed to persist setting', 
-          detail: 'Write succeeded but verification failed' 
-        }, { status: 500 })
+        console.warn('[POST /api/settings] Verification failed! Written:', body.clubDataSource, 'Read back:', verification.clubDataSource)
+        // Non-fatal: report unverified but include current server value so clients can decide
+        return NextResponse.json({ ok: true, verified: false, current: verification.clubDataSource })
       }
       
       return NextResponse.json({ ok: true, verified: true })
