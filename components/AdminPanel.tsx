@@ -168,6 +168,8 @@ export function AdminPanel() {
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [clearingAnalytics, setClearingAnalytics] = useState(false)
   const [adminApiKey, setAdminApiKey] = useState('')
+  const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false)
+  const [apiKeyPromptInput, setApiKeyPromptInput] = useState('')
   const [showRegistrations, setShowRegistrations] = useState(false)
   const registrationsRef = useRef<HTMLDivElement | null>(null)
   const [collections, setCollections] = useState<RegistrationCollection[]>([])
@@ -903,6 +905,22 @@ export function AdminPanel() {
     showToast('Admin API key saved')
   }
 
+  const saveApiKeyFromPrompt = () => {
+    const k = apiKeyPromptInput.trim()
+    if (k) {
+      setAdminApiKey(k)
+      try { localStorage.setItem('analytics:adminKey', k) } catch {}
+      showToast('Admin API key saved')
+    }
+    setShowApiKeyPrompt(false)
+    setApiKeyPromptInput('')
+  }
+
+  const skipApiKeyPrompt = () => {
+    setShowApiKeyPrompt(false)
+    setApiKeyPromptInput('')
+  }
+
   const fetchAnalyticsSummary = async () => {
     if (!adminApiKey) {
       showToast('Set admin API key first', 'error')
@@ -1041,6 +1059,11 @@ export function AdminPanel() {
         setCurrentUser(data.user.username)
         setError('')
         setPassword('')
+        // Check if admin API key is already set
+        const savedKey = localStorage.getItem('analytics:adminKey')
+        if (!savedKey || savedKey.trim() === '') {
+          setShowApiKeyPrompt(true)
+        }
       } else {
         setError('Invalid credentials')
       }
@@ -2397,13 +2420,65 @@ export function AdminPanel() {
 
   if (!isAuthenticated) {
     return (
-      <div className="card max-w-md mx-auto">
-        <div className="text-center mb-6">
-          <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Admin Login
-          </h2>
-        </div>
+      <>
+        {showApiKeyPrompt && (
+          <>
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={skipApiKeyPrompt} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-3">
+                    <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Set Admin API Key
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    To manage analytics, registrations, and other admin features, please enter your admin API key.
+                  </p>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Admin API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKeyPromptInput}
+                    onChange={(e) => setApiKeyPromptInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveApiKeyFromPrompt()}
+                    className="input-field"
+                    placeholder="Enter your ADMIN_API_KEY"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={skipApiKeyPrompt}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    Skip for Now
+                  </button>
+                  <button
+                    onClick={saveApiKeyFromPrompt}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    Save Key
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+                  You can always set this later in the admin panel.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+        <div className="card max-w-md mx-auto">
+          <div className="text-center mb-6">
+            <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Admin Login
+            </h2>
+          </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -2459,6 +2534,7 @@ export function AdminPanel() {
           </div>
         )}
       </div>
+      </>
     )
   }
 
