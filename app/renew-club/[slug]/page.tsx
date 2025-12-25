@@ -1,11 +1,19 @@
 'use client'
 
 import { useState, useEffect, FormEvent } from 'react'
-import { Search, CheckCircle2, RefreshCw, Send, Moon, Sun } from 'lucide-react'
-import { ClubRegistration } from '@/types/club'
+import { Search, CheckCircle2, RefreshCw, Send } from 'lucide-react'
+import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import BackButton from '@/components/BackButton'
 
-export default function RenewClubPage() {
+interface RenewClubPageProps {
+  params: {
+    slug: string
+  }
+}
+
+export default function RenewClubPage({ params }: RenewClubPageProps) {
+  const { slug } = params
+  const [collection, setCollection] = useState<RegistrationCollection | null>(null)
   const [clubs, setClubs] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -13,7 +21,7 @@ export default function RenewClubPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [visibleClubsCount, setVisibleClubsCount] = useState(20) // Start with 20, load more on scroll
 
   // Form fields - Required updates
   const [advisorName, setAdvisorName] = useState('')
@@ -30,57 +38,45 @@ export default function RenewClubPage() {
   const [clubName, setClubName] = useState('')
   const [category, setCategory] = useState('')
   const [meetingFrequency, setMeetingFrequency] = useState('')
-  const [clubEmail, setClubEmail] = useState('')
   const [socialMedia, setSocialMedia] = useState('')
   const [statementOfPurpose, setStatementOfPurpose] = useState('')
 
-  // Target collection
-  const [targetCollectionId, setTargetCollectionId] = useState('')
-  const [acceptingCollections, setAcceptingCollections] = useState<any[]>([])
-
   useEffect(() => {
-    // Check if dark mode is enabled
-    if (typeof window !== 'undefined') {
-      setIsDarkMode(document.documentElement.classList.contains('dark'))
-    }
+    loadCollectionAndClubs()
+  }, [slug])
 
-    loadRenewalClubs()
-    loadAcceptingCollections()
-  }, [])
-
-  const loadRenewalClubs = async () => {
+  const loadCollectionAndClubs = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/renewal-clubs')
-      if (response.ok) {
-        const data = await response.json()
+      
+      // Fetch the collection to verify it exists and renewal is enabled
+      const collectionsRes = await fetch('/api/registration-collections')
+      if (collectionsRes.ok) {
+        const data = await collectionsRes.json()
+        const targetCollection = data.collections?.find((c: any) => c.id === slug)
+        
+        if (!targetCollection) {
+          setError('Collection not found')
+          setLoading(false)
+          return
+        }
+        
+        setCollection(targetCollection)
+      }
+
+      // Fetch clubs for renewal
+      const clubsRes = await fetch('/api/renewal-clubs')
+      if (clubsRes.ok) {
+        const data = await clubsRes.json()
         setClubs(data.clubs || [])
       } else {
-        setError('Unable to load renewal clubs. Renewals may not be enabled.')
+        setError('Unable to load clubs. Renewals may not be enabled for this collection.')
       }
     } catch (err) {
-      console.error('Failed to load renewal clubs:', err)
-      setError('Failed to load renewal clubs')
+      console.error('Failed to load:', err)
+      setError('Failed to load renewal information')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadAcceptingCollections = async () => {
-    try {
-      const response = await fetch('/api/registration-collections')
-      if (response.ok) {
-        const data = await response.json()
-        const accepting = (data.collections || []).filter((c: any) => 
-          c.accepting || c.enabled
-        )
-        setAcceptingCollections(accepting)
-        if (accepting.length > 0) {
-          setTargetCollectionId(accepting[0].id)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load accepting collections:', err)
     }
   }
 
@@ -90,7 +86,6 @@ export default function RenewClubPage() {
     setClubName(club.clubName)
     setCategory(club.category || '')
     setMeetingFrequency(club.meetingFrequency || '')
-    setClubEmail('')
     setSocialMedia(club.socialMedia || '')
     setStatementOfPurpose(club.statementOfPurpose || '')
     
@@ -117,8 +112,8 @@ export default function RenewClubPage() {
       return
     }
 
-    if (!targetCollectionId) {
-      setError('No accepting collections available')
+    if (!slug) {
+      setError('No collection specified')
       return
     }
 
@@ -138,7 +133,7 @@ export default function RenewClubPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          collectionId: targetCollectionId,
+          collectionId: slug,
           originalClubId: selectedClub.id,
           clubName,
           category,
@@ -147,7 +142,6 @@ export default function RenewClubPage() {
           advisorEmail,
           studentContactName,
           studentContactEmail,
-          clubEmail,
           socialMedia,
           statementOfPurpose,
           agreements: {
@@ -177,6 +171,13 @@ export default function RenewClubPage() {
     club.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     club.advisorName?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const visibleClubs = filteredClubs.slice(0, visibleClubsCount)
+  const hasMoreClubs = visibleClubsCount < filteredClubs.length
+
+  const loadMore = () => {
+    setVisibleClubsCount(prev => Math.min(prev + 20, filteredClubs.length))
+  }
 
   if (submitted) {
     return (
@@ -212,7 +213,7 @@ export default function RenewClubPage() {
             Renew Your Club Charter
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Search for your club below to renew its charter for the upcoming period
+            {collection ? `Renewing for: ${collection.name}` : 'Search for your club below to renew its charter'}
           </p>
         </div>
 
@@ -245,28 +246,42 @@ export default function RenewClubPage() {
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
               </div>
+            ) : clubs.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                No clubs available for renewal in this collection
+              </p>
             ) : filteredClubs.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                {searchTerm ? 'No clubs match your search' : 'No clubs available for renewal'}
+                No clubs match your search
               </p>
             ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {filteredClubs.map((club) => (
+              <>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {visibleClubs.map((club) => (
+                    <button
+                      key={club.id}
+                      onClick={() => selectClub(club)}
+                      className="w-full text-left p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                    >
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {club.clubName}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {club.category && <span className="mr-4">Category: {club.category}</span>}
+                        {club.advisorName && <span>Advisor: {club.advisorName}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {hasMoreClubs && (
                   <button
-                    key={club.id}
-                    onClick={() => selectClub(club)}
-                    className="w-full text-left p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                    onClick={loadMore}
+                    className="w-full mt-4 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                   >
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {club.clubName}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {club.category && <span className="mr-4">Category: {club.category}</span>}
-                      {club.advisorName && <span>Advisor: {club.advisorName}</span>}
-                    </div>
+                    Load More ({visibleClubsCount} of {filteredClubs.length})
                   </button>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         ) : (
@@ -292,25 +307,6 @@ export default function RenewClubPage() {
                 Change Club
               </button>
             </div>
-
-            {/* Target Collection */}
-            {acceptingCollections.length > 1 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Renew for Collection
-                </label>
-                <select
-                  value={targetCollectionId}
-                  onChange={(e) => setTargetCollectionId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                >
-                  {acceptingCollections.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* Required: Updated Contact Information */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 space-y-4">
@@ -418,18 +414,6 @@ export default function RenewClubPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Club Email
-                  </label>
-                  <input
-                    type="email"
-                    value={clubEmail}
-                    onChange={(e) => setClubEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Social Media

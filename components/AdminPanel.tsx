@@ -7,7 +7,6 @@ import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
-import { RenewalSettings } from '@/components/RenewalSettings'
 import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
@@ -2863,19 +2862,34 @@ export function AdminPanel() {
                         {(() => {
                           const isAccepting = collection.accepting ?? collection.enabled ?? false
                           return isAccepting && (
-                            <div className="mt-2 flex items-center gap-2">
-                              <span className="text-xs text-gray-600 dark:text-gray-400">Form link:</span>
-                              <a
-                                href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                /register-club?collection={slugifyName(collection.name)}
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </div>
+                            <>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Registration form:</span>
+                                <a
+                                  href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  /register-club?collection={slugifyName(collection.name)}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Renewal form:</span>
+                                <a
+                                  href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${collection.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  /renew-club/{collection.id}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
+                            </>
                           )
                         })()}
                       </div>
@@ -2953,15 +2967,6 @@ export function AdminPanel() {
                   return ` (${overlayedName})`
                 })()}
               </button>
-          </div>
-
-          {/* Club Renewal Settings */}
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Renewal Settings</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Allow clubs to renew their charters by selecting from previous year collections. Renewal form pre-fills existing data and only requires updated contact information.
-            </p>
-            <RenewalSettings adminApiKey={adminApiKey} collections={collections} />
           </div>
 
           {/* Pilot Analytics */}
