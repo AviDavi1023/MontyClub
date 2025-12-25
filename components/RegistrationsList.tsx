@@ -8,6 +8,7 @@ interface RegistrationsListProps {
   adminApiKey: string
   collectionSlug: string
   collectionName: string
+  collections: Array<{ id: string; name: string }>
 }
 
 const CATEGORY_OPTIONS = [
@@ -24,7 +25,7 @@ const CATEGORY_OPTIONS = [
   'Other',
 ]
 
-export function RegistrationsList({ adminApiKey, collectionSlug, collectionName }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collections }: RegistrationsListProps) {
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,6 +40,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
   const [editFields, setEditFields] = useState<any>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'submitted' | 'name' | 'status' | 'category'>('submitted')
+  const [renewalSettings, setRenewalSettings] = useState<{ enabled: boolean; sourceCollections: string[] }>({ enabled: false, sourceCollections: [] })
+  const [loadingRenewalSettings, setLoadingRenewalSettings] = useState(true)
+  const [savingRenewalSettings, setSavingRenewalSettings] = useState(false)
     const openEditModal = (reg: ClubRegistration) => {
       setEditReg(reg)
       setEditFields({ ...reg })
@@ -129,6 +133,56 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
       loadRegistrations()
     }
   }, [adminApiKey, collectionSlug, pendingCollectionsBySlug])
+
+  // Load renewal settings
+  useEffect(() => {
+    const loadRenewalSettings = async () => {
+      setLoadingRenewalSettings(true)
+      try {
+        const response = await fetch('/api/renewal-settings')
+        if (response.ok) {
+          const data = await response.json()
+          setRenewalSettings(data)
+        }
+      } catch (err) {
+        console.error('Failed to load renewal settings:', err)
+      } finally {
+        setLoadingRenewalSettings(false)
+      }
+    }
+    loadRenewalSettings()
+  }, [])
+
+  const saveRenewalSettings = async (settings: { enabled: boolean; sourceCollections: string[] }) => {
+    setSavingRenewalSettings(true)
+    try {
+      const response = await fetch('/api/renewal-settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify(settings)
+      })
+      if (!response.ok) throw new Error('Failed to save')
+      const updated = await response.json()
+      setRenewalSettings(updated)
+    } catch (err) {
+      alert('Failed to save renewal settings')
+    } finally {
+      setSavingRenewalSettings(false)
+    }
+  }
+
+  const toggleRenewalSourceCollection = (collectionId: string) => {
+    const currentSources = renewalSettings.sourceCollections || []
+    const newSources = currentSources.includes(collectionId)
+      ? currentSources.filter(id => id !== collectionId)
+      : [...currentSources, collectionId]
+    const newSettings = { ...renewalSettings, sourceCollections: newSources }
+    setRenewalSettings(newSettings)
+    saveRenewalSettings(newSettings)
+  }
 
   // Load pending registration changes from localStorage on mount
   useEffect(() => {
@@ -681,6 +735,38 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName 
         {searchTerm && (
           <div className="text-xs text-gray-600 dark:text-gray-400">
             Showing {visible.length} of {registrations.length} registrations
+          </div>
+        )}
+      </div>
+
+      {/* Renewal Settings Section */}
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Club Charter Renewal Settings</h4>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+          Configure which collection(s) clubs can renew from. Users with the renewal link for this collection can select clubs from the checked collections below.
+        </p>
+        {loadingRenewalSettings ? (
+          <div className="text-xs text-gray-500 dark:text-gray-400">Loading settings...</div>
+        ) : (
+          <div className="space-y-2">
+            {collections.map(collection => {
+              const isSource = (renewalSettings.sourceCollections || []).includes(collection.id)
+              return (
+                <label key={collection.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isSource}
+                    onChange={() => toggleRenewalSourceCollection(collection.id)}
+                    disabled={savingRenewalSettings}
+                    className="rounded border-gray-300 dark:border-gray-600"
+                  />
+                  <span className="text-gray-700 dark:text-gray-300">{collection.name}</span>
+                </label>
+              )
+            })}
+            {savingRenewalSettings && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">Saving...</div>
+            )}
           </div>
         )}
       </div>

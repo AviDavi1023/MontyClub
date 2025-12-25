@@ -8,17 +8,33 @@ export const revalidate = 0
 
 export async function GET(request: Request) {
   try {
-    // Fetch approved clubs from ALL collections (admin controls access via link sharing)
+    // Load renewal settings to determine which collections to fetch from
+    const renewalSettings = await readData('renewal-settings', { 
+      enabled: false, 
+      sourceCollections: [] as string[] 
+    })
+    
+    const sourceCollections = renewalSettings.sourceCollections || []
+    
+    // Fetch approved clubs from configured source collections
     const allClubs: ClubRegistration[] = []
     const MAX_CLUBS = 500 // Limit to prevent excessive loading
     
     try {
-      // List all collection directories
-      const baseCollectionPaths = await listPaths(`club-registrations/`)
-      const collectionIds = [...new Set(baseCollectionPaths
-        .map(p => p.split('/')[1])
-        .filter(id => id && id !== 'club-registrations')
-      )]
+      // If no source collections configured, fetch from ALL collections (backward compatibility)
+      let collectionIds: string[] = []
+      
+      if (sourceCollections.length === 0) {
+        // List all collection directories
+        const baseCollectionPaths = await listPaths(`club-registrations/`)
+        collectionIds = [...new Set(baseCollectionPaths
+          .map(p => p.split('/')[1])
+          .filter(id => id && id !== 'club-registrations')
+        )]
+      } else {
+        // Use configured source collections
+        collectionIds = sourceCollections
+      }
 
       // Fetch clubs from each collection
       for (const collectionId of collectionIds) {
