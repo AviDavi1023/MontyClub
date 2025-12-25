@@ -55,39 +55,66 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       setLoading(true)
       setError('')
       
-      // Fetch the collection to verify renewal is enabled
-      const collectionsRes = await fetch('/api/registration-collections')
-      if (collectionsRes.ok) {
-        const data = await collectionsRes.json()
-        const targetCollection = data.collections?.find((c: any) => c.id === collectionSlug)
-        
-        if (!targetCollection) {
-          setError('Collection not found')
-          return
-        }
-        
-        // Check if renewal is enabled for this collection
-        if (!targetCollection.renewalEnabled) {
-          setError('Club renewal is not available for this collection')
-          return
-        }
-        
-        setCollection(targetCollection)
+      console.log('[Renewal Form] Starting load for collection:', collectionSlug)
+      
+      // Fetch the collection to verify renewal is enabled (using public endpoint)
+      console.log('[Renewal Form] Fetching collections from /api/collections-public')
+      const collectionsRes = await fetch('/api/collections-public')
+      
+      if (!collectionsRes.ok) {
+        console.error('[Renewal Form] Collections fetch failed:', collectionsRes.status)
+        setError('Unable to verify collection')
+        return
       }
       
+      const collectionsData = await collectionsRes.json()
+      console.log('[Renewal Form] Received collections:', collectionsData.collections?.length)
+      
+      const targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionSlug)
+      
+      if (!targetCollection) {
+        console.error('[Renewal Form] Target collection not found. Looking for:', collectionSlug)
+        console.error('[Renewal Form] Available collections:', collectionsData.collections?.map((c: any) => c.id))
+        setError('Collection not found')
+        return
+      }
+      
+      console.log('[Renewal Form] Found collection:', targetCollection.name, 'renewalEnabled:', targetCollection.renewalEnabled)
+      
+      // Check if renewal is enabled for this collection
+      if (!targetCollection.renewalEnabled) {
+        console.warn('[Renewal Form] Renewal not enabled for collection:', collectionSlug)
+        setError('Club renewal is not available for this collection')
+        return
+      }
+      
+      setCollection(targetCollection)
+      
       // Fetch clubs for renewal, excluding the target collection
+      console.log('[Renewal Form] Fetching renewal clubs for:', collectionSlug)
       const clubsRes = await fetch(`/api/renewal-clubs?collectionId=${encodeURIComponent(collectionSlug)}`)
-      if (clubsRes.ok) {
-        const data = await clubsRes.json()
-        setClubs(data.clubs || [])
-        if ((!data.clubs || data.clubs.length === 0) && !error) {
-          setError('No clubs available for renewal')
-        }
-      } else {
+      
+      if (!clubsRes.ok) {
+        console.error('[Renewal Form] Clubs fetch failed:', clubsRes.status, clubsRes.statusText)
+        const errData = await clubsRes.text()
+        console.error('[Renewal Form] Error response:', errData)
         setError('Unable to load clubs for renewal.')
+        return
+      }
+      
+      const clubsData = await clubsRes.json()
+      console.log('[Renewal Form] Received clubs:', clubsData.clubs?.length)
+      
+      if (!clubsData.clubs || clubsData.clubs.length === 0) {
+        console.warn('[Renewal Form] No clubs available for renewal')
+        setError('No clubs available for renewal')
+        setClubs([])
+      } else {
+        console.log('[Renewal Form] Successfully loaded', clubsData.clubs.length, 'clubs')
+        setClubs(clubsData.clubs)
       }
     } catch (err) {
-      console.error('Failed to load:', err)
+      console.error('[Renewal Form] Exception during load:', err)
       setError('Failed to load renewal information')
     } finally {
       setLoading(false)
