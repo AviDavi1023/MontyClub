@@ -8,6 +8,9 @@ export const revalidate = 0
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const collectionId = searchParams.get('collectionId')
+    
     // Load renewal settings to determine which collections to fetch from
     const renewalSettings = await readData('renewal-settings', { 
       enabled: false, 
@@ -29,11 +32,11 @@ export async function GET(request: Request) {
         const baseCollectionPaths = await listPaths(`club-registrations/`)
         collectionIds = [...new Set(baseCollectionPaths
           .map(p => p.split('/')[1])
-          .filter(id => id && id !== 'club-registrations')
+          .filter(id => id && id !== 'club-registrations' && id !== collectionId) // Exclude target collection
         )]
       } else {
-        // Use configured source collections
-        collectionIds = sourceCollections
+        // Use configured source collections (excluding target collection)
+        collectionIds = sourceCollections.filter((id: string) => id !== collectionId)
       }
 
       // Fetch clubs from each collection

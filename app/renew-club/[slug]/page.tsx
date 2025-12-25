@@ -53,14 +53,36 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const loadCollectionAndClubs = async (collectionSlug: string) => {
     try {
       setLoading(true)
+      setError('')
       
-      // Skip collection verification to avoid 401 - we'll verify on submission
+      // Fetch the collection to verify renewal is enabled
+      const collectionsRes = await fetch('/api/registration-collections')
+      if (collectionsRes.ok) {
+        const data = await collectionsRes.json()
+        const targetCollection = data.collections?.find((c: any) => c.id === collectionSlug)
+        
+        if (!targetCollection) {
+          setError('Collection not found')
+          return
+        }
+        
+        // Check if renewal is enabled for this collection
+        if (!targetCollection.renewalEnabled) {
+          setError('Club renewal is not available for this collection')
+          return
+        }
+        
+        setCollection(targetCollection)
+      }
       
-      // Fetch clubs for renewal
-      const clubsRes = await fetch('/api/renewal-clubs')
+      // Fetch clubs for renewal, excluding the target collection
+      const clubsRes = await fetch(`/api/renewal-clubs?collectionId=${encodeURIComponent(collectionSlug)}`)
       if (clubsRes.ok) {
         const data = await clubsRes.json()
         setClubs(data.clubs || [])
+        if ((!data.clubs || data.clubs.length === 0) && !error) {
+          setError('No clubs available for renewal')
+        }
       } else {
         setError('Unable to load clubs for renewal.')
       }

@@ -53,6 +53,11 @@ export async function POST(request: Request) {
     if (!targetCollection) {
       return NextResponse.json({ error: 'Invalid collection ID' }, { status: 400 })
     }
+    
+    // Verify renewal is enabled for this collection
+    if (!targetCollection.renewalEnabled) {
+      return NextResponse.json({ error: 'Club renewal is not enabled for this collection' }, { status: 403 })
+    }
 
     // Create new registration with renewal status
     const registration: ClubRegistration = {
