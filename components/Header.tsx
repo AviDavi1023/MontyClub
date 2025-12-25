@@ -22,6 +22,13 @@ export function Header() {
           
           <nav className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
             <Link 
+              href="/renew-club" 
+              className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap"
+            >
+              <span className="hidden sm:inline">Renew Club</span>
+              <span className="sm:hidden">Renew</span>
+            </Link>
+            <Link 
               href="/submit-update" 
               className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap"
             >

@@ -7,6 +7,7 @@ import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
+import { RenewalSettings } from '@/components/RenewalSettings'
 import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
@@ -2952,6 +2953,15 @@ export function AdminPanel() {
                   return ` (${overlayedName})`
                 })()}
               </button>
+          </div>
+
+          {/* Club Renewal Settings */}
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Renewal Settings</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Allow clubs to renew their charters by selecting from previous year collections. Renewal form pre-fills existing data and only requires updated contact information.
+            </p>
+            <RenewalSettings adminApiKey={adminApiKey} collections={collections} />
           </div>
 
           {/* Pilot Analytics */}
