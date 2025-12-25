@@ -99,7 +99,10 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   try {
     // Write with retry
     const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)
-    if (!ok) return false
+    if (!ok) {
+      console.error('[saveCollections] Write failed after retries')
+      return false
+    }
 
     // Normalize helper to compare regardless of key ordering
     const normalize = (arr: RegistrationCollection[] | any): RegistrationCollection[] => {
@@ -122,12 +125,18 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
       const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
       const current = normalize(after)
       const equal = JSON.stringify(current) === JSON.stringify(target)
-      if (equal) return true
+      if (equal) {
+        log({ tag: 'collections-persistence', step: 'verified', attempt })
+        return true
+      }
       // Attempt a single re-write if mismatch, then re-verify in next loop
+      log({ tag: 'collections-persistence', step: 'mismatch-rewrite', attempt })
       await writeJSONToStorage(COLLECTIONS_PATH, collections)
     }
+    console.error('[saveCollections] Verification failed after retries')
     return false
-  } catch {
+  } catch (err) {
+    console.error('[saveCollections] Exception:', err)
     return false
   }
 }
@@ -301,6 +310,16 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           )
         }
+        // Check for slug collisions (different names that produce same slug)
+        const { slugifyName } = await import('@/lib/slug')
+        const newSlug = slugifyName(name.trim())
+        const existingWithSameSlug = collections.find((c, idx) => idx !== collectionIndex && slugifyName(c.name) === newSlug)
+        if (existingWithSameSlug) {
+          return NextResponse.json(
+            { error: `Collection name would create duplicate URL (conflicts with "${existingWithSameSlug.name}"). Please choose a different name.` },
+            { status: 400 }
+          )
+        }
         collections[collectionIndex].name = name.trim()
       }
 
@@ -407,17 +426,17 @@ export async function DELETE(request: NextRequest) {
 
       const collection = collections[collectionIndex]
 
-      // Delete associated registrations if requested
-      if (deleteRegistrations) {
-        try {
-          const paths = await listPaths(`registrations/${collection.id}`)
-          if (paths.length > 0) {
-            await removePaths(paths)
-          }
-        } catch (err) {
-          console.error('Error deleting registrations:', err)
-          // Continue even if deletion fails
+      // Always delete associated registrations to prevent orphaned files
+      // (don't wait for explicit deleteRegistrations flag)
+      try {
+        const paths = await listPaths(`registrations/${collection.id}`)
+        if (paths.length > 0) {
+          await removePaths(paths)
+          log({ tag: 'collections-api', step: 'deleted-registrations', count: paths.length, collectionId: collection.id })
         }
+      } catch (err) {
+        console.error('Error deleting registrations:', err)
+        // Continue even if deletion fails - collection removal is more important
       }
 
       // Remove collection from list
