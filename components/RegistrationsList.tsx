@@ -8,6 +8,7 @@ interface RegistrationsListProps {
   adminApiKey: string
   collectionSlug: string
   collectionName: string
+  collectionId: string
   collections: Array<{ id: string; name: string }>
 }
 
@@ -25,7 +26,7 @@ const CATEGORY_OPTIONS = [
   'Other',
 ]
 
-export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collections }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections }: RegistrationsListProps) {
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -749,7 +750,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           <div className="text-xs text-gray-500 dark:text-gray-400">Loading settings...</div>
         ) : (
           <div className="space-y-2">
-            {collections.map(collection => {
+            {collections.filter(c => c.id !== collectionId).map(collection => {
               const isSource = (renewalSettings.sourceCollections || []).includes(collection.id)
               return (
                 <label key={collection.id} className="flex items-center gap-2 text-sm">
@@ -764,6 +765,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 </label>
               )
             })}
+            {collections.filter(c => c.id !== collectionId).length === 0 && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 italic">No other collections available as renewal sources.</div>
+            )}
             {savingRenewalSettings && (
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">Saving...</div>
             )}

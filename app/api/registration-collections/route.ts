@@ -265,7 +265,7 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      const { id, name, enabled, accepting, display } = body
+      const { id, name, enabled, accepting, display, renewalEnabled } = body
 
       if (!id) {
         return NextResponse.json(
@@ -318,6 +318,12 @@ export async function PATCH(request: NextRequest) {
         log({ tag: 'collections-api', step: 'update-accepting', operationId, id, from: collections[collectionIndex].accepting, to: val })
         collections[collectionIndex].accepting = val
         collections[collectionIndex].enabled = val
+      }
+
+      if (renewalEnabled !== undefined) {
+        const val = Boolean(renewalEnabled)
+        log({ tag: 'collections-api', step: 'update-renewal', operationId, id, from: collections[collectionIndex].renewalEnabled, to: val })
+        collections[collectionIndex].renewalEnabled = val
       }
 
       if (display !== undefined) {

@@ -41,6 +41,8 @@ export interface RegistrationCollection {
   display?: boolean
   // accepting: this collection is open for new submissions (can be many)
   accepting?: boolean
+  // renewalEnabled: this collection's renewal form is available (admin shares link)
+  renewalEnabled?: boolean
 }
 
 export interface ClubRegistration {

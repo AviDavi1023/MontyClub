@@ -130,7 +130,7 @@ export function AdminPanel() {
   const [importingExcel, setImportingExcel] = useState(false)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; name?: string }
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string }
   const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
@@ -284,6 +284,16 @@ export function AdminPanel() {
         } else if (pending.enabled !== undefined) {
           // Debug logging removed
         }
+        // If accepting matches DB, clear accepting flag
+        if (pending.accepting !== undefined && found.accepting === pending.accepting) {
+          delete newPending[collectionId].accepting
+          hasChanges = true
+        }
+        // If renewalEnabled matches DB, clear renewalEnabled flag
+        if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
+          delete newPending[collectionId].renewalEnabled
+          hasChanges = true
+        }
         // If name matches DB, clear name flag
         if (pending.name && found.name === pending.name) {
           delete newPending[collectionId].name
@@ -291,7 +301,7 @@ export function AdminPanel() {
         }
         // If no remaining flags, remove entry
         const entry = newPending[collectionId]
-        if (entry && !entry.deleted && entry.enabled === undefined && !entry.name && !entry.created) {
+        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
           delete newPending[collectionId]
           hasChanges = true
         }
@@ -600,6 +610,70 @@ export function AdminPanel() {
         return revert
       })
       showToast('Failed to update accepting', 'error')
+    } finally {
+      setTogglingCollection(null)
+    }
+  }
+
+  const toggleCollectionRenewal = async (collectionId: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    setTogglingCollection(collectionId)
+    const effectiveCurrentRenewal = (localPendingCollectionChanges[collectionId]?.renewalEnabled !== undefined)
+      ? !!localPendingCollectionChanges[collectionId]?.renewalEnabled
+      : (collection.renewalEnabled ?? false)
+    const nextRenewal = !effectiveCurrentRenewal
+
+    setLocalPendingCollectionChanges(prev => {
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal } }
+      try {
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      return next
+    })
+
+    try {
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
+      })
+      if (!resp.ok) {
+        let errText = 'Failed to update renewal'
+        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
+        throw new Error(errText)
+      }
+      try {
+        broadcast('collections', 'update', { id: collectionId })
+        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+      } catch {}
+      showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
+      await loadCollections()
+    } catch (err) {
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.renewalEnabled
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
+      })
+      showToast('Failed to update renewal', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -2861,34 +2935,39 @@ export function AdminPanel() {
                         </p>
                         {(() => {
                           const isAccepting = collection.accepting ?? collection.enabled ?? false
-                          return isAccepting && (
+                          const isRenewalEnabled = collection.renewalEnabled ?? false
+                          return (
                             <>
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-xs text-gray-600 dark:text-gray-400">Registration form:</span>
-                                <a
-                                  href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  /register-club?collection={slugifyName(collection.name)}
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
-                              </div>
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-xs text-gray-600 dark:text-gray-400">Renewal form:</span>
-                                <a
-                                  href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${collection.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  /renew-club/{collection.id}
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
-                              </div>
+                              {isAccepting && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">Registration form:</span>
+                                  <a
+                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    /register-club?collection={slugifyName(collection.name)}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              )}
+                              {isRenewalEnabled && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">Renewal form:</span>
+                                  <a
+                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${collection.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    /renew-club/{collection.id}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              )}
                             </>
                           )
                         })()}
@@ -2923,6 +3002,21 @@ export function AdminPanel() {
                                 return collection.accepting ?? collection.enabled ?? false
                               })()}
                               onChange={() => toggleCollectionAccepting(collection.id)}
+                              disabled={togglingCollection === collection.id}
+                            />
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Renewal Form</div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-gray-700 dark:text-gray-300">Enable</span>
+                            <Toggle
+                              checked={(() => {
+                                const pending = localPendingCollectionChanges[collection.id]?.renewalEnabled
+                                if (pending !== undefined) return pending
+                                return collection.renewalEnabled ?? false
+                              })()}
+                              onChange={() => toggleCollectionRenewal(collection.id)}
                               disabled={togglingCollection === collection.id}
                             />
                           </div>
@@ -3375,17 +3469,22 @@ export function AdminPanel() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Registrations</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Share this link: <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
-                      const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                      return slugifyName(baseName)
-                    })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
-                      const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                      return slugifyName(baseName)
-                    })()}</a>
-                  </p>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">Registration:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
+                        const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                        const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                        return slugifyName(baseName)
+                      })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
+                        const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                        const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                        return slugifyName(baseName)
+                      })()}</a>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">Renewal:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${activeCollectionId}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/{activeCollectionId}</a>
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowRegistrations(false)}
@@ -3407,6 +3506,7 @@ export function AdminPanel() {
                   const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
                   return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
                 })() )}
+                collectionId={activeCollectionId || ''}
                 collections={collections}
               />
             </div>
