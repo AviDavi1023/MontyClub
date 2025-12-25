@@ -6,13 +6,13 @@ import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import BackButton from '@/components/BackButton'
 
 interface RenewClubPageProps {
-  params: {
+  params: Promise<{
     slug: string
-  }
+  }>
 }
 
 export default function RenewClubPage({ params }: RenewClubPageProps) {
-  const { slug } = params
+  const [slug, setSlug] = useState<string>('')
   const [collection, setCollection] = useState<RegistrationCollection | null>(null)
   const [clubs, setClubs] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +21,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
-  const [visibleClubsCount, setVisibleClubsCount] = useState(20) // Start with 20, load more on scroll
+  const [visibleClubsCount, setVisibleClubsCount] = useState(20)
 
   // Form fields - Required updates
   const [advisorName, setAdvisorName] = useState('')
@@ -42,18 +42,23 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [statementOfPurpose, setStatementOfPurpose] = useState('')
 
   useEffect(() => {
-    loadCollectionAndClubs()
-  }, [slug])
+    const resolveParams = async () => {
+      const { slug: paramSlug } = await params
+      setSlug(paramSlug)
+      await loadCollectionAndClubs(paramSlug)
+    }
+    resolveParams()
+  }, [params])
 
-  const loadCollectionAndClubs = async () => {
+  const loadCollectionAndClubs = async (collectionSlug: string) => {
     try {
       setLoading(true)
       
-      // Fetch the collection to verify it exists and renewal is enabled
+      // Fetch the collection to verify it exists
       const collectionsRes = await fetch('/api/registration-collections')
       if (collectionsRes.ok) {
         const data = await collectionsRes.json()
-        const targetCollection = data.collections?.find((c: any) => c.id === slug)
+        const targetCollection = data.collections?.find((c: any) => c.id === collectionSlug)
         
         if (!targetCollection) {
           setError('Collection not found')
@@ -82,20 +87,17 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
 
   const selectClub = (club: ClubRegistration) => {
     setSelectedClub(club)
-    // Pre-fill optional fields with existing data
     setClubName(club.clubName)
     setCategory(club.category || '')
     setMeetingFrequency(club.meetingFrequency || '')
     setSocialMedia(club.socialMedia || '')
     setStatementOfPurpose(club.statementOfPurpose || '')
     
-    // Clear required fields (must be updated)
     setAdvisorName('')
     setAdvisorEmail('')
     setStudentContactName('')
     setStudentContactEmail('')
     
-    // Reset agreements
     setAgreementSupervision(false)
     setAgreementCodeOfConduct(false)
     setAgreementDataAccuracy(false)
@@ -224,13 +226,11 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
         )}
 
         {!selectedClub ? (
-          /* Search and Select Club */
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Select Club to Renew
             </h2>
             
-            {/* Search */}
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
@@ -285,7 +285,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
             )}
           </div>
         ) : (
-          /* Renewal Form */
           <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
               <div>
@@ -308,7 +307,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               </button>
             </div>
 
-            {/* Required: Updated Contact Information */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 space-y-4">
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 Required: Updated Contact Information
@@ -369,7 +367,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               </div>
             </div>
 
-            {/* Optional: Club Information Updates */}
             <div className="space-y-4">
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 Club Information (Review and Update if Needed)
@@ -441,7 +438,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               </div>
             </div>
 
-            {/* Agreements */}
             <div className="space-y-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 Required Agreements *
@@ -487,7 +483,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               </label>
             </div>
 
-            {/* Submit */}
             <div className="flex gap-3">
               <button
                 type="submit"
