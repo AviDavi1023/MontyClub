@@ -29,32 +29,24 @@ export async function GET(request: Request) {
     const MAX_CLUBS = 500 // Limit to prevent excessive loading
     
     try {
-      // If no source collections configured, fetch from ALL collections (backward compatibility)
+      // Determine which collection to fetch renewal candidates from
       let collectionIds: string[] = []
       
-      if (sourceCollections.length === 0) {
-        console.log('[Renewal API] No source collections configured, fetching from ALL collections')
-        // List all collection directories
-        const baseCollectionPaths = await listPaths(`club-registrations/`)
-        console.log('[Renewal API] Raw collection paths:', baseCollectionPaths)
-        
-        collectionIds = [...new Set(baseCollectionPaths
-          .map(p => {
-            const parts = p.split('/')
-            console.log('[Renewal API] Path:', p, '-> parts:', parts, '-> id:', parts[1])
-            return parts[1]
-          })
-          .filter(id => {
-            const keep = id && id !== 'club-registrations' && id !== collectionId
-            console.log('[Renewal API] Filter check for id:', id, '-> keep:', keep)
-            return keep
-          })
-        )]
-        console.log('[Renewal API] Final collection IDs:', collectionIds)
-      } else {
-        // Use configured source collections (excluding target collection)
-        collectionIds = sourceCollections.filter((id: string) => id !== collectionId)
+      // Priority: Use the passed collectionId if it's in sourceCollections, otherwise use sourceCollections as-is
+      if (collectionId && sourceCollections.includes(collectionId)) {
+        // Fetch from the current collection (clubs to renew)
+        collectionIds = [collectionId]
+        console.log('[Renewal API] Using current collection as source:', collectionIds)
+      } else if (sourceCollections.length > 0) {
+        // Use configured source collections without filtering
+        collectionIds = sourceCollections
         console.log('[Renewal API] Using configured source collections:', collectionIds)
+      } else {
+        console.log('[Renewal API] No source collections configured, fetching from current collection')
+        // Fallback: fetch from current collection
+        if (collectionId) {
+          collectionIds = [collectionId]
+        }
       }
 
       // Fetch clubs from each collection
