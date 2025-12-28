@@ -34,12 +34,29 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify collection exists
-    const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
-    const targetCollection = collections.find(c => c.id === collectionId)
+    // Verify collection exists with retry for eventual consistency
+    // This handles the case where a collection was just created and hasn't synced to storage yet
+    let targetCollection: RegistrationCollection | undefined
+    const maxRetries = 5
+    const retryDelay = 300 // ms
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const collectionsResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/registration-collections`)
+      if (collectionsResponse.ok) {
+        const collectionsData = await collectionsResponse.json()
+        targetCollection = collectionsData.collections?.find((c: RegistrationCollection) => c.id === collectionId)
+        if (targetCollection) break
+      }
+      
+      // If not found and not last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+      }
+    }
+    
     if (!targetCollection) {
       return NextResponse.json(
-        { error: 'Collection not found' },
+        { error: 'Collection not found. If you just created this collection, please wait a moment and try again.' },
         { status: 404 }
       )
     }

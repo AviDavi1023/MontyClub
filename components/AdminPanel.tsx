@@ -2799,12 +2799,23 @@ export function AdminPanel() {
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   Upload an Excel file to import clubs into the selected collection
                 </p>
+                {activeCollectionId.startsWith('temp-col-') && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2 font-medium">
+                    ⏳ Collection is being created... Please wait a moment before importing.
+                  </p>
+                )}
                 <input
                   type="file"
                   accept=".xlsx"
-                  disabled={importingExcel}
+                  disabled={importingExcel || activeCollectionId.startsWith('temp-col-')}
                   onChange={async (e) => {
                     if (!e.target.files?.[0] || !activeCollectionId) return
+                    
+                    // Prevent import on temporary collections
+                    if (activeCollectionId.startsWith('temp-col-')) {
+                      showToast('Please wait for the collection to be created before importing', 'error')
+                      return
+                    }
                     
                     const file = e.target.files[0]
                     if (!file.name.endsWith('.xlsx')) {
