@@ -5,6 +5,8 @@ import { Send, CheckCircle } from 'lucide-react'
 import { broadcast } from '@/lib/broadcast'
 import { getUserFriendlyError } from '@/lib/error-messages'
 import { Button, Input, Textarea } from '@/components/ui'
+import { useToast } from '@/lib/use-toast'
+import { ToastContainer } from '@/components/Toast'
 
 export function SubmitUpdateForm() {
   const [formData, setFormData] = useState({
@@ -18,6 +20,7 @@ export function SubmitUpdateForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { toasts, removeToast, showSuccess } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +40,15 @@ export function SubmitUpdateForm() {
       // Broadcast new update so admin panel can force a fresh fetch
       broadcast('updates', 'create', entry)
 
-      setIsSubmitted(true)
+      showSuccess('Update submitted successfully! Thank you for your feedback.')
+      setFormData({
+        clubName: '',
+        updateType: '',
+        suggestedChange: '',
+        contactEmail: '',
+        additionalNotes: '',
+      })
+      setError(null)
     } catch (error) {
       console.error('Error submitting update:', error)
       setError(getUserFriendlyError(error))
@@ -175,6 +186,7 @@ export function SubmitUpdateForm() {
 
       {/* Removed demo note — now submits to backend API */}
     </form>
+    <ToastContainer toasts={toasts} onClose={removeToast} />
     </>
   )
 }

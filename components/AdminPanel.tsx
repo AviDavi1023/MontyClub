@@ -10,7 +10,7 @@ import { RegistrationsList } from '@/components/RegistrationsList'
 import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
-import { EmptyState, ConfirmDialog, Button } from '@/components/ui'
+import { EmptyState, ConfirmDialog, Button, Input } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 
 /**
@@ -2532,37 +2532,26 @@ export function AdminPanel() {
           </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Username
-            </label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input-field"
-              placeholder="Enter username"
-              required
-              autoComplete="username"
-            />
-          </div>
+          <Input
+            label="Username"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter username"
+            required
+            autoComplete="username"
+          />
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="Enter password"
-              required
-              autoComplete="current-password"
-            />
-          </div>
+          <Input
+            label="Password"
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password"
+            required
+            autoComplete="current-password"
+          />
 
           {error && (
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>

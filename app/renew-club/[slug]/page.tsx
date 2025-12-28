@@ -4,7 +4,9 @@ import { useState, useEffect, FormEvent } from 'react'
 import { Search, CheckCircle2, RefreshCw, Send } from 'lucide-react'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import BackButton from '@/components/BackButton'
-import { Button } from '@/components/ui'
+import { Button, Input, Textarea } from '@/components/ui'
+import { useToast } from '@/lib/use-toast'
+import { ToastContainer } from '@/components/Toast'
 
 interface RenewClubPageProps {
   params: Promise<{
@@ -23,6 +25,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [visibleClubsCount, setVisibleClubsCount] = useState(20)
+  const { toasts, removeToast, showSuccess } = useToast()
 
   // Form fields - Required updates
   const [advisorName, setAdvisorName] = useState('')
@@ -197,6 +200,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       }
 
       setSubmitted(true)
+      showSuccess(`${clubName} renewal has been submitted successfully! You'll be notified once it's reviewed.`)
     } catch (err: any) {
       console.error('Renewal submission error:', err)
       setError(err.message || 'Failed to submit renewal')
@@ -350,57 +354,35 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Advisor Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={advisorName}
-                    onChange={(e) => setAdvisorName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
+                <Input
+                  label="Advisor Name"
+                  value={advisorName}
+                  onChange={(e) => setAdvisorName(e.target.value)}
+                  required
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Advisor Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={advisorEmail}
-                    onChange={(e) => setAdvisorEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
+                <Input
+                  label="Advisor Email"
+                  type="email"
+                  value={advisorEmail}
+                  onChange={(e) => setAdvisorEmail(e.target.value)}
+                  required
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Student Contact Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={studentContactName}
-                    onChange={(e) => setStudentContactName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
+                <Input
+                  label="Student Contact Name"
+                  value={studentContactName}
+                  onChange={(e) => setStudentContactName(e.target.value)}
+                  required
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Student Contact Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={studentContactEmail}
-                    onChange={(e) => setStudentContactEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
+                <Input
+                  label="Student Contact Email"
+                  type="email"
+                  value={studentContactEmail}
+                  onChange={(e) => setStudentContactEmail(e.target.value)}
+                  required
+                />
               </div>
             </div>
 
@@ -409,70 +391,41 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                 Club Information (Review and Update if Needed)
               </h3>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Club Name
-                </label>
-                <input
-                  type="text"
-                  value={clubName}
-                  onChange={(e) => setClubName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <Input
+                label="Club Name"
+                value={clubName}
+                onChange={(e) => setClubName(e.target.value)}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
+
+                <Input
+                  label="Meeting Frequency"
+                  value={meetingFrequency}
+                  onChange={(e) => setMeetingFrequency(e.target.value)}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Category
-                  </label>
-                  <input
-                    type="text"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Meeting Frequency
-                  </label>
-                  <input
-                    type="text"
-                    value={meetingFrequency}
-                    onChange={(e) => setMeetingFrequency(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Social Media
-                  </label>
-                  <input
-                    type="text"
-                    value={socialMedia}
-                    onChange={(e) => setSocialMedia(e.target.value)}
-                    placeholder="Instagram, etc."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Statement of Purpose
-                </label>
-                <textarea
-                  value={statementOfPurpose}
-                  onChange={(e) => setStatementOfPurpose(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                <Input
+                  label="Social Media"
+                  value={socialMedia}
+                  onChange={(e) => setSocialMedia(e.target.value)}
+                  placeholder="Instagram, etc."
                 />
               </div>
+
+              <Textarea
+                label="Statement of Purpose"
+                value={statementOfPurpose}
+                onChange={(e) => setStatementOfPurpose(e.target.value)}
+                rows={4}
+              />
             </div>
 
             <div className="space-y-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
@@ -535,6 +488,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           </form>
         )}
       </div>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   )
 }

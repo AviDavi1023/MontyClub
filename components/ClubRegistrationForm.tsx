@@ -2,7 +2,11 @@
 
 import { useState, FormEvent, useEffect } from 'react'
 import { Send, CheckCircle2, XCircle, Moon, Sun } from 'lucide-react'
+import { getUserFriendlyError } from '@/lib/error-messages'
 import { RegistrationCollection } from '@/types/club'
+import { Button, Input, Textarea } from '@/components/ui'
+import { useToast } from '@/lib/use-toast'
+import { ToastContainer } from '@/components/Toast'
 
 interface ClubRegistrationFormProps {
   collectionSlug?: string
@@ -15,6 +19,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [collection, setCollection] = useState<RegistrationCollection | null>(null)
   const [loading, setLoading] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const { toasts, removeToast, showSuccess } = useToast()
 
   // Form state
   const [email, setEmail] = useState('')
@@ -139,6 +144,8 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
       }
 
       setSubmitted(true)
+      showSuccess(`${clubName} has been registered successfully! Check your email for confirmation.`)
+      
       // Reset form after success
       setTimeout(() => {
         setEmail('')
@@ -211,6 +218,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
       {/* Collection Tagging (hidden input, visible for admin context) */}
       {collectionSlug && (
@@ -265,91 +273,54 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           </div>
         )}
 
-        {/* Email */}
-        <div className="mb-6">
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            id="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Email"
+          id="email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-        {/* Club Name */}
-        <div className="mb-6">
-          <label htmlFor="clubName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Club Name Requested <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Do not use the word "Carlmont" at the beginning of your club name. Also, your club name is only a request. Final approval of club names will be determined by ASB.
-          </p>
-          <input
-            type="text"
-            id="clubName"
-            required
-            value={clubName}
-            onChange={(e) => setClubName(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Club Name Requested"
+          id="clubName"
+          type="text"
+          required
+          value={clubName}
+          onChange={(e) => setClubName(e.target.value)}
+          helperText="Do not use the word 'Carlmont' at the beginning. Final approval will be determined by ASB."
+        />
 
-        {/* Advisor Name */}
-        <div className="mb-6">
-          <label htmlFor="advisorName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Advisor Last Name (then first initial) <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            id="advisorName"
-            required
-            placeholder="e.g., Smith J"
-            value={advisorName}
-            onChange={(e) => setAdvisorName(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Advisor Last Name (then first initial)"
+          id="advisorName"
+          type="text"
+          required
+          placeholder="e.g., Smith J"
+          value={advisorName}
+          onChange={(e) => setAdvisorName(e.target.value)}
+        />
 
-        {/* Statement of Purpose */}
-        <div className="mb-6">
-          <label htmlFor="statementOfPurpose" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Club Statement of Purpose <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Please give a brief statement of the club's purpose. Please indicate here if the club is associated with an outside organization. 250 character maximum.
-          </p>
-          <textarea
-            id="statementOfPurpose"
-            required
-            maxLength={250}
-            value={statementOfPurpose}
-            onChange={(e) => setStatementOfPurpose(e.target.value)}
-            rows={4}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {statementOfPurpose.length}/250 characters
-          </p>
-        </div>
+        <Textarea
+          label="Club Statement of Purpose"
+          id="statementOfPurpose"
+          required
+          maxLength={250}
+          value={statementOfPurpose}
+          onChange={(e) => setStatementOfPurpose(e.target.value)}
+          rows={4}
+          helperText={`${statementOfPurpose.length}/250 characters`}
+        />
 
-        {/* Location */}
-        <div className="mb-6">
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Room Number or Location <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            id="location"
-            required
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Room Number or Location"
+          id="location"
+          type="text"
+          required
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+        />
 
         {/* Meeting Day */}
         <div id="meetingDaySection" className="mb-6">
@@ -405,69 +376,45 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             ))}
           </select>
           {meetingFrequency === 'Other' && (
-            <input
+            <Input
               type="text"
               placeholder="Please specify"
               value={customFrequency}
               onChange={(e) => setCustomFrequency(e.target.value)}
-              className="w-full px-4 py-2 mt-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="mt-2"
             />
           )}
         </div>
 
-        {/* Student Contact Name */}
-        <div className="mb-6">
-          <label htmlFor="studentContactName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Student Contact Name <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            This person is the club's contact for ASB communications. They do not have to be one of the club officers.
-          </p>
-          <input
-            type="text"
-            id="studentContactName"
-            required
-            value={studentContactName}
-            onChange={(e) => setStudentContactName(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Student Contact Name"
+          id="studentContactName"
+          type="text"
+          required
+          value={studentContactName}
+          onChange={(e) => setStudentContactName(e.target.value)}
+          helperText="This person is the club's contact for ASB communications. They do not have to be one of the club officers."
+        />
 
-        {/* Student Contact Email */}
-        <div className="mb-6">
-          <label htmlFor="studentContactEmail" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Student Contact Email <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Please use the seq.org email address. It is the expectation that this person actively checks their school email.
-          </p>
-          <input
-            type="email"
-            id="studentContactEmail"
-            required
-            value={studentContactEmail}
-            onChange={(e) => setStudentContactEmail(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Student Contact Email"
+          id="studentContactEmail"
+          type="email"
+          required
+          value={studentContactEmail}
+          onChange={(e) => setStudentContactEmail(e.target.value)}
+          helperText="Please use the seq.org email address. It is expected that this person actively checks their school email."
+        />
 
-        {/* Social Media (optional) */}
-        <div className="mb-6">
-          <label htmlFor="socialMedia" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Social Media (optional)
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Provide an @ for Instagram, a link (website, YouTube, etc.), or you can skip this question.
-          </p>
-          <input
-            type="text"
-            id="socialMedia"
-            value={socialMedia}
-            onChange={(e) => setSocialMedia(e.target.value)}
-            placeholder="@yourclub or https://..."
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Input
+          label="Social Media (optional)"
+          id="socialMedia"
+          type="text"
+          value={socialMedia}
+          onChange={(e) => setSocialMedia(e.target.value)}
+          placeholder="@yourclub or https://..."
+          helperText="Provide an @ for Instagram, a link (website, YouTube, etc.), or skip this."
+        />
 
         {/* Category (required) */}
         <div className="mb-6">
@@ -495,33 +442,25 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             <option value="Other">Other</option>
           </select>
           {category === 'Other' && (
-            <input
+            <Input
               type="text"
               id="customCategory"
               placeholder="Please specify your category"
               value={customCategory}
               onChange={(e) => setCustomCategory(e.target.value)}
-              className="w-full px-4 py-2 mt-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="mt-2"
             />
           )}
         </div>
 
-        {/* Notes (optional) */}
-        <div className="mb-6">
-          <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Notes (optional)
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Any public notes to be displayed on the clubs discovery site about registration, requirements, dates, etc.
-          </p>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+        <Textarea
+          label="Notes (optional)"
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          helperText="Any public notes to be displayed on the clubs discovery site about registration, requirements, dates, etc."
+        />
 
         {/* Club Advisor Agreement */}
         <div className="mb-6">
@@ -559,25 +498,19 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           />
         </div>
 
-        {/* Submit Button */}
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={submitting}
-          className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+          isLoading={submitting}
+          className="w-full"
+          icon={!submitting ? <Send className="h-4 w-4" /> : undefined}
         >
-          {submitting ? (
-            <>
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-              Submitting...
-            </>
-          ) : (
-            <>
-              <Send className="h-5 w-5" />
-              Submit Charter Request
-            </>
-          )}
-        </button>
+          {submitting ? 'Submitting...' : 'Submit Charter Request'}
+        </Button>
       </div>
     </form>
+    <ToastContainer toasts={toasts} onClose={removeToast} />
+    </>
   )
 }
