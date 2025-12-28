@@ -6,12 +6,10 @@ import { HelpCircle } from 'lucide-react'
 
 interface InfoTooltipProps {
   text: string
-  linkHref?: string
-  linkText?: string
   className?: string
 }
 
-export function InfoTooltip({ text, linkHref, linkText = 'Learn more', className = '' }: InfoTooltipProps) {
+export function InfoTooltip({ text, className = '' }: InfoTooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0, placement: 'top' as 'top' | 'bottom' })
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -83,21 +81,11 @@ export function InfoTooltip({ text, linkHref, linkText = 'Learn more', className
         left: `${position.left}px`,
         zIndex: 9999,
       }}
-      className="w-64 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl text-xs text-gray-700 dark:text-gray-300 animate-in fade-in zoom-in-95 duration-150"
+      className="w-64 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl text-xs text-gray-700 dark:text-gray-300"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
     >
       <p className="leading-snug">{text}</p>
-      {linkHref && (
-        <a
-          href={linkHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center text-primary-600 dark:text-primary-400 hover:underline text-xs"
-        >
-          {linkText}
-        </a>
-      )}
     </div>,
     document.body
   ) : null

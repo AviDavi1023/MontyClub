@@ -2667,7 +2667,7 @@ export function AdminPanel() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <span>Update Requests {updates.length > 0 && `(${updates.length})`}</span>
-            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." linkHref="/QUICK_DEBUG.md" linkText="Guide" />
+            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." />
           </h2>
           <button
             onClick={() => fetchUpdates()}
@@ -2801,7 +2801,7 @@ export function AdminPanel() {
       <div ref={announcementsRef} className="card">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <span>Quick Actions</span>
-          <InfoTooltip text="Toggle announcements visibility, manage analytics, and open statistics. These actions affect site-wide behavior." linkHref="/PRODUCTION_READY.md" linkText="Docs" />
+          <InfoTooltip text="Toggle announcements visibility, manage analytics, and open statistics. These actions affect site-wide behavior." />
         </h2>
         
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3325,7 +3325,7 @@ export function AdminPanel() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <span>User Management</span>
-                  <InfoTooltip text="Create and remove admin accounts. Use strong passwords and keep the admin API key secure." linkHref="/SECURITY.md" linkText="Security" />
+                  <InfoTooltip text="Create and remove admin accounts. Use strong passwords and keep the admin API key secure." />
                 </h2>
                 <button
                   onClick={() => setShowUserManagement(false)}
@@ -3502,7 +3502,7 @@ export function AdminPanel() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <span>Club Statistics</span>
-                  <InfoTooltip text="Overview of active/inactive clubs and categories. Helpful for reporting and auditing." linkHref="/analytics.ts" linkText="Analytics Code" />
+                  <InfoTooltip text="Overview of active/inactive clubs and categories. Helpful for reporting and auditing." />
                 </h2>
                 <button
                   onClick={() => setShowStatistics(false)}
@@ -3583,7 +3583,7 @@ export function AdminPanel() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <span>Club Registrations</span>
-                  <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." linkHref="/REGISTRATION_LOCK.md" linkText="Policy" />
+                  <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." />
                 </h2>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
                     <div>
@@ -3635,7 +3635,7 @@ export function AdminPanel() {
         <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
             <span>System Maintenance</span>
-            <InfoTooltip text="Permanently clear selected data for testing or maintenance. Requires authentication." linkHref="/CLEAR_DATA_FEATURE.md" linkText="Read more" />
+            <InfoTooltip text="Permanently clear selected data for testing or maintenance. Requires authentication." />
           </h3>
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
             Clear selected data for testing or maintenance. Requires authentication.
