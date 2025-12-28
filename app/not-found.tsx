@@ -13,12 +13,12 @@ export default function NotFound() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/" className="btn-primary flex items-center gap-2">
+          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-b from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow min-h-[44px] justify-center">
             <Home className="h-4 w-4" />
             Go Home
           </Link>
 
-          <BackButton className="btn-secondary flex items-center gap-2" />
+          <BackButton />
         </div>
       </div>
     </div>

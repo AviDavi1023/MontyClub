@@ -2,6 +2,7 @@
 
 import { ChevronUp } from 'lucide-react'
 import { ClubFilters } from '@/types/club'
+import { Button } from '@/components/ui'
 
 interface FilterPanelProps {
   filters: ClubFilters
@@ -188,14 +189,14 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
       
       {/* Clear All Filters button at bottom */}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
+        <Button
+          variant="secondary"
           onClick={onClear}
           disabled={!canClear}
-          className={`w-full sm:w-auto rounded-lg px-4 py-2.5 font-medium transition-colors shadow-sm hover:shadow min-h-[44px] ${canClear ? 'btn-secondary' : 'bg-gray-200/60 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
-          aria-label="Clear all filters"
+          className="w-full sm:w-auto"
         >
           Clear All Filters
-        </button>
+        </Button>
       </div>
     </div>
   )

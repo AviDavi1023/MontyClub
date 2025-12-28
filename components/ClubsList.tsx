@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List } from 'lucide-react'
+import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { getClubs } from '@/lib/clubs-client'
+import { getUserFriendlyError } from '@/lib/error-messages'
 import { ClubCard } from '@/components/ClubCard'
 import { ClubsTable } from '@/components/ClubsTable'
 import { FilterPanel } from '@/components/FilterPanel'
 import { createDomainListener } from '@/lib/broadcast'
 import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
+import { EmptyState, LoadingState, Chip, Button } from '@/components/ui'
 
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -522,6 +524,9 @@ export function ClubsList() {
             className="input-field w-full pl-10 pr-10 opacity-60"
           />
         </div>
+        <LoadingState message="Loading clubs...">
+          <p className="text-xs">This should only take a moment</p>
+        </LoadingState>
         {viewMode === 'grid' ? <SkeletonGrid count={9} /> : <SkeletonTable rows={10} />}
       </div>
     )
@@ -560,11 +565,12 @@ export function ClubsList() {
 
         {/* Show Filters button - only when filters are hidden */}
         {!showFilters && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowFilters(true)}
-            className="btn-secondary flex items-center gap-2 text-sm"
+            icon={<Filter className="h-4 w-4" />}
           >
-            <Filter className="h-4 w-4" />
             <span>Show Filters</span>
             <ChevronDown className="h-4 w-4" />
             {hasActiveFilters && (
@@ -572,7 +578,7 @@ export function ClubsList() {
                 {Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== '').length}
               </span>
             )}
-          </button>
+          </Button>
         )}
 
         {showFilters && (
@@ -591,6 +597,61 @@ export function ClubsList() {
 
       {/* Results */}
       <div className="space-y-3 sm:space-y-4">
+        {/* Active filter chips */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(filters.category) && filters.category.map((cat: string) => (
+              <Chip
+                key={`cat-${cat}`}
+                label={`Category: ${cat}`}
+                variant="primary"
+                onRemove={() => {
+                  const current = Array.isArray(filters.category) ? filters.category : []
+                  const newCats = current.filter((c: string) => c !== cat)
+                  setFiltersAndUpdate({ ...filters, category: newCats })
+                }}
+              />
+            ))}
+            {Array.isArray(filters.meetingDay) && filters.meetingDay.map((day: string) => (
+              <Chip
+                key={`day-${day}`}
+                label={`${day}`}
+                variant="primary"
+                onRemove={() => {
+                  const current = Array.isArray(filters.meetingDay) ? filters.meetingDay : []
+                  const newDays = current.filter((d: string) => d !== day)
+                  setFiltersAndUpdate({ ...filters, meetingDay: newDays })
+                }}
+              />
+            ))}
+            {Array.isArray(filters.meetingFrequency) && filters.meetingFrequency.map((freq: string) => (
+              <Chip
+                key={`freq-${freq}`}
+                label={freq}
+                variant="primary"
+                onRemove={() => {
+                  const current = Array.isArray(filters.meetingFrequency) ? filters.meetingFrequency : []
+                  const newFreqs = current.filter((f: string) => f !== freq)
+                  setFiltersAndUpdate({ ...filters, meetingFrequency: newFreqs })
+                }}
+              />
+            ))}
+            {filters.status && (
+              <Chip
+                key="status"
+                label={`Status: ${filters.status === 'open' ? 'Open' : 'Closed'}`}
+                variant="primary"
+                onRemove={() => setFiltersAndUpdate({ ...filters, status: '' })}
+              />
+            )}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear All
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
@@ -649,32 +710,26 @@ export function ClubsList() {
         </div>
 
         {filteredClubs.length === 0 ? (
-          <div className="text-center py-12 px-4">
-            {clubs.length === 0 && clubDataSource === 'collection' ? (
-              <>
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6 max-w-2xl mx-auto">
-                  <p className="text-amber-900 dark:text-amber-100 text-base sm:text-lg font-semibold mb-2">
-                    Collection Mode Active - No Clubs Available
-                  </p>
-                  <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base">
-                    The site is currently using Collection mode, but no club registrations have been approved yet.
-                  </p>
-                  <p className="text-amber-600 dark:text-amber-400 text-xs sm:text-sm mt-3">
-                    Admins: Switch to Excel mode or approve registrations to display clubs.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">
-                  No clubs found
-                </p>
-                <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm mt-2">
-                  Try adjusting your search or filters
-                </p>
-              </>
-            )}
-          </div>
+          clubs.length === 0 && clubDataSource === 'collection' ? (
+            <EmptyState
+              icon={<RefreshCw className="h-16 w-16 animate-spin text-amber-500" />}
+              title="Collection Mode Active - No Clubs Available"
+              description="The site is currently using Collection mode, but no club registrations have been approved yet. Admins can switch to Excel mode or approve registrations to display clubs."
+            />
+          ) : (
+            <EmptyState
+              icon={<Search className="h-16 w-16" />}
+              title="No Clubs Found"
+              description="Try adjusting your search or filters to find more clubs"
+              action={
+                hasActiveFilters ? (
+                  <Button variant="primary" onClick={clearFilters}>
+                    Clear All Filters
+                  </Button>
+                ) : null
+              }
+            />
+          )
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {sortedClubs.map(club => (

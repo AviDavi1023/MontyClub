@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Send, CheckCircle } from 'lucide-react'
 import { broadcast } from '@/lib/broadcast'
+import { getUserFriendlyError } from '@/lib/error-messages'
+import { Button, Input, Textarea } from '@/components/ui'
 
 export function SubmitUpdateForm() {
   const [formData, setFormData] = useState({
@@ -15,6 +17,7 @@ export function SubmitUpdateForm() {
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +40,7 @@ export function SubmitUpdateForm() {
       setIsSubmitted(true)
     } catch (error) {
       console.error('Error submitting update:', error)
-      alert('There was an error submitting your update. Please try again.')
+      setError(getUserFriendlyError(error))
     } finally {
       setIsSubmitting(false)
     }
@@ -60,7 +63,8 @@ export function SubmitUpdateForm() {
         <p className="text-gray-600 dark:text-gray-400 mb-6">
           Your update request has been submitted. We'll review it and make the necessary changes.
         </p>
-        <button
+        <Button
+          variant="primary"
           onClick={() => {
             setIsSubmitted(false)
             setFormData({
@@ -71,31 +75,32 @@ export function SubmitUpdateForm() {
               additionalNotes: '',
             })
           }}
-          className="btn-primary"
         >
           Submit Another Update
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-6">
-      <div>
-        <label htmlFor="clubName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Club Name *
-        </label>
-        <input
-          type="text"
-          id="clubName"
-          name="clubName"
-          value={formData.clubName}
-          onChange={handleChange}
-          required
-          className="input-field"
-          placeholder="Enter the name of the club"
-        />
-      </div>
+    <>
+      <form onSubmit={handleSubmit} className="card space-y-6">
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+          </div>
+        )}
+
+        <Input
+        label="Club Name"
+        id="clubName"
+        name="clubName"
+        type="text"
+        value={formData.clubName}
+        onChange={handleChange}
+        required
+        placeholder="Enter the name of the club"
+      />
 
       <div>
         <label htmlFor="updateType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -123,75 +128,54 @@ export function SubmitUpdateForm() {
         </select>
       </div>
 
-      <div>
-        <label htmlFor="suggestedChange" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Suggested Change *
-        </label>
-        <textarea
-          id="suggestedChange"
-          name="suggestedChange"
-          value={formData.suggestedChange}
-          onChange={handleChange}
-          required
-          rows={3}
-          className="input-field"
-          placeholder="Describe the change you'd like to see"
-        />
-      </div>
+      <Textarea
+        label="Suggested Change"
+        id="suggestedChange"
+        name="suggestedChange"
+        value={formData.suggestedChange}
+        onChange={handleChange}
+        required
+        rows={3}
+        placeholder="Describe the change you'd like to see"
+      />
 
-      <div>
-        <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Your Email *
-        </label>
-        <input
-          type="email"
-          id="contactEmail"
-          name="contactEmail"
-          value={formData.contactEmail}
-          onChange={handleChange}
-          required
-          className="input-field"
-          placeholder="your.email@school.edu"
-        />
-      </div>
+      <Input
+        label="Your Email"
+        id="contactEmail"
+        name="contactEmail"
+        type="email"
+        value={formData.contactEmail}
+        onChange={handleChange}
+        required
+        placeholder="your.email@school.edu"
+      />
 
-      <div>
-        <label htmlFor="additionalNotes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Additional Notes
-        </label>
-        <textarea
-          id="additionalNotes"
-          name="additionalNotes"
-          value={formData.additionalNotes}
-          onChange={handleChange}
-          rows={3}
-          className="input-field"
-          placeholder="Any additional information or context"
-        />
-      </div>
+      <Textarea
+        label="Additional Notes"
+        id="additionalNotes"
+        name="additionalNotes"
+        value={formData.additionalNotes}
+        onChange={handleChange}
+        rows={3}
+        placeholder="Any additional information or context"
+      />
 
       <div className="pt-4">
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={isSubmitting}
-          className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          isLoading={isSubmitting}
+          className="w-full"
+          icon={isSubmitting ? undefined : <Send className="h-4 w-4" />}
         >
-          {isSubmitting ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Submitting...
-            </>
-          ) : (
-            <>
-              <Send className="h-4 w-4" />
-              Submit Update Request
-            </>
-          )}
-        </button>
+          {isSubmitting ? 'Submitting...' : 'Submit Update'}
+        </Button>
       </div>
 
       {/* Removed demo note — now submits to backend API */}
     </form>
+    </>
   )
 }
 

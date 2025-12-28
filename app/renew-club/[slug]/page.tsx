@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { Search, CheckCircle2, RefreshCw, Send } from 'lucide-react'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import BackButton from '@/components/BackButton'
+import { Button } from '@/components/ui'
 
 interface RenewClubPageProps {
   params: Promise<{
@@ -230,12 +231,12 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Your club renewal for <strong>{clubName}</strong> has been submitted successfully. You'll be notified once it's reviewed.
           </p>
-          <button
+          <Button
+            variant="primary"
             onClick={() => window.location.href = '/'}
-            className="btn-primary"
           >
             Return to Home
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -520,23 +521,16 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
             </div>
 
             <div className="flex gap-3">
-              <button
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={submitting}
-                className="flex-1 btn-primary flex items-center justify-center gap-2"
+                isLoading={submitting}
+                className="flex-1"
+                icon={submitting ? undefined : <Send className="h-5 w-5" />}
               >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-5 w-5" />
-                    Submit Renewal
-                  </>
-                )}
-              </button>
+                {submitting ? 'Submitting...' : 'Submit Renewal'}
+              </Button>
             </div>
           </form>
         )}

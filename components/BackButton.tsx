@@ -1,15 +1,16 @@
 "use client"
 
 import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui'
 
-export default function BackButton({ className }: { className?: string }) {
+export default function BackButton() {
   return (
-    <button
+    <Button
+      variant="secondary"
       onClick={() => window.history.back()}
-      className={className}
+      icon={<ArrowLeft className="h-4 w-4" />}
     >
-      <ArrowLeft className="h-4 w-4" />
-      <span className="ml-2">Go Back</span>
-    </button>
+      Go Back
+    </Button>
   )
 }

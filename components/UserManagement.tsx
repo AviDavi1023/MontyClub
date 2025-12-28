@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { UserPlus } from 'lucide-react'
+import { Button, Input } from '@/components/ui'
+import { getUserFriendlyError } from '@/lib/error-messages'
 
 interface UserManagementProps {
   currentUser: string
@@ -24,7 +26,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       setUsers(data.users || [])
     } catch (err) {
       console.error('Error fetching users:', err)
-      showToast('Failed to load users', 'error')
+      showToast(getUserFriendlyError(err), 'error')
     }
   }
 
@@ -63,7 +65,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       setShowCreateForm(false)
     } catch (err) {
       console.error('Error creating user:', err)
-      showToast('Failed to create user', 'error')
+      showToast(getUserFriendlyError(err), 'error')
     } finally {
       setLoading(false)
     }
@@ -94,7 +96,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       await fetchUsers()
     } catch (err) {
       console.error('Error deleting user:', err)
-      showToast('Failed to delete user', 'error')
+      showToast(getUserFriendlyError(err), 'error')
     }
   }
 
@@ -113,72 +115,67 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Admin Users
         </h3>
-        <button
+        <Button
+          variant="primary"
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="btn-primary flex items-center gap-2"
+          icon={<UserPlus className="h-4 w-4" />}
         >
-          <UserPlus className="h-4 w-4" />
           Create User
-        </button>
+        </Button>
       </div>
 
       {showCreateForm && (
         <form onSubmit={handleCreateUser} className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Username
-            </label>
-            <input
-              type="text"
-              value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
-              className="input-field"
-              placeholder="Enter username"
-              required
-            />
-          </div>
+          <Input
+            label="Username"
+            value={newUsername}
+            onChange={(e) => setNewUsername(e.target.value)}
+            placeholder="Enter username"
+            required
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Password (leave empty to auto-generate)
             </label>
             <div className="flex gap-2">
-              <input
-                type="text"
+              <Input
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="input-field flex-1"
+                className="flex-1"
                 placeholder="Auto-generated if empty"
               />
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={generateRandomPassword}
-                className="btn-secondary"
               >
                 Generate
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="flex gap-2">
-            <button
+            <Button
               type="submit"
+              variant="primary"
               disabled={loading || !newUsername}
-              className="btn-primary disabled:opacity-50"
+              isLoading={loading}
             >
               {loading ? 'Creating...' : 'Create User'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => {
                 setShowCreateForm(false)
                 setNewUsername('')
                 setNewPassword('')
               }}
-              className="btn-secondary"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}

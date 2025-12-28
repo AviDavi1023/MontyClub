@@ -18,8 +18,8 @@ export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
   
   return (
-    <Link href={`/clubs/${club.id}${queryString}`} className="block group" onClick={() => track('ClubOpen', { id: club.id, name: club.name })}>
-      <div className="card hover:shadow-md transition-all duration-200 p-4 sm:p-6 group-hover:ring-1 group-hover:ring-primary-200 dark:group-hover:ring-primary-800 group-hover:bg-gradient-to-br group-hover:from-primary-50/30 group-hover:to-transparent dark:group-hover:from-primary-900/10">
+    <Link href={`/clubs/${club.id}${queryString}`} className="block group animate-fadeIn" onClick={() => track('ClubOpen', { id: club.id, name: club.name })}>
+      <div className="card hover:shadow-lg transition-all duration-300 p-4 sm:p-6 group-hover:ring-2 group-hover:ring-primary-200 dark:group-hover:ring-primary-800 group-hover:bg-gradient-to-br group-hover:from-primary-50/30 group-hover:to-transparent dark:group-hover:from-primary-900/10 hover-lift">
         <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
           <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white line-clamp-2">

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { ClubRegistration } from '@/types/club'
 import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui'
+import { useConfirm } from '@/lib/hooks/useConfirm'
 
 interface RegistrationsListProps {
   adminApiKey: string
@@ -27,6 +29,7 @@ const CATEGORY_OPTIONS = [
 ]
 
 export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections }: RegistrationsListProps) {
+  const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -392,9 +395,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const visible = sorted
 
   const handleApprove = async (reg: ClubRegistration) => {
-    if (!confirm(`Approve "${reg.clubName}"?`)) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Approve Registration',
+      message: `Approve "${reg.clubName}"?`,
+      confirmText: 'Approve',
+      variant: 'primary'
+    })
+    if (!confirmed) return
 
     const operationId = `approve-${reg.id}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     console.log(JSON.stringify({ 
@@ -815,7 +822,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             <div className="flex items-center gap-2">
               <button
                 onClick={async () => {
-                  if (!confirm(`Approve ${selectedIds.size} selected registrations?`)) return
+                  const confirmed = await confirm({
+                    title: 'Approve Registrations',
+                    message: `Approve ${selectedIds.size} selected registrations?`,
+                    confirmText: 'Approve All',
+                    variant: 'primary'
+                  })
+                  if (!confirmed) return
                   const idsArray = Array.from(selectedIds)
                   // Batch update localPendingRegistrationChanges using functional update
                   setLocalPendingRegistrationChanges(prev => {
@@ -854,7 +867,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               <button
                 onClick={async () => {
                   const reason = prompt('Optional denial reason (applies to all selected):') || ''
-                  if (!confirm(`Deny ${selectedIds.size} selected registrations?`)) return
+                  const confirmed = await confirm({
+                    title: 'Deny Registrations',
+                    message: `Deny ${selectedIds.size} selected registrations?`,
+                    confirmText: 'Deny All',
+                    variant: 'danger'
+                  })
+                  if (!confirmed) return
                   const idsArray = Array.from(selectedIds)
                   // Batch update localPendingRegistrationChanges using functional update
                   setLocalPendingRegistrationChanges(prev => {
@@ -892,7 +911,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               >Deny Selected</button>
               <button
                 onClick={async () => {
-                  if (!confirm(`Delete ${selectedIds.size} selected registrations? This cannot be undone.`)) return
+                  const confirmed = await confirm({
+                    title: 'Delete Registrations',
+                    message: `Delete ${selectedIds.size} selected registrations? This cannot be undone.`,
+                    confirmText: 'Delete',
+                    variant: 'danger'
+                  })
+                  if (!confirmed) return
                   const idsArray = Array.from(selectedIds)
                   // Batch mark as deleted in localPendingRegistrationChanges using functional update
                   setLocalPendingRegistrationChanges(prev => {
@@ -1300,6 +1325,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             </div>
           </div>
         </>
+      )}
+
+      {isOpen && options && (
+        <ConfirmDialog
+          {...options}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
       )}
     </div>
   )
