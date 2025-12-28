@@ -428,18 +428,34 @@ export async function DELETE(request: NextRequest) {
 
       // Always delete associated registrations to prevent orphaned files
       // (don't wait for explicit deleteRegistrations flag)
+      let cleanupSuccess = true
       try {
         const paths = await listPaths(`registrations/${collection.id}`)
         if (paths.length > 0) {
-          await removePaths(paths)
-          log({ tag: 'collections-api', step: 'deleted-registrations', count: paths.length, collectionId: collection.id })
+          const result = await removePaths(paths)
+          if (result.removed !== paths.length) {
+            console.error(
+              `[DELETE collection] Cleanup failed: removed ${result.removed}/${paths.length} registrations. Collection deletion cancelled.`,
+              result
+            )
+            cleanupSuccess = false
+          } else {
+            log({ tag: 'collections-api', step: 'deleted-registrations', count: paths.length, collectionId: collection.id })
+          }
         }
       } catch (err) {
-        console.error('Error deleting registrations:', err)
-        // Continue even if deletion fails - collection removal is more important
+        console.error('[DELETE collection] Exception deleting registrations:', err)
+        cleanupSuccess = false
       }
 
-      // Remove collection from list
+      if (!cleanupSuccess) {
+        return NextResponse.json(
+          { error: 'Could not delete all registrations. Collection deletion cancelled to prevent orphaned files.' },
+          { status: 500 }
+        )
+      }
+
+      // Remove collection from list (only if cleanup succeeded)
       collections.splice(collectionIndex, 1)
       const success = await saveCollections(collections)
 

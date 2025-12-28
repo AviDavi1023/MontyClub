@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { ClubRegistration } from '@/types/club'
+import { withRegistrationLock } from '@/lib/registration-lock'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
     const body = await request.json()
     const { registrationId, collection, updates } = body
     if (!registrationId || !collection || !updates) {
@@ -32,4 +28,22 @@ export async function POST(request: NextRequest) {
     console.error('Registration update error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+export async function POST(request: NextRequest) {
+  const adminKey = request.headers.get('x-admin-key')
+  const expectedKey = process.env.ADMIN_API_KEY
+  if (!adminKey || adminKey !== expectedKey) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  
+  const body = await request.json()
+  const { registrationId, collection } = body
+  if (!registrationId || !collection) {
+    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
+  }
+  const path = `registrations/${collection}/${registrationId}.json`
+  
+  // Wrap with registration-level lock
+  return withRegistrationLock(path, () => handler(request))
 }

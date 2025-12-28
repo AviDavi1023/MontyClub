@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { ClubRegistration } from '@/types/club'
-import { registrationActionsCache } from '@/lib/caches'
+import { withRegistrationLock } from '@/lib/registration-lock'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
-  return registrationActionsCache.withLock(async () => {
-    try {
+async function handler(request: NextRequest) {
+  try {
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
 
@@ -52,11 +51,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Cache the action result
-      const cache = registrationActionsCache.get() || {}
-      cache[path] = { status: 'approved', timestamp: Date.now() }
-      registrationActionsCache.set(cache)
-
       return NextResponse.json({ 
         success: true,
         message: 'Registration approved'
@@ -74,5 +68,19 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-  })
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json()
+  const { registrationId, collection } = body
+  if (!registrationId || !collection) {
+    return NextResponse.json(
+      { error: 'Missing registration ID or collection ID' },
+      { status: 400 }
+    )
+  }
+  const path = `registrations/${collection}/${registrationId}.json`
+  
+  // Wrap with registration-level lock
+  return withRegistrationLock(path, () => handler(request))
 }
