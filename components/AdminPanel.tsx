@@ -172,7 +172,8 @@ export function AdminPanel() {
       if (enabled === 'false') setAnalyticsEnabled(false)
       const period = localStorage.getItem('analytics:period')
       if (period) setAnalyticsPeriod(period)
-      // DO NOT load API key from localStorage (security: prevent plain text storage)
+      const key = localStorage.getItem('analytics:adminKey')
+      if (key) setAdminApiKey(key)
     } catch {}
     // Announcements enabled: load from localStorage first, then server
     try {
@@ -927,16 +928,16 @@ export function AdminPanel() {
   const saveAdminApiKey = () => {
     const k = adminApiKey.trim()
     setAdminApiKey(k)
-    // DO NOT persist to localStorage (security: prevents plain text key exposure)
-    showToast('Admin API key set (not persisted for security)')
+    try { localStorage.setItem('analytics:adminKey', k) } catch {}
+    showToast('Admin API key saved')
   }
 
   const saveApiKeyFromPrompt = () => {
     const k = apiKeyPromptInput.trim()
     if (k) {
       setAdminApiKey(k)
-      // DO NOT persist to localStorage (security: prevents plain text key exposure)
-      showToast('Admin API key set (not persisted for security)')
+      try { localStorage.setItem('analytics:adminKey', k) } catch {}
+      showToast('Admin API key saved')
     }
     setShowApiKeyPrompt(false)
     setApiKeyPromptInput('')
@@ -1085,8 +1086,9 @@ export function AdminPanel() {
         setCurrentUser(data.user.username)
         setError('')
         setPassword('')
-        // Prompt for API key if not set (but don't try to load from localStorage for security)
-        if (!adminApiKey || adminApiKey.trim() === '') {
+        // Check if admin API key is already set
+        const savedKey = localStorage.getItem('analytics:adminKey')
+        if (!savedKey || savedKey.trim() === '') {
           setShowApiKeyPrompt(true)
         }
       } else {

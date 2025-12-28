@@ -28,6 +28,10 @@ export async function GET() {
         if (!valid) console.log('[Collections Public API] Filtering out invalid collection')
         return valid
       })
+      .map((c: any) => ({
+        ...c,
+        renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
+      }))
       .sort((a, b) => 
         new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
       )

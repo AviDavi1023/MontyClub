@@ -91,6 +91,7 @@ async function getCollections(): Promise<RegistrationCollection[]> {
     createdAt: String(c.createdAt),
     display: typeof c.display === 'boolean' ? c.display : undefined,
     accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
+    renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
   }))
   return cols
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as ExcelJS from 'exceljs'
-import { readData } from '@/lib/runtime-store'
-import { writeJSONToStorage } from '@/lib/supabase'
+import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { RegistrationCollection, ClubRegistration } from '@/types/club'
 import { parseExcelToRegistrations } from '@/lib/clubs'
 import { nanoid } from 'nanoid'
@@ -41,12 +40,10 @@ export async function POST(request: Request) {
     const retryDelay = 300 // ms
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const collectionsResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/registration-collections`)
-      if (collectionsResponse.ok) {
-        const collectionsData = await collectionsResponse.json()
-        targetCollection = collectionsData.collections?.find((c: RegistrationCollection) => c.id === collectionId)
-        if (targetCollection) break
-      }
+      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+      const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
+      targetCollection = collections.find((c: RegistrationCollection) => c.id === collectionId)
+      if (targetCollection) break
       
       // If not found and not last attempt, wait before retry
       if (attempt < maxRetries - 1) {
