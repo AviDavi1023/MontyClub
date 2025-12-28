@@ -20,6 +20,7 @@ export function SubmitUpdateForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
   const { toasts, removeToast, showSuccess } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,10 +59,16 @@ export function SubmitUpdateForm() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value,
     }))
+
+    if (name === 'contactEmail') {
+      const valid = /\S+@\S+\.\S+/.test(value)
+      setEmailError(valid ? null : 'Please enter a valid email address')
+    }
   }
 
   if (isSubmitted) {
@@ -147,6 +154,7 @@ export function SubmitUpdateForm() {
         onChange={handleChange}
         required
         rows={3}
+        maxLength={500}
         placeholder="Describe the change you'd like to see"
       />
 
@@ -157,6 +165,7 @@ export function SubmitUpdateForm() {
         type="email"
         value={formData.contactEmail}
         onChange={handleChange}
+        error={emailError ?? undefined}
         required
         placeholder="your.email@school.edu"
       />
@@ -175,7 +184,7 @@ export function SubmitUpdateForm() {
         <Button
           type="submit"
           variant="primary"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !!emailError}
           isLoading={isSubmitting}
           className="w-full"
           icon={isSubmitting ? undefined : <Send className="h-4 w-4" />}

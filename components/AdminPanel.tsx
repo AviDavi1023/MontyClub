@@ -5,9 +5,12 @@ import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3,
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
+import { ConfirmDialog } from '@/components/ui'
+import { useConfirm } from '@/lib/hooks/useConfirm'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
 import { Toggle } from '@/components/Toggle'
+import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
 
@@ -125,6 +128,12 @@ export function AdminPanel() {
   const [showRegistrations, setShowRegistrations] = useState(false)
   const registrationsRef = useRef<HTMLDivElement | null>(null)
   const [collections, setCollections] = useState<RegistrationCollection[]>([])
+    // Section navigation refs
+    const updatesRef = useRef<HTMLDivElement | null>(null)
+    // announcementsRef, userManagementRef, statisticsRef, registrationsRef already defined above
+
+    // Confirm dialog hook
+    const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [importingExcel, setImportingExcel] = useState(false)
@@ -830,7 +839,16 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    if (!confirm('Are you sure you want to delete this collection? This cannot be undone.')) return
+    {
+      const ok = await confirm({
+        title: 'Delete Collection',
+        message: 'Are you sure you want to delete this collection? This cannot be undone.',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
 
     // If it's a temp/pending-created collection, just clear it locally
     if (collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created) {
@@ -979,8 +997,16 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    const ok = confirm(`Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`)
-    if (!ok) return
+    {
+      const ok = await confirm({
+        title: 'Clear Analytics Data',
+        message: `Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`,
+        confirmText: 'Clear',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
     setClearingAnalytics(true)
     try {
       const resp = await fetch('/api/analytics/admin/clear', {
@@ -1510,8 +1536,16 @@ export function AdminPanel() {
   }
 
   const handleDeleteSingle = async (item: any) => {
-    const ok = confirm('Delete this update request? This cannot be undone.')
-    if (!ok) return
+    {
+      const ok = await confirm({
+        title: 'Delete Update Request',
+        message: 'Delete this update request? This cannot be undone.',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     
@@ -1592,8 +1626,16 @@ export function AdminPanel() {
     const ids = Array.from(selectedUpdateIds)
     if (ids.length === 0) return
     if (action === 'delete') {
-      const ok = confirm(`Delete ${ids.length} update request(s)? This cannot be undone.`)
-      if (!ok) return
+      {
+        const ok = await confirm({
+          title: 'Delete Selected Requests',
+          message: `Delete ${ids.length} update request(s)? This cannot be undone.`,
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          variant: 'danger',
+        })
+        if (!ok) return
+      }
     }
     setUpdatingBatch(true)
 
@@ -2567,12 +2609,65 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Section Navigation */}
+      <div className="sticky top-0 z-30 -mt-2 pt-2 pb-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 dark:supports-[backdrop-filter]:bg-gray-900/60">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => updatesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Review and manage user-submitted update requests"
+          >
+            Update Requests
+          </button>
+          <button
+            onClick={() => {
+              setShowAnnouncementsPanel(true)
+              setTimeout(() => announcementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+            }}
+            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Create and manage club announcements"
+          >
+            Announcements
+          </button>
+          <button
+            onClick={() => {
+              setShowRegistrations(true)
+              setTimeout(() => registrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+            }}
+            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="View and manage club registrations"
+          >
+            Registrations
+          </button>
+          <button
+            onClick={() => {
+              setShowStatistics(true)
+              setTimeout(() => statisticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+            }}
+            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Analytics and usage statistics"
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => {
+              setShowUserManagement(true)
+              setTimeout(() => userManagementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+            }}
+            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Manage admin accounts"
+          >
+            Admin Users
+          </button>
+        </div>
+      </div>
 
       {/* Update Requests */}
-      <div className="card">
+      <div ref={updatesRef} className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Update Requests {updates.length > 0 && `(${updates.length})`}
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>Update Requests {updates.length > 0 && `(${updates.length})`}</span>
+            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." linkHref="/QUICK_DEBUG.md" linkText="Guide" />
           </h2>
           <button
             onClick={() => fetchUpdates()}
@@ -2703,9 +2798,10 @@ export function AdminPanel() {
       </div>
 
       {/* Quick Actions */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Quick Actions
+      <div ref={announcementsRef} className="card">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <span>Quick Actions</span>
+          <InfoTooltip text="Toggle announcements visibility, manage analytics, and open statistics. These actions affect site-wide behavior." linkHref="/PRODUCTION_READY.md" linkText="Docs" />
         </h2>
         
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3227,7 +3323,10 @@ export function AdminPanel() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>User Management</span>
+                  <InfoTooltip text="Create and remove admin accounts. Use strong passwords and keep the admin API key secure." linkHref="/SECURITY.md" linkText="Security" />
+                </h2>
                 <button
                   onClick={() => setShowUserManagement(false)}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -3401,7 +3500,10 @@ export function AdminPanel() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Statistics</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>Club Statistics</span>
+                  <InfoTooltip text="Overview of active/inactive clubs and categories. Helpful for reporting and auditing." linkHref="/analytics.ts" linkText="Analytics Code" />
+                </h2>
                 <button
                   onClick={() => setShowStatistics(false)}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -3479,7 +3581,10 @@ export function AdminPanel() {
             >
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Club Registrations</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>Club Registrations</span>
+                  <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." linkHref="/REGISTRATION_LOCK.md" linkText="Policy" />
+                </h2>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
                     <div>
                       <span className="text-gray-500 dark:text-gray-500">Registration:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
@@ -3526,9 +3631,12 @@ export function AdminPanel() {
       )}
 
       {/* Clear Data Section - at bottom */}
-      <div className="card">
+      <div ref={userManagementRef} className="card">
         <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">System Maintenance</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+            <span>System Maintenance</span>
+            <InfoTooltip text="Permanently clear selected data for testing or maintenance. Requires authentication." linkHref="/CLEAR_DATA_FEATURE.md" linkText="Read more" />
+          </h3>
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
             Clear selected data for testing or maintenance. Requires authentication.
           </p>
@@ -3704,6 +3812,15 @@ export function AdminPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Global Confirm Dialog */}
+      {isOpen && options && (
+        <ConfirmDialog
+          {...options}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
       )}
 
       <ToastContainer toasts={toasts} onClose={closeToast} />

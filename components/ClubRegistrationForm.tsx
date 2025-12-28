@@ -38,6 +38,9 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [category, setCategory] = useState('')
   const [customCategory, setCustomCategory] = useState('')
   const [notes, setNotes] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [studentEmailError, setStudentEmailError] = useState('')
+  const validateEmail = (v: string) => /\S+@\S+\.\S+/.test(v)
 
   // Check collection status
   useEffect(() => {
@@ -279,7 +282,12 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           type="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setEmail(v)
+            setEmailError(validateEmail(v) ? '' : 'Please enter a valid email address')
+          }}
+          error={emailError || undefined}
         />
 
         <Input
@@ -310,7 +318,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           value={statementOfPurpose}
           onChange={(e) => setStatementOfPurpose(e.target.value)}
           rows={4}
-          helperText={`${statementOfPurpose.length}/250 characters`}
+          helperText={"Describe your club's goals and activities."}
         />
 
         <Input
@@ -402,7 +410,12 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           type="email"
           required
           value={studentContactEmail}
-          onChange={(e) => setStudentContactEmail(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setStudentContactEmail(v)
+            setStudentEmailError(validateEmail(v) ? '' : 'Please enter a valid email address')
+          }}
+          error={studentEmailError || undefined}
           helperText="Please use the seq.org email address. It is expected that this person actively checks their school email."
         />
 
@@ -501,7 +514,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         <Button
           type="submit"
           variant="primary"
-          disabled={submitting}
+          disabled={submitting || !!emailError || !!studentEmailError}
           isLoading={submitting}
           className="w-full"
           icon={!submitting ? <Send className="h-4 w-4" /> : undefined}

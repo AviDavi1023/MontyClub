@@ -49,12 +49,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                 ? 'border-red-300 dark:border-red-600 focus:ring-red-500'
                 : 'border-gray-300 dark:border-gray-600'
             } ${className}`}
+            aria-invalid={!!error}
+            aria-describedby={error ? `${props.id}-error` : undefined}
             {...props}
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+          <p id={`${props.id}-error`} role="alert" aria-live="polite" className="text-sm text-red-600 dark:text-red-400 mt-1">
             {error}
           </p>
         )}

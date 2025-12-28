@@ -21,6 +21,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     },
     ref
   ) {
+    const valueLen = typeof props.value === 'string' ? props.value.length : 0
+    const maxLen = typeof props.maxLength === 'number' ? props.maxLength : undefined
     return (
       <div className="w-full">
         {label && (
@@ -47,19 +49,24 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                 ? 'border-red-300 dark:border-red-600 focus:ring-red-500'
                 : 'border-gray-300 dark:border-gray-600'
             } ${className}`}
+            aria-invalid={!!error}
+            aria-describedby={error ? `${props.id}-error` : undefined}
             {...props}
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+          <p id={`${props.id}-error`} role="alert" aria-live="polite" className="text-sm text-red-600 dark:text-red-400 mt-1">
             {error}
           </p>
         )}
 
-        {helperText && !error && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {helperText}
+        {(!error && (helperText || typeof maxLen === 'number')) && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-between">
+            <span>{helperText}</span>
+            {typeof maxLen === 'number' && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">{valueLen}/{maxLen}</span>
+            )}
           </p>
         )}
       </div>

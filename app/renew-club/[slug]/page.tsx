@@ -32,6 +32,9 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [advisorEmail, setAdvisorEmail] = useState('')
   const [studentContactName, setStudentContactName] = useState('')
   const [studentContactEmail, setStudentContactEmail] = useState('')
+  const [advisorEmailError, setAdvisorEmailError] = useState('')
+  const [studentEmailError, setStudentEmailError] = useState('')
+  const validateEmail = (v: string) => /\S+@\S+\.\S+/.test(v)
   
   // Agreements
   const [agreementSupervision, setAgreementSupervision] = useState(false)
@@ -365,8 +368,13 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                   label="Advisor Email"
                   type="email"
                   value={advisorEmail}
-                  onChange={(e) => setAdvisorEmail(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setAdvisorEmail(v)
+                    setAdvisorEmailError(validateEmail(v) ? '' : 'Please enter a valid email address')
+                  }}
                   required
+                  error={advisorEmailError || undefined}
                 />
 
                 <Input
@@ -380,8 +388,13 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                   label="Student Contact Email"
                   type="email"
                   value={studentContactEmail}
-                  onChange={(e) => setStudentContactEmail(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setStudentContactEmail(v)
+                    setStudentEmailError(validateEmail(v) ? '' : 'Please enter a valid email address')
+                  }}
                   required
+                  error={studentEmailError || undefined}
                 />
               </div>
             </div>
@@ -425,6 +438,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                 value={statementOfPurpose}
                 onChange={(e) => setStatementOfPurpose(e.target.value)}
                 rows={4}
+                maxLength={500}
               />
             </div>
 
@@ -477,7 +491,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={submitting}
+                disabled={submitting || !!advisorEmailError || !!studentEmailError}
                 isLoading={submitting}
                 className="flex-1"
                 icon={submitting ? undefined : <Send className="h-5 w-5" />}
