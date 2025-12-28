@@ -6,6 +6,7 @@ import { ExternalLink } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useState, useCallback } from 'react'
+import { slugifyName } from '@/lib/slug'
 
 interface ClubsTableProps {
   clubs: Club[]
@@ -22,7 +23,8 @@ export function ClubsTable({ clubs, pendingAnnouncements = {} }: ClubsTableProps
     setLoadingId(club.id)
     track('ClubOpen', { id: club.id, name: club.name })
     // navigation will unmount component shortly; spinner gives immediate feedback
-    router.push(`/clubs/${club.id}${queryString}`)
+    const slug = slugifyName(club.name)
+    router.push(`/clubs/${slug}${queryString}`)
   }, [router, queryString])
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">

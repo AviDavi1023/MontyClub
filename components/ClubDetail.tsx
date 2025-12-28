@@ -8,6 +8,7 @@ import { SimilarClubs } from '@/components/SimilarClubs'
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { track } from '@/lib/analytics'
+import { slugifyName } from '@/lib/slug'
 
 interface ClubDetailProps {
   club: Club
@@ -62,7 +63,7 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   }, [club.id])
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/clubs/${club.id}`
+    const shareUrl = `${window.location.origin}/clubs/${slugifyName(club.name)}`
     
     // Check if Web Share API is available (mobile devices)
     if (navigator.share) {

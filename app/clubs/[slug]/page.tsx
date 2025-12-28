@@ -15,7 +15,11 @@ export default async function ClubPage({ params }: { params: Promise<{ slug: str
     const clubs = await fetchClubs()
     
     // Find club by slug (slugified name)
-    const club = clubs.find((c: any) => slugifyName(c.name) === slug)
+    let club = clubs.find((c: any) => slugifyName(c.name) === slug)
+    // Fallback: if not found by slug, try direct id match for legacy links
+    if (!club) {
+      club = clubs.find((c: any) => String(c.id) === String(slug))
+    }
     
     if (!club) notFound()
 

@@ -10,8 +10,6 @@ import { RegistrationsList } from '@/components/RegistrationsList'
 import { Toggle } from '@/components/Toggle'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
-import { EmptyState, ConfirmDialog, Button, Input } from '@/components/ui'
-import { useConfirm } from '@/lib/hooks/useConfirm'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -92,7 +90,6 @@ if (typeof window !== 'undefined') {
 }
 
 export function AdminPanel() {
-  const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
@@ -833,13 +830,7 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    const confirmed = await confirm({
-      title: 'Delete Collection',
-      message: 'Are you sure you want to delete this collection? This cannot be undone.',
-      confirmText: 'Delete',
-      variant: 'danger'
-    })
-    if (!confirmed) return
+    if (!confirm('Are you sure you want to delete this collection? This cannot be undone.')) return
 
     // If it's a temp/pending-created collection, just clear it locally
     if (collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created) {
@@ -988,13 +979,8 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    const confirmed = await confirm({
-      title: 'Clear Analytics Data',
-      message: `Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`,
-      confirmText: 'Clear Data',
-      variant: 'danger'
-    })
-    if (!confirmed) return
+    const ok = confirm(`Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`)
+    if (!ok) return
     setClearingAnalytics(true)
     try {
       const resp = await fetch('/api/analytics/admin/clear', {
@@ -1524,13 +1510,8 @@ export function AdminPanel() {
   }
 
   const handleDeleteSingle = async (item: any) => {
-    const confirmed = await confirm({
-      title: 'Delete Update Request',
-      message: 'Delete this update request? This cannot be undone.',
-      confirmText: 'Delete',
-      variant: 'danger'
-    })
-    if (!confirmed) return
+    const ok = confirm('Delete this update request? This cannot be undone.')
+    if (!ok) return
     setSingleProcessingId(String(item.id))
     const id = String(item.id)
     
@@ -1611,13 +1592,8 @@ export function AdminPanel() {
     const ids = Array.from(selectedUpdateIds)
     if (ids.length === 0) return
     if (action === 'delete') {
-      const confirmed = await confirm({
-        title: 'Delete Update Requests',
-        message: `Delete ${ids.length} update request(s)? This cannot be undone.`,
-        confirmText: 'Delete',
-        variant: 'danger'
-      })
-      if (!confirmed) return
+      const ok = confirm(`Delete ${ids.length} update request(s)? This cannot be undone.`)
+      if (!ok) return
     }
     setUpdatingBatch(true)
 
@@ -2532,41 +2508,46 @@ export function AdminPanel() {
           </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <Input
-            label="Username"
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter username"
-            required
-            autoComplete="username"
-          />
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input-field"
+              placeholder="Enter username"
+              required
+              autoComplete="username"
+            />
+          </div>
 
-          <Input
-            label="Password"
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
-            required
-            autoComplete="current-password"
-          />
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-field"
+              placeholder="Enter password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
 
           {error && (
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           )}
 
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={loading}
-            isLoading={loading}
-            className="w-full"
-            icon={!loading ? <Unlock className="h-4 w-4" /> : undefined}
-          >
+          <button type="submit" className="btn-primary w-full" disabled={loading}>
+            <Unlock className="h-4 w-4 mr-2" />
             {loading ? 'Signing in...' : 'Sign In'}
-          </Button>
+          </button>
         </form>
 
         {isFirstTimeSetup && (
@@ -2593,60 +2574,50 @@ export function AdminPanel() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Update Requests {updates.length > 0 && `(${updates.length})`}
           </h2>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => fetchUpdates()}
-            disabled={refreshingUpdates}
-            icon={<RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />}
+            className="btn-secondary p-2"
             title="Refresh requests"
+            disabled={refreshingUpdates}
           >
-            Refresh
-          </Button>
+            <RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         {updates.length === 0 ? (
-          <EmptyState
-            icon={<FileSpreadsheet className="h-12 w-12" />}
-            title="No Update Requests"
-            description="Club update requests will appear here when clubs submit changes."
-          />
+          <p className="text-gray-600 dark:text-gray-400">No update requests yet.</p>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
+                <button
                   onClick={() => {
                     if (updatingBatch) return
                     if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
                     else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
                   }}
                   disabled={updatingBatch}
+                  className="btn-secondary text-xs"
                 >
                   {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
-                </Button>
+                </button>
                 {selectedUpdateIds.size > 0 && (
                   <>
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                    <button
                       onClick={() => performBatch('review')}
                       disabled={updatingBatch}
-                    >Mark Reviewed</Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                      className="btn-secondary text-xs"
+                    >Mark Reviewed</button>
+                    <button
                       onClick={() => performBatch('unreview')}
                       disabled={updatingBatch}
-                    >Mark Unreviewed</Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
+                      className="btn-secondary text-xs"
+                    >Mark Unreviewed</button>
+                    <button
                       onClick={() => performBatch('delete')}
                       disabled={updatingBatch}
-                    >Delete</Button>
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >Delete</button>
                   </>
                 )}
               </div>
@@ -2703,22 +2674,20 @@ export function AdminPanel() {
                   </div>
                   </div>
                   <div className="flex items-center gap-2 md:flex-shrink-0 mt-2 md:mt-0">
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                    <button
                       onClick={() => handleToggleSingle(u)}
                       disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
                     >
                       {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
+                    </button>
+                    <button
                       onClick={() => handleDeleteSingle(u)}
                       disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="text-red-600 dark:text-red-400 text-xs flex-1 md:flex-initial"
                     >
                       Delete
-                    </Button>
+                    </button>
                   </div>
                 </div>
 
@@ -2759,40 +2728,38 @@ export function AdminPanel() {
                   />
                 )}
               </div>
-              <Button
-                variant="primary"
+              <button
                 onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
-                icon={<Megaphone className="h-4 w-4" />}
+                className="btn-primary flex items-center justify-center gap-2"
               >
+                <Megaphone className="h-4 w-4" />
                 {showAnnouncementsPanel ? 'Close' : 'Manage'}
-              </Button>
+              </button>
             </div>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">User Management</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Manage admin users and permissions</p>
-            <Button
-              variant="primary"
+            <button
               onClick={toggleUserManagement}
-              icon={<Users className="h-4 w-4" />}
-              className="w-full sm:w-auto"
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
             >
+              <Users className="h-4 w-4" />
               {showUserManagement ? 'Close Users' : 'Manage Users'}
-            </Button>
+            </button>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Statistics</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View club data analytics and stats</p>
-            <Button
-              variant="primary"
+            <button
               onClick={() => setShowStatistics(!showStatistics)}
-              icon={<BarChart3 className="h-4 w-4" />}
-              className="w-full sm:w-auto"
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
             >
+              <BarChart3 className="h-4 w-4" />
               {showStatistics ? 'Close Statistics' : 'View Statistics'}
-            </Button>
+            </button>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
@@ -2936,11 +2903,7 @@ export function AdminPanel() {
                   return Array.from(map.values())
                 })()
                 return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
-                  <EmptyState
-                    icon={<Plus className="h-12 w-12" />}
-                    title="No Collections Yet"
-                    description="Create your first collection using the form above to organize club registrations."
-                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
                 ) : (
                   <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
                     <div
@@ -3127,13 +3090,7 @@ export function AdminPanel() {
                     placeholder="Enter your ADMIN_API_KEY"
                   />
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={saveAdminApiKey}
-                >
-                  Save Key
-                </Button>
+                <button onClick={saveAdminApiKey} className="btn-secondary whitespace-nowrap">Save Key</button>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
                 <div className="flex-1">
@@ -3146,13 +3103,7 @@ export function AdminPanel() {
                   />
                 </div>
                 <div className="flex gap-3 items-center">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={saveAnalyticsPeriod}
-                  >
-                    Save Period
-                  </Button>
+                  <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
                   <div className="flex items-center gap-2 whitespace-nowrap">
                     <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Enable Analytics</span>
                     <Toggle checked={analyticsEnabled} onChange={toggleAnalyticsEnabled} />
@@ -3161,24 +3112,22 @@ export function AdminPanel() {
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Button
-                variant="primary"
+              <button
                 onClick={fetchAnalyticsSummary}
                 disabled={loadingSummary}
-                isLoading={loadingSummary}
-                icon={<RefreshCw className="h-4 w-4" />}
+                className="btn-primary flex items-center gap-2"
               >
+                <RefreshCw className={`h-4 w-4 ${loadingSummary ? 'animate-spin' : ''}`} />
                 {loadingSummary ? 'Loading Summary...' : 'Load Summary'}
-              </Button>
-              <Button
-                variant="secondary"
+              </button>
+              <button
                 onClick={clearAnalyticsPeriod}
                 disabled={clearingAnalytics}
-                isLoading={clearingAnalytics}
-                icon={<Trash2 className="h-4 w-4" />}
+                className="btn-secondary flex items-center gap-2"
               >
+                <Trash2 className="h-4 w-4" />
                 {clearingAnalytics ? 'Clearing...' : 'Clear Period'}
-              </Button>
+              </button>
             </div>
             {analyticsSummary && (
               <div className="mt-6 space-y-4">
@@ -3254,11 +3203,7 @@ export function AdminPanel() {
               </div>
             )}
             {!analyticsSummary && !loadingSummary && (
-              <EmptyState
-                icon={<BarChart3 className="h-12 w-12" />}
-                title="No Analytics Data"
-                description="Click the button above to load the analytics summary."
-              />
+              <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">No summary loaded yet.</p>
             )}
           </div>
 
@@ -3761,13 +3706,6 @@ export function AdminPanel() {
         </div>
       )}
 
-      {isOpen && options && (
-        <ConfirmDialog
-          {...options}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-        />
-      )}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   )
@@ -3860,9 +3798,7 @@ function AnnounceEditor({
           />
 
           <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="primary"
-              size="sm"
+            <button
               onClick={async () => {
                 if (!selectedId) return
                 const text = drafts[selectedId] ?? announcements[selectedId] ?? ''
@@ -3875,31 +3811,29 @@ function AnnounceEditor({
                 setShowDropdown(false)
               }}
               disabled={!!savingAnnouncements[selectedId]}
-              isLoading={!!savingAnnouncements[selectedId]}
+              className="btn-primary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               {savingAnnouncements[selectedId] ? 'Saving...' : 'Save'}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
+            </button>
+            <button
               onClick={() => {
                 if (!selectedId) return
                 onRequestClear(selectedId)
               }}
+              className="btn-secondary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               Clear
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
+            </button>
+            <button
               onClick={() => {
                 setSelectedId(null)
                 setQuery('')  // Clear search when closing
                 setShowDropdown(false)
               }}
+              className="btn-secondary text-sm sm:text-base flex-1 sm:flex-initial"
             >
               Close
-            </Button>
+            </button>
           </div>
         </div>
       )}
@@ -3959,11 +3893,7 @@ function BulkDeleteAnnouncements({
     return (
       <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
         <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white mb-3">Current Announcements</h3>
-        <EmptyState
-          icon={<Megaphone className="h-12 w-12" />}
-          title="No Active Announcements"
-          description="Create an announcement above to display it on club pages."
-        />
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">No active announcements</p>
       </div>
     )
   }
@@ -3982,15 +3912,14 @@ function BulkDeleteAnnouncements({
             {selectedIds.size === clubsWithAnnouncements.length ? 'Deselect All' : 'Select All'}
           </button>
           {selectedIds.size > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
+            <button
               onClick={() => setShowConfirm(true)}
               disabled={deleting}
-              icon={<Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
+              className="btn-secondary text-xs sm:text-sm flex items-center gap-1 disabled:opacity-50"
             >
+              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
               Delete ({selectedIds.size})
-            </Button>
+            </button>
           )}
         </div>
       </div>
