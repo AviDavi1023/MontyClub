@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
 import { announcementsCache } from '@/lib/caches'
 import { createCachedGET } from '@/lib/api-patterns'
-import { invalidateClubsCache } from '@/app/api/clubs/route'
+import { invalidateClubsCache } from '@/lib/cache-utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { ClubRegistration } from '@/types/club'
 import { withRegistrationLock } from '@/lib/registration-lock'
-import { invalidateClubsCache } from '@/app/api/clubs/route'
+import { invalidateClubsCache } from '@/lib/cache-utils'
 
 export const dynamic = 'force-dynamic'
 

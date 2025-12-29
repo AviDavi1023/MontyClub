@@ -1,4 +1,5 @@
-import { notFound, Suspense } from 'next/navigation'
+import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import { ClubDetail } from '@/components/ClubDetail'
 import { ClubDetailSkeleton } from '@/components/ClubDetailSkeleton'
 import { Header } from '@/components/Header'
