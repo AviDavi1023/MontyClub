@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     // Save to storage
-    const path = `club-registrations/${collectionId}/${registration.id}.json`
+    const path = `registrations/${collectionId}/${registration.id}.json`
     await writeJSONToStorage(path, registration)
 
     console.log('[POST /api/club-renewal] Created renewal registration:', registration.id)
