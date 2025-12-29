@@ -11,7 +11,7 @@ interface RegistrationsListProps {
   collectionSlug: string
   collectionName: string
   collectionId: string
-  collections: Array<{ id: string; name: string }>
+  collections: Array<{ id: string; name: string; createdAt: string }>
 }
 
 const CATEGORY_OPTIONS = [
