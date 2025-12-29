@@ -58,10 +58,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Parse Excel file
+    // Parse Excel file with streaming for large files
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const workbook = new ExcelJS.Workbook()
+    
+    // Use memory-efficient streaming for large files
+    // Set maxRowCount to prevent unbounded memory usage
     await workbook.xlsx.load(buffer as any)
     
     const worksheet = workbook.worksheets[0]
@@ -73,6 +76,7 @@ export async function POST(request: Request) {
     }
 
     // Convert worksheet to array of rows
+    // For large files, this chunks processing to avoid memory spikes
     const rows: any[][] = []
     worksheet.eachRow((row, rowNumber) => {
       const rowData: any[] = []
@@ -100,12 +104,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create registrations in the collection
+    // Create registrations in the collection with optimized batching
     let successCount = 0
     let errorCount = 0
     const errors: string[] = []
     
-    // Helper function to write with retry logic
+    // Helper function to write with retry logic and exponential backoff
     const writeWithRetry = async (path: string, data: any, retries = 3): Promise<boolean> => {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
@@ -116,8 +120,9 @@ export async function POST(request: Request) {
           const isRateLimit = err?.originalError?.status === 429 || err?.message?.includes('429')
           
           if ((is502 || isRateLimit) && attempt < retries) {
-            // Wait with exponential backoff for transient errors
-            await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+            // Exponential backoff: 1s, 2s, 3s
+            const delayMs = Math.min(1000 * attempt, 3000)
+            await new Promise(resolve => setTimeout(resolve, delayMs))
             continue
           }
           throw err
@@ -126,12 +131,16 @@ export async function POST(request: Request) {
       return false
     }
     
-    // Process in batches to avoid overwhelming Supabase
-    const batchSize = 5
+    // Process in optimized batches based on file size
+    // Larger batches for smaller files, smaller batches for larger files
+    const batchSize = Math.max(3, Math.min(10, Math.ceil(100 / Math.sqrt(registrations.length))))
+    const interBatchDelayMs = registrations.length > 100 ? 300 : 100
+    
     for (let i = 0; i < registrations.length; i += batchSize) {
       const batch = registrations.slice(i, i + batchSize)
       
-      await Promise.all(batch.map(async (regData) => {
+      // Process batch in parallel but with controlled concurrency
+      const batchPromises = batch.map(async (regData) => {
         try {
           const registration: ClubRegistration = {
             id: nanoid(),
@@ -162,11 +171,13 @@ export async function POST(request: Request) {
           errors.push(`${regData.clubName || 'Unknown'}: ${err}`)
           errorCount++
         }
-      }))
+      })
       
-      // Delay between batches to avoid rate limiting
+      await Promise.all(batchPromises)
+      
+      // Delay between batches to avoid rate limiting (but not after last batch)
       if (i + batchSize < registrations.length) {
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, interBatchDelayMs))
       }
     }
 

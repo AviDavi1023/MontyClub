@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw } from 'lucide-react'
+import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
@@ -14,6 +14,7 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { createDomainListener } from '@/lib/broadcast'
 import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
 import { EmptyState, LoadingState, Chip, Button } from '@/components/ui'
+import { usePagination } from '@/lib/pagination'
 
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -27,6 +28,8 @@ export function ClubsList() {
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 12 // Show 12 clubs per page
   const router = useRouter()
   const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
@@ -430,6 +433,15 @@ export function ClubsList() {
     // Include dependencies that affect sorting
   }, [filteredClubs, filters.sort, searchInput])
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput])
+
+  // Paginate the sorted clubs
+  const paginationResult = usePagination(sortedClubs, currentPage, ITEMS_PER_PAGE)
+  const paginatedClubs = paginationResult.items
+
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
     const params = new URLSearchParams()
@@ -654,7 +666,7 @@ export function ClubsList() {
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-            {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
+            {filteredClubs.length === 0 ? '0' : `${paginationResult.startIndex + 1}–${paginationResult.endIndex}`} of {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
           
           <div className="flex items-center gap-3">
@@ -731,13 +743,93 @@ export function ClubsList() {
             />
           )
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {sortedClubs.map(club => (
-              <ClubCard key={club.id} club={club} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {paginatedClubs.map(club => (
+                <ClubCard key={club.id} club={club} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} />
+              ))}
+            </div>
+            {/* Pagination Controls */}
+            {paginationResult.totalPages > 1 && (
+              <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={!paginationResult.hasPrevPage}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="text-sm font-medium">Previous</span>
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        page === paginationResult.currentPage
+                          ? 'bg-primary-600 text-white'
+                          : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
+                  disabled={!paginationResult.hasNextPage}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="text-sm font-medium">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </>
         ) : (
-          <ClubsTable clubs={sortedClubs} pendingAnnouncements={localPendingAnnouncements} />
+          <>
+            <ClubsTable clubs={paginatedClubs} pendingAnnouncements={localPendingAnnouncements} />
+            {/* Pagination Controls for Table View */}
+            {paginationResult.totalPages > 1 && (
+              <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={!paginationResult.hasPrevPage}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="text-sm font-medium">Previous</span>
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        page === paginationResult.currentPage
+                          ? 'bg-primary-600 text-white'
+                          : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
+                  disabled={!paginationResult.hasNextPage}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <span className="text-sm font-medium">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

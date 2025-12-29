@@ -1,4 +1,5 @@
 import { Club } from '@/types/club'
+import { deduplicator } from '@/lib/request-deduplicator'
 
 // Mock data for client-side components
 function getMockClubs(): Club[] {
@@ -89,21 +90,25 @@ function getMockClubs(): Club[] {
 // This will be used for client-side components
 export async function getClubs(): Promise<Club[]> {
   try {
-    // Always use relative URL so it works in any environment (and on vercel preview)
-    const ts = Date.now()
-    const response = await fetch(`/api/clubs?_=${ts}`, {
-      method: 'GET',
-      // Ensure no caching at the fetch / browser layer
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      },
-    })
-    if (!response.ok) throw new Error(`Failed to fetch clubs: ${response.status}`)
-    const data: Club[] = await response.json()
-    return data
+    // Use deduplicator to collapse concurrent requests
+    // If multiple components request clubs simultaneously, they'll get the same promise
+    return await deduplicator.dedupe('clubs', async () => {
+      // Always use relative URL so it works in any environment (and on vercel preview)
+      const ts = Date.now()
+      const response = await fetch(`/api/clubs?_=${ts}`, {
+        method: 'GET',
+        // Ensure no caching at the fetch / browser layer
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+      })
+      if (!response.ok) throw new Error(`Failed to fetch clubs: ${response.status}`)
+      const data: Club[] = await response.json()
+      return data
+    }, 5000) // Keep deduped requests for 5 seconds
   } catch (error) {
     console.error('Error fetching clubs from API (falling back to mock):', error)
     return getMockClubs()

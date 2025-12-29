@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { ClubRegistration } from '@/types/club'
 import { withRegistrationLock } from '@/lib/registration-lock'
+import { invalidateClubsCache } from '@/app/api/clubs/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,9 @@ async function handler(request: NextRequest, body: any) {
           { status: 500 }
         )
       }
+
+      // Invalidate clubs cache since we changed registrations
+      invalidateClubsCache()
 
       return NextResponse.json({ 
         success: true,

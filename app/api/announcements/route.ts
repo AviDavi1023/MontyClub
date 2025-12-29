@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
 import { announcementsCache } from '@/lib/caches'
 import { createCachedGET } from '@/lib/api-patterns'
+import { invalidateClubsCache } from '@/app/api/clubs/route'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,6 +33,10 @@ export async function POST(request: NextRequest) {
       const updated: Record<string, string> = { ...base, ...body }
       await writeData('announcements', updated)
       announcementsCache.set(updated)
+      
+      // Invalidate clubs cache since announcements affect club display
+      invalidateClubsCache()
+      
       return NextResponse.json(updated, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -84,6 +89,9 @@ export async function DELETE(request: NextRequest) {
       if (deletedCount > 0) {
         await writeData('announcements', updated)
         announcementsCache.set(updated)
+        
+        // Invalidate clubs cache since we changed announcements
+        invalidateClubsCache()
       }
       return NextResponse.json({ deleted: actuallyDeleted, total: deletedCount }, {
         headers: {

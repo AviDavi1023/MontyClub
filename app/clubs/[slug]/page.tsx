@@ -1,5 +1,6 @@
-import { notFound } from 'next/navigation'
+import { notFound, Suspense } from 'next/navigation'
 import { ClubDetail } from '@/components/ClubDetail'
+import { ClubDetailSkeleton } from '@/components/ClubDetailSkeleton'
 import { Header } from '@/components/Header'
 import { slugifyName } from '@/lib/slug'
 import { fetchClubs } from '@/lib/clubs'
@@ -9,9 +10,8 @@ export const dynamicParams = true
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default async function ClubPage({ params }: { params: Promise<{ slug: string }> }) {
+async function ClubContent({ slug }: { slug: string }) {
   try {
-    const { slug } = await params
     const clubs = await fetchClubs()
     
     // Find club by slug (slugified name)
@@ -23,16 +23,24 @@ export default async function ClubPage({ params }: { params: Promise<{ slug: str
     
     if (!club) notFound()
 
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <Header />
-        <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-          <ClubDetail club={club} allClubs={clubs} />
-        </main>
-      </div>
-    )
+    return <ClubDetail club={club} allClubs={clubs} />
   } catch (error) {
-    console.error('Error in ClubPage:', error)
+    console.error('Error in ClubContent:', error)
     notFound()
   }
+}
+
+export default async function ClubPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Header />
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <Suspense fallback={<ClubDetailSkeleton />}>
+          <ClubContent slug={slug} />
+        </Suspense>
+      </main>
+    </div>
+  )
 }
