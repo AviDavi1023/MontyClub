@@ -44,9 +44,23 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   // Optional updates - Pre-filled from selected club
   const [clubName, setClubName] = useState('')
   const [category, setCategory] = useState('')
+  const [customCategory, setCustomCategory] = useState('')
   const [meetingFrequency, setMeetingFrequency] = useState('')
+  const [customFrequency, setCustomFrequency] = useState('')
+  const [meetingDay, setMeetingDay] = useState('')
   const [socialMedia, setSocialMedia] = useState('')
   const [statementOfPurpose, setStatementOfPurpose] = useState('')
+
+  const frequencyOptions = [
+    'Weekly',
+    '1st and 3rd weeks of the month',
+    '2nd and 4th weeks of the month',
+    '1st week only',
+    '2nd week only',
+    '3rd week only',
+    '4th week only',
+    'Other'
+  ]
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -140,7 +154,10 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
     setSelectedClub(club)
     setClubName(club.clubName)
     setCategory(club.category || '')
+    setCustomCategory('')
     setMeetingFrequency(club.meetingFrequency || '')
+    setCustomFrequency('')
+    setMeetingDay(club.meetingDay || '')
     setSocialMedia(club.socialMedia || '')
     setStatementOfPurpose(club.statementOfPurpose || '')
     
@@ -182,6 +199,28 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
 
     try {
       setSubmitting(true)
+      
+      const finalFrequency = meetingFrequency === 'Other' ? customFrequency : meetingFrequency
+      const finalCategory = category === 'Other' ? customCategory : category
+      
+      if (!meetingDay) {
+        setError('Please select at least one meeting day')
+        setSubmitting(false)
+        return
+      }
+      
+      if (!finalFrequency) {
+        setError('Please select a meeting frequency')
+        setSubmitting(false)
+        return
+      }
+      
+      if (!finalCategory) {
+        setError('Please select a category')
+        setSubmitting(false)
+        return
+      }
+      
       const response = await fetch('/api/club-renewal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,8 +228,9 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           collectionId: slug,
           originalClubId: selectedClub.id,
           clubName,
-          category,
-          meetingFrequency,
+          category: finalCategory,
+          meetingFrequency: finalFrequency,
+          meetingDay,
           advisorName,
           advisorEmail,
           studentContactName,
@@ -418,28 +458,110 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                 onChange={(e) => setClubName(e.target.value)}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Category"
+              {/* Category Dropdown */}
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="category"
+                  required
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                />
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select a category</option>
+                  <option value="Awareness">Awareness</option>
+                  <option value="Business">Business</option>
+                  <option value="Debate/Political">Debate/Political</option>
+                  <option value="Education">Education</option>
+                  <option value="Culture">Culture</option>
+                  <option value="Performing Arts">Performing Arts</option>
+                  <option value="Cultural/Religious">Cultural/Religious</option>
+                  <option value="Service">Service</option>
+                  <option value="Social">Social</option>
+                  <option value="STEM">STEM</option>
+                  <option value="Other">Other</option>
+                </select>
+                {category === 'Other' && (
+                  <Input
+                    type="text"
+                    placeholder="Please specify your category"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
+              </div>
 
-                <Input
-                  label="Meeting Frequency"
+              {/* Meeting Day */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Meeting Day of Week <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Select all days that apply
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                    <label key={day} className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={meetingDay.includes(day)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMeetingDay(meetingDay ? `${meetingDay}, ${day}` : day)
+                          } else {
+                            const days = meetingDay.split(', ').filter(d => d !== day)
+                            setMeetingDay(days.join(', '))
+                          }
+                        }}
+                        className="flex-shrink-0"
+                      />
+                      <span className="text-sm text-gray-900 dark:text-white">{day}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Meeting Frequency Dropdown */}
+              <div>
+                <label htmlFor="meetingFrequency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Frequency <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  "Every other week" and "Once a month" is not specific enough.
+                </p>
+                <select
+                  id="meetingFrequency"
+                  required
                   value={meetingFrequency}
                   onChange={(e) => setMeetingFrequency(e.target.value)}
-                />
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select frequency</option>
+                  {frequencyOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                {meetingFrequency === 'Other' && (
+                  <Input
+                    type="text"
+                    placeholder="Please specify"
+                    value={customFrequency}
+                    onChange={(e) => setCustomFrequency(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Social Media"
-                  value={socialMedia}
-                  onChange={(e) => setSocialMedia(e.target.value)}
-                  placeholder="Instagram, etc."
-                />
-              </div>
+              <Input
+                label="Social Media (optional)"
+                value={socialMedia}
+                onChange={(e) => setSocialMedia(e.target.value)}
+                placeholder="@yourclub or https://..."
+                helperText="Provide an @ for Instagram, a link (website, YouTube, etc.), or skip this."
+              />
 
               <Textarea
                 label="Statement of Purpose"
@@ -450,37 +572,57 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               />
             </div>
 
-            <div className="space-y-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+            <div className="space-y-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 Required Agreements *
               </h3>
 
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={agreementSupervision}
-                  onChange={(e) => setAgreementSupervision(e.target.checked)}
-                  className="mt-1 w-4 h-4"
-                  required
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  I confirm that this club will have proper adult supervision during all activities
-                </span>
-              </label>
+              {/* Club Advisor Agreement */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Club Advisor Agreement <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  As the advisor of this club, I agree that I will be present at all club meetings and activities. If applicable, I agree to supervise all club fundraisers and deposit or store the money with the School Treasurer or Activities Director within 24 hours of the fundraising activity. Also, I agree to follow the proper money handling and expenditure procedures as set forth by the California State Ed. Code and the Carlmont Trust Agreement. If this is a renewal, I agree that all club officers have been fairly elected by the members of the club. If this is a new or unrenewed club, I agree that all club officers will be fairly elected by the members of the club.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreementSupervision}
+                    onChange={(e) => setAgreementSupervision(e.target.checked)}
+                    className="mt-1 w-4 h-4"
+                    required
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    I agree to the above Club Advisor Agreement
+                  </span>
+                </label>
+              </div>
 
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={agreementCodeOfConduct}
-                  onChange={(e) => setAgreementCodeOfConduct(e.target.checked)}
-                  className="mt-1 w-4 h-4"
-                  required
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  I agree to abide by the school's code of conduct and club policies
-                </span>
-              </label>
+              {/* Club Agreement */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Club Agreement <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  By submitting this form, we (club advisor and officers) agree that we will abide by all school, Ed. Code, and ASB rules pertaining to club functions. We will meet as indicated. We will notify ASB should any of the above information change. We agree that not fulfilling our agreed upon meetings and club activities may result in deactivation of the club in this and possibly following school years. We agree that all club activities must be school appropriate and are expected, unless otherwise approved, to be conducted on campus. We understand that off-campus club activities require field trip paperwork. Also, because it is against California State Ed. Code, we understand that ASB cannot approve any clubs whose purpose is to raise money for charity.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreementCodeOfConduct}
+                    onChange={(e) => setAgreementCodeOfConduct(e.target.checked)}
+                    className="mt-1 w-4 h-4"
+                    required
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    I agree to the above Club Agreement
+                  </span>
+                </label>
+              </div>
 
+              {/* Data Accuracy */}
+              {/* Data Accuracy */}
               <label className="flex items-start gap-2 cursor-pointer">
                 <input
                   type="checkbox"

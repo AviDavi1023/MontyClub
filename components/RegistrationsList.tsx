@@ -147,6 +147,42 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         if (response.ok) {
           const data = await response.json()
           setRenewalSettings(data)
+          
+          // Auto-select most recent other collection if no sources configured for this collection
+          const currentSettings = data[collectionId]
+          if (!currentSettings || !currentSettings.sourceCollections || currentSettings.sourceCollections.length === 0) {
+            // Find the most recent other collection (excluding current)
+            const otherCollections = collections
+              .filter(c => c.id !== collectionId)
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            
+            if (otherCollections.length > 0) {
+              // Auto-select the most recent collection
+              const mostRecentId = otherCollections[0].id
+              const updatedSettings = {
+                ...data,
+                [collectionId]: { sourceCollections: [mostRecentId] }
+              }
+              
+              // Save the auto-selected collection
+              try {
+                const saveResponse = await fetch('/api/renewal-settings', {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-key': adminApiKey
+                  },
+                  body: JSON.stringify(updatedSettings)
+                })
+                if (saveResponse.ok) {
+                  const updated = await saveResponse.json()
+                  setRenewalSettings(updated)
+                }
+              } catch (err) {
+                console.error('Failed to auto-select collection:', err)
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load renewal settings:', err)
@@ -155,7 +191,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       }
     }
     loadRenewalSettings()
-  }, [])
+  }, [collectionId, collections, adminApiKey])
 
   const saveRenewalSettings = async (collectionId: string, sourceCollections: string[]) => {
     setSavingRenewalSettings(true)
