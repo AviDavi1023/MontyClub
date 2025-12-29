@@ -77,11 +77,18 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       const collectionsData = await collectionsRes.json()
       console.log('[Renewal Form] Received collections:', collectionsData.collections?.length)
       
-      const targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionSlug)
+      // Try matching by ID first, then by name slug (to support both formats)
+      let targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionSlug)
+      
+      if (!targetCollection) {
+        // Fallback: try matching by name slug (for backward compatibility with name-based URLs)
+        const { slugifyName } = await import('@/lib/slug')
+        targetCollection = collectionsData.collections?.find((c: any) => slugifyName(c.name) === slugifyName(collectionSlug))
+      }
       
       if (!targetCollection) {
         console.error('[Renewal Form] Target collection not found. Looking for:', collectionSlug)
-        console.error('[Renewal Form] Available collections:', collectionsData.collections?.map((c: any) => c.id))
+        console.error('[Renewal Form] Available collections:', collectionsData.collections?.map((c: any) => ({ id: c.id, name: c.name })))
         setError('Collection not found')
         return
       }
@@ -97,9 +104,10 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       
       setCollection(targetCollection)
       
-      // Fetch clubs for renewal, excluding the target collection
-      console.log('[Renewal Form] Fetching renewal clubs for:', collectionSlug)
-      const clubsRes = await fetch(`/api/renewal-clubs?collectionId=${encodeURIComponent(collectionSlug)}`)
+      // Fetch clubs for renewal from the configured source collections
+      // Use the actual collection ID (not the slug) for the API call
+      console.log('[Renewal Form] Fetching renewal clubs for:', targetCollection.id)
+      const clubsRes = await fetch(`/api/renewal-clubs?collectionId=${encodeURIComponent(targetCollection.id)}`)
       
       if (!clubsRes.ok) {
         console.error('[Renewal Form] Clubs fetch failed:', clubsRes.status, clubsRes.statusText)
