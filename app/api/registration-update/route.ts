@@ -5,9 +5,8 @@ import { withRegistrationLock } from '@/lib/registration-lock'
 
 export const dynamic = 'force-dynamic'
 
-async function handler(request: NextRequest) {
+async function handler(request: NextRequest, body: any) {
   try {
-    const body = await request.json()
     const { registrationId, collection, updates } = body
     if (!registrationId || !collection || !updates) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
@@ -44,6 +43,6 @@ export async function POST(request: NextRequest) {
   }
   const path = `registrations/${collection}/${registrationId}.json`
   
-  // Wrap with registration-level lock
-  return withRegistrationLock(path, () => handler(request))
+  // Wrap with registration-level lock, passing parsed body to handler
+  return withRegistrationLock(path, () => handler(request, body))
 }

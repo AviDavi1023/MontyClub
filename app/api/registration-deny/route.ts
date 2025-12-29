@@ -5,7 +5,7 @@ import { withRegistrationLock } from '@/lib/registration-lock'
 
 export const dynamic = 'force-dynamic'
 
-async function handler(request: NextRequest) {
+async function handler(request: NextRequest, body: any) {
   try {
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
@@ -17,7 +17,6 @@ async function handler(request: NextRequest) {
         )
       }
 
-      const body = await request.json()
       const { registrationId, collection, reason } = body
       if (!registrationId || !collection) {
         return NextResponse.json(
@@ -81,6 +80,6 @@ export async function POST(request: NextRequest) {
   }
   const path = `registrations/${collection}/${registrationId}.json`
   
-  // Wrap with registration-level lock
-  return withRegistrationLock(path, () => handler(request))
+  // Wrap with registration-level lock, passing parsed body to handler
+  return withRegistrationLock(path, () => handler(request, body))
 }
