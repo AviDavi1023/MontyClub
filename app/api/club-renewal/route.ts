@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
-import { writeJSONToStorage } from '@/lib/supabase'
-import { ClubRegistration } from '@/types/club'
+import { writeJSONToStorage, readJSONFromStorage } from '@/lib/supabase'
+import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import { readData } from '@/lib/runtime-store'
 
 export const dynamic = 'force-dynamic'
@@ -43,13 +43,20 @@ export async function POST(request: Request) {
     }
 
     // Get active registration collections to validate target collection
-    const collectionsResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/registration-collections`)
-    if (!collectionsResponse.ok) {
-      return NextResponse.json({ error: 'Failed to validate collection' }, { status: 500 })
-    }
+    const collectionsData = await readJSONFromStorage('settings/registration-collections.json', true)
+    const collections: RegistrationCollection[] = Array.isArray(collectionsData) 
+      ? collectionsData.map((c: any) => ({
+          id: String(c.id),
+          name: String(c.name),
+          enabled: Boolean(c.enabled),
+          createdAt: String(c.createdAt),
+          display: typeof c.display === 'boolean' ? c.display : undefined,
+          accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
+          renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
+        }))
+      : []
     
-    const collectionsData = await collectionsResponse.json()
-    const targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionId)
+    const targetCollection = collections.find((c: RegistrationCollection) => c.id === collectionId)
     
     if (!targetCollection) {
       return NextResponse.json({ error: 'Invalid collection ID' }, { status: 400 })
