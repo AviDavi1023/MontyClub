@@ -2631,6 +2631,11 @@ export function AdminPanel() {
           </button>
           <button
             onClick={() => {
+              // Ensure a collection is selected before opening registrations
+              if (!activeCollectionId && collections.length > 0) {
+                const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
+                setActiveCollectionId(enabledCol?.id || collections[0].id)
+              }
               setShowRegistrations(true)
               setTimeout(() => registrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
             }}
