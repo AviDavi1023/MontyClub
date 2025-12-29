@@ -6,10 +6,7 @@ export const revalidate = 0
 
 export async function GET() {
   try {
-    const data = await readData('renewal-settings', { 
-      enabled: false, 
-      sourceCollections: [] as string[] 
-    })
+    const data = await readData('renewal-settings', {} as Record<string, { sourceCollections: string[] }>)
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -31,7 +28,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json()
-    const current = await readData('renewal-settings', { enabled: false, sourceCollections: [] })
+    const current = await readData('renewal-settings', {} as Record<string, { sourceCollections: string[] }>)
     const updated = { ...current, ...body }
     
     console.log('[PATCH /api/renewal-settings] Updating renewal settings to:', updated)

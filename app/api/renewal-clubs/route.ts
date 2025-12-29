@@ -14,15 +14,14 @@ export async function GET(request: Request) {
     console.log('[Renewal API] GET /api/renewal-clubs called with collectionId:', collectionId)
     
     // Load renewal settings to determine which collections to fetch from
-    const renewalSettings = await readData('renewal-settings', { 
-      enabled: false, 
-      sourceCollections: [] as string[] 
-    })
+    const renewalSettings = await readData('renewal-settings', {} as Record<string, { sourceCollections: string[] }>)
     
     console.log('[Renewal API] Loaded renewal settings:', renewalSettings)
     
-    const sourceCollections = renewalSettings.sourceCollections || []
-    console.log('[Renewal API] Source collections:', sourceCollections)
+    // Get source collections for THIS specific collection
+    const collectionSettings = collectionId ? renewalSettings[collectionId] : undefined
+    const sourceCollections = collectionSettings?.sourceCollections || []
+    console.log('[Renewal API] Source collections for', collectionId, ':', sourceCollections)
     
     // Fetch approved clubs from configured source collections
     const allClubs: ClubRegistration[] = []
@@ -32,18 +31,13 @@ export async function GET(request: Request) {
       // Determine which collection to fetch renewal candidates from
       let collectionIds: string[] = []
       
-      // Priority: Use the passed collectionId if it's in sourceCollections, otherwise use sourceCollections as-is
-      if (collectionId && sourceCollections.includes(collectionId)) {
-        // Fetch from the current collection (clubs to renew)
-        collectionIds = [collectionId]
-        console.log('[Renewal API] Using current collection as source:', collectionIds)
-      } else if (sourceCollections.length > 0) {
-        // Use configured source collections without filtering
+      if (sourceCollections.length > 0) {
+        // Use configured source collections
         collectionIds = sourceCollections
         console.log('[Renewal API] Using configured source collections:', collectionIds)
       } else {
+        // Fallback: fetch from current collection (self-renewal)
         console.log('[Renewal API] No source collections configured, fetching from current collection')
-        // Fallback: fetch from current collection
         if (collectionId) {
           collectionIds = [collectionId]
         }

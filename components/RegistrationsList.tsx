@@ -44,7 +44,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const [editFields, setEditFields] = useState<any>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'submitted' | 'name' | 'status' | 'category'>('submitted')
-  const [renewalSettings, setRenewalSettings] = useState<{ enabled: boolean; sourceCollections: string[] }>({ enabled: false, sourceCollections: [] })
+  const [renewalSettings, setRenewalSettings] = useState<Record<string, { sourceCollections: string[] }>>({})
   const [loadingRenewalSettings, setLoadingRenewalSettings] = useState(true)
   const [savingRenewalSettings, setSavingRenewalSettings] = useState(false)
     const openEditModal = (reg: ClubRegistration) => {
@@ -157,16 +157,20 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     loadRenewalSettings()
   }, [])
 
-  const saveRenewalSettings = async (settings: { enabled: boolean; sourceCollections: string[] }) => {
+  const saveRenewalSettings = async (collectionId: string, sourceCollections: string[]) => {
     setSavingRenewalSettings(true)
     try {
+      const updatedSettings = {
+        ...renewalSettings,
+        [collectionId]: { sourceCollections }
+      }
       const response = await fetch('/api/renewal-settings', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(updatedSettings)
       })
       if (!response.ok) throw new Error('Failed to save')
       const updated = await response.json()
@@ -178,14 +182,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     }
   }
 
-  const toggleRenewalSourceCollection = (collectionId: string) => {
-    const currentSources = renewalSettings.sourceCollections || []
-    const newSources = currentSources.includes(collectionId)
-      ? currentSources.filter(id => id !== collectionId)
-      : [...currentSources, collectionId]
-    const newSettings = { ...renewalSettings, sourceCollections: newSources }
-    setRenewalSettings(newSettings)
-    saveRenewalSettings(newSettings)
+  const toggleRenewalSourceCollection = (sourceCollectionId: string) => {
+    const currentSettings = renewalSettings[collectionId] || { sourceCollections: [] }
+    const currentSources = currentSettings.sourceCollections || []
+    const newSources = currentSources.includes(sourceCollectionId)
+      ? currentSources.filter(id => id !== sourceCollectionId)
+      : [...currentSources, sourceCollectionId]
+    saveRenewalSettings(collectionId, newSources)
   }
 
   // Load pending registration changes from localStorage on mount
@@ -758,7 +761,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         ) : (
           <div className="space-y-2">
             {collections.filter(c => c.id !== collectionId).map(collection => {
-              const isSource = (renewalSettings.sourceCollections || []).includes(collection.id)
+              const currentSettings = renewalSettings[collectionId] || { sourceCollections: [] }
+              const isSource = currentSettings.sourceCollections.includes(collection.id)
               return (
                 <label key={collection.id} className="flex items-center gap-2 text-sm">
                   <input
