@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         
         try {
           console.log('[Renewal API] Fetching clubs from collection:', loopCollectionId)
-          const paths = await listPaths(`club-registrations/${loopCollectionId}/`)
+          const paths = await listPaths(`registrations/${loopCollectionId}/`)
           console.log('[Renewal API] Found paths in', loopCollectionId, ':', paths.length)
           
           const jsonPaths = paths.filter(p => p.endsWith('.json')).slice(0, MAX_CLUBS - allClubs.length)
