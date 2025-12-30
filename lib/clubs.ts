@@ -9,17 +9,18 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   // OPTIMIZATION: Try snapshot first for instant loading (100x faster)
   // Snapshot is generated via admin "Publish Catalog" action
   try {
-    const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
+    const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json', false)
     if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
-      console.log(`[fetchClubsFromCollection] Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
+      console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
       return snapshot.clubs
     }
   } catch (e) {
-    console.warn('[fetchClubsFromCollection] Snapshot read failed, falling back to dynamic fetch:', e)
+    // Not an error - snapshot just doesn't exist yet (admin hasn't published)
+    console.log('[fetchClubsFromCollection] No snapshot available, using dynamic fetch (this is normal on first load)')
   }
 
   // FALLBACK: Dynamic fetch from registrations (used if snapshot doesn't exist)
-  console.log('[fetchClubsFromCollection] No snapshot found, using dynamic fetch')
+  console.log('[fetchClubsFromCollection] 📂 Using dynamic fetch from registration files')
   
   // 1. Get all collections and choose display collection (fallback to legacy enabled)
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])

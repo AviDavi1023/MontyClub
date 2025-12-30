@@ -24,21 +24,31 @@ export async function readJSONFromStorage(path: string, bustCache = false) {
   if (!client) return null
 
   try {
-    // Add cache-busting query param to force fresh reads
-    const cacheBust = bustCache ? `?cb=${Date.now()}` : ''
+    // Cache-busting via transform option (not query param which causes 400)
+    const options = bustCache ? { 
+      transform: { 
+        width: undefined as any 
+      } 
+    } : {}
+    
     const { data, error } = await client.storage
       .from('club-data')
-      .download(path + cacheBust)
+      .download(path)
 
     if (error) {
-      console.warn('Error reading from Supabase:', error)
+      // Only warn if it's not a 404 (file not found is expected for snapshot on first load)
+      if (error.message?.includes('not found') || error.message?.includes('404')) {
+        console.log(`[Supabase] File not found (expected on first access): ${path}`)
+      } else {
+        console.warn('[Supabase] Error reading:', error)
+      }
       return null
     }
 
     const text = await data.text()
     return JSON.parse(text)
   } catch (e) {
-    console.warn('Error reading from Supabase:', e)
+    console.warn('[Supabase] Error reading from storage:', e)
     return null
   }
 }
@@ -54,19 +64,35 @@ export async function writeJSONToStorage(path: string, data: any) {
     const jsonString = JSON.stringify(data, null, 2)
     console.log(`[writeJSONToStorage] Writing to ${path}, size: ${jsonString.length} bytes`)
     
-    const blob = new Blob([jsonString], {
-      type: 'application/json',
-    })
+    // For Supabase Storage, we need to check if file exists and update accordingly
+    // First, try to remove existing file to avoid conflicts
+    try {
+      await client.storage.from('club-data').remove([path])
+      console.log(`[writeJSONToStorage] Removed existing file: ${path}`)
+    } catch (removeError) {
+      // File might not exist, that's fine
+      console.log(`[writeJSONToStorage] No existing file to remove (this is normal)`)
+    }
 
-    const { error } = await client.storage
+    // Convert to Buffer for proper binary handling
+    const buffer = Buffer.from(jsonString, 'utf-8')
+
+    // Now upload fresh
+    const { data: uploadData, error } = await client.storage
       .from('club-data')
-      .upload(path, blob, {
-        upsert: true,
-        contentType: 'application/json'
+      .upload(path, buffer, {
+        contentType: 'application/json',
+        cacheControl: '3600',
+        upsert: false // We removed it above, so always insert fresh
       })
 
     if (error) {
-      console.error('[writeJSONToStorage] Supabase error:', JSON.stringify(error))
+      console.error('[writeJSONToStorage] Supabase error:', {
+        message: error.message,
+        name: error.name,
+        statusCode: (error as any).statusCode,
+        error: error
+      })
       return false
     }
 

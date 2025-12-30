@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
 
     console.log('[Publish Catalog] Starting catalog generation...')
 
+    // Verify Supabase is configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[Publish Catalog] Supabase not configured properly')
+      return NextResponse.json(
+        { error: 'Supabase storage not configured. Check environment variables.' },
+        { status: 500 }
+      )
+    }
+
     // 1. Get the display collection
     const collections: RegistrationCollection[] = await readJSONFromStorage('settings/registration-collections.json') || []
     const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
@@ -94,8 +103,12 @@ export async function POST(request: NextRequest) {
     const success = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
 
     if (!success) {
+      console.error('[Publish Catalog] Failed to write snapshot. Check Supabase bucket permissions.')
       return NextResponse.json(
-        { error: 'Failed to write snapshot to storage' },
+        { 
+          error: 'Failed to write snapshot to storage', 
+          detail: 'Check server logs and verify Supabase bucket permissions for club-data bucket'
+        },
         { status: 500 }
       )
     }
