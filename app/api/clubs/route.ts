@@ -15,7 +15,6 @@ export async function GET() {
       return new NextResponse(json, {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'Content-Encoding': 'gzip',
           'Cache-Control': 'no-store, max-age=0',
           'X-Cache': 'HIT',
           'X-Cache-Age': String(cached.age),
@@ -31,7 +30,6 @@ export async function GET() {
     return new NextResponse(json, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        'Content-Encoding': 'gzip',
         'Cache-Control': 'no-store, max-age=0',
         'X-Cache': 'MISS',
       },
