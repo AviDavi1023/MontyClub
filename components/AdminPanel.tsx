@@ -2961,35 +2961,25 @@ export function AdminPanel() {
             </button>
           </div>
 
-          <div className="p-4 border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10 rounded-lg">
+          <div className="p-4 border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
             <div className="flex items-start gap-2 mb-2">
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                  <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  Publish Catalog (Performance Boost)
+                  Catalog (Auto-Published)
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Pre-generate catalog for <strong>instant loading</strong> (100x faster). Click after approving registrations.
+                  Catalog automatically updates when you approve or deny registrations. ✨ No manual action needed!
                 </p>
               </div>
             </div>
             {catalogStatus?.exists && (
-              <div className="text-xs text-gray-600 dark:text-gray-400 mb-2 bg-white dark:bg-gray-800 p-2 rounded">
-                ✅ Published: {catalogStatus.clubCount} clubs • {new Date(catalogStatus.generatedAt || '').toLocaleString()}
+              <div className="text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 p-2 rounded">
+                ✅ Current: {catalogStatus.clubCount} clubs • Last updated {new Date(catalogStatus.generatedAt || '').toLocaleString()}
               </div>
             )}
-            <button
-              onClick={publishCatalog}
-              disabled={publishingCatalog}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600"
-            >
-              <svg className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {publishingCatalog ? 'Publishing...' : 'Publish Now'}
-            </button>
           </div>
 
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">

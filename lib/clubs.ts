@@ -8,19 +8,15 @@ import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 export async function fetchClubsFromCollection(): Promise<Club[]> {
   // OPTIMIZATION: Try snapshot first for instant loading (100x faster)
   // Snapshot is generated via admin "Publish Catalog" action
-  try {
-    const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json', false)
-    if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
-      console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
-      return snapshot.clubs
-    }
-  } catch (e) {
-    // Not an error - snapshot just doesn't exist yet (admin hasn't published)
-    console.log('[fetchClubsFromCollection] No snapshot available, using dynamic fetch (this is normal on first load)')
+  const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
+  if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
+    console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
+    return snapshot.clubs
   }
 
   // FALLBACK: Dynamic fetch from registrations (used if snapshot doesn't exist)
-  console.log('[fetchClubsFromCollection] 📂 Using dynamic fetch from registration files')
+  // This is normal if admin hasn't clicked "Publish Catalog" yet
+  console.log('[fetchClubsFromCollection] 📂 Generating from registration files (snapshot not yet published - this is normal)')
   
   // 1. Get all collections and choose display collection (fallback to legacy enabled)
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])

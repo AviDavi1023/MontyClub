@@ -7,7 +7,7 @@ interface CacheEntry {
 }
 
 let clubsCache: CacheEntry | null = null
-const CACHE_TTL = 300000 // 5 minutes (300000ms) - shorter since snapshot is source of truth
+const CACHE_TTL = 86400000 // 24 hours - snapshot is source of truth, auto-published on approvals
 
 /**
  * Get cached clubs data if still valid

@@ -11,9 +11,11 @@ export async function GET() {
     // Check if cache is still valid
     const cached = getCachedClubs()
     if (cached) {
-      return new NextResponse(JSON.stringify(cached.data), {
+      const json = JSON.stringify(cached.data)
+      return new NextResponse(json, {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
+          'Content-Encoding': 'gzip',
           'Cache-Control': 'no-store, max-age=0',
           'X-Cache': 'HIT',
           'X-Cache-Age': String(cached.age),
@@ -25,9 +27,11 @@ export async function GET() {
     const clubs = await fetchClubs()
     setClubsCache(clubs)
 
-    return new NextResponse(JSON.stringify(clubs), {
+    const json = JSON.stringify(clubs)
+    return new NextResponse(json, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
+        'Content-Encoding': 'gzip',
         'Cache-Control': 'no-store, max-age=0',
         'X-Cache': 'MISS',
       },

@@ -1,9 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
-import { ClubRegistration } from '@/types/club'
+import { readJSONFromStorage, writeJSONToStorage, listPaths } from '@/lib/supabase'
+import { ClubRegistration, RegistrationCollection, Club } from '@/types/club'
 import { withRegistrationLock } from '@/lib/registration-lock'
+import { invalidateClubsCache } from '@/lib/cache-utils'
+import { readData } from '@/lib/runtime-store'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Helper to automatically publish catalog snapshot after registration changes
+ */
+async function publishCatalogSnapshot() {
+  try {
+    console.log('[Snapshot] Auto-publishing catalog after registration change...')
+    
+    const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+    const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
+    
+    if (!displayCollection) {
+      console.warn('[Snapshot] No display collection found for snapshot')
+      return
+    }
+
+    const regPaths = await listPaths(`registrations/${displayCollection.id}`)
+    const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+    
+    const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+    const allRegs = await Promise.all(registrationPromises)
+    
+    const registrations: ClubRegistration[] = allRegs.filter(
+      reg => reg && typeof reg === 'object' && reg.status === 'approved'
+    )
+
+    registrations.sort((a, b) => {
+      const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
+      const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
+      return timeB - timeA
+    })
+
+    const clubs: Club[] = registrations.map((r) => ({
+      id: r.id,
+      name: r.clubName,
+      category: r.category || '',
+      description: r.statementOfPurpose,
+      advisor: r.advisorName,
+      studentLeader: r.studentContactName,
+      meetingTime: r.meetingDay,
+      meetingFrequency: r.meetingFrequency,
+      location: r.location,
+      contact: r.studentContactEmail,
+      socialMedia: r.socialMedia || '',
+      active: true,
+      notes: r.notes || '',
+      announcement: '',
+      keywords: [],
+    }))
+
+    const snapshot = {
+      clubs,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        collectionId: displayCollection.id,
+        collectionName: displayCollection.name,
+        clubCount: clubs.length,
+        version: 1,
+      }
+    }
+
+    const success = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
+    
+    if (success) {
+      console.log(`[Snapshot] ✅ Auto-published ${clubs.length} clubs`)
+    } else {
+      console.warn('[Snapshot] Failed to auto-publish (will fall back to dynamic fetch)')
+    }
+  } catch (err) {
+    console.error('[Snapshot] Error auto-publishing:', err)
+  }
+}
 
 async function handler(request: NextRequest, body: any) {
   try {
@@ -49,6 +123,14 @@ async function handler(request: NextRequest, body: any) {
           { status: 500 }
         )
       }
+
+      // Invalidate clubs cache
+      invalidateClubsCache()
+
+      // AUTO-PUBLISH: Update snapshot to remove denied registration
+      publishCatalogSnapshot().catch(err => {
+        console.error('[Snapshot] Error in background publish:', err)
+      })
 
       return NextResponse.json({ 
         success: true,

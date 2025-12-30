@@ -24,31 +24,33 @@ export async function readJSONFromStorage(path: string, bustCache = false) {
   if (!client) return null
 
   try {
-    // Cache-busting via transform option (not query param which causes 400)
-    const options = bustCache ? { 
-      transform: { 
-        width: undefined as any 
-      } 
-    } : {}
-    
     const { data, error } = await client.storage
       .from('club-data')
       .download(path)
 
     if (error) {
-      // Only warn if it's not a 404 (file not found is expected for snapshot on first load)
-      if (error.message?.includes('not found') || error.message?.includes('404')) {
-        console.log(`[Supabase] File not found (expected on first access): ${path}`)
-      } else {
-        console.warn('[Supabase] Error reading:', error)
+      // 404 or 400 = file doesn't exist (both are normal, not errors)
+      // 400 can happen when file doesn't exist depending on Supabase API state
+      const status = (error as any).originalError?.status
+      if (status === 404 || status === 400 || error.message?.includes('not found')) {
+        // File doesn't exist - this is expected for snapshot on first load
+        return null
       }
+      
+      // Any other error is worth logging
+      console.warn('[readJSONFromStorage] Unexpected Supabase error:', {
+        path,
+        status: (error as any).originalError?.status,
+        message: error.message
+      })
       return null
     }
 
     const text = await data.text()
     return JSON.parse(text)
   } catch (e) {
-    console.warn('[Supabase] Error reading from storage:', e)
+    // JSON parse error or other exceptions
+    console.warn('[readJSONFromStorage] Error parsing:', path, e)
     return null
   }
 }
