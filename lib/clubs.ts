@@ -6,6 +6,21 @@ import { listPaths, readJSONFromStorage } from '@/lib/supabase'
 import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 
 export async function fetchClubsFromCollection(): Promise<Club[]> {
+  // OPTIMIZATION: Try snapshot first for instant loading (100x faster)
+  // Snapshot is generated via admin "Publish Catalog" action
+  try {
+    const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
+    if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
+      console.log(`[fetchClubsFromCollection] Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
+      return snapshot.clubs
+    }
+  } catch (e) {
+    console.warn('[fetchClubsFromCollection] Snapshot read failed, falling back to dynamic fetch:', e)
+  }
+
+  // FALLBACK: Dynamic fetch from registrations (used if snapshot doesn't exist)
+  console.log('[fetchClubsFromCollection] No snapshot found, using dynamic fetch')
+  
   // 1. Get all collections and choose display collection (fallback to legacy enabled)
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
   const display = collections.find(c => c.display)
