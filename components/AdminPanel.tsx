@@ -2494,6 +2494,9 @@ export function AdminPanel() {
       
       const resp = await fetch('/api/admin/refresh-cache', {
         method: 'POST',
+        headers: {
+          'x-admin-key': adminApiKey
+        }
       })
       
       if (!resp.ok) {

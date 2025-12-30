@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server'
 import { invalidateClubsCache } from '@/lib/cache-utils'
-import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Verify admin authentication
-    const cookieStore = await cookies()
-    const adminCookie = cookieStore.get('admin-auth')
+    // Verify admin API key
+    const adminKey = request.headers.get('x-admin-key')
+    const expectedKey = process.env.ADMIN_API_KEY
     
-    if (!adminCookie?.value) {
+    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
