@@ -116,6 +116,7 @@ export function AdminPanel() {
   const statisticsRef = useRef<HTMLDivElement | null>(null)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [refreshingCache, setRefreshingCache] = useState(false)
   // Analytics Pilot State
   const [analyticsEnabled, setAnalyticsEnabled] = useState(true)
   const [analyticsPeriod, setAnalyticsPeriod] = useState('pilot')
@@ -2487,6 +2488,32 @@ export function AdminPanel() {
     }
   }
 
+  const refreshCache = async () => {
+    try {
+      setRefreshingCache(true)
+      
+      const resp = await fetch('/api/admin/refresh-cache', {
+        method: 'POST',
+      })
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to refresh cache')
+      }
+      
+      const data = await resp.json()
+      showToast('Cache cleared! The next page load will fetch fresh data.', 'success')
+      
+      // Optionally refresh clubs data in this panel too
+      await refreshData()
+    } catch (err) {
+      console.error('Error refreshing cache:', err)
+      showToast(`Failed to refresh cache: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+    } finally {
+      setRefreshingCache(false)
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <>
@@ -2860,6 +2887,19 @@ export function AdminPanel() {
             >
               <BarChart3 className="h-4 w-4" />
               {showStatistics ? 'Close Statistics' : 'View Statistics'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Refresh Cache</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Force fresh data after updates (24hr cache)</p>
+            <button
+              onClick={refreshCache}
+              disabled={refreshingCache}
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
+              {refreshingCache ? 'Refreshing...' : 'Refresh Now'}
             </button>
           </div>
 

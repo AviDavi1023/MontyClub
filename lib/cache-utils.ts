@@ -7,7 +7,7 @@ interface CacheEntry {
 }
 
 let clubsCache: CacheEntry | null = null
-const CACHE_TTL = 30000 // 30 seconds
+const CACHE_TTL = 86400000 // 24 hours (86400000ms)
 
 /**
  * Get cached clubs data if still valid
