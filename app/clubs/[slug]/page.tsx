@@ -15,6 +15,12 @@ async function ClubContent({ slug }: { slug: string }) {
   try {
     const clubs = await fetchClubs()
     
+    // If no clubs available, check if we have any data at all
+    if (!clubs || clubs.length === 0) {
+      console.warn(`[ClubContent] No clubs available (empty array). Snapshot may not be published yet.`)
+      notFound()
+    }
+    
     // Find club by slug (slugified name)
     let club = clubs.find((c: any) => slugifyName(c.name) === slug)
     // Fallback: if not found by slug, try direct id match for legacy links
@@ -22,7 +28,10 @@ async function ClubContent({ slug }: { slug: string }) {
       club = clubs.find((c: any) => String(c.id) === String(slug))
     }
     
-    if (!club) notFound()
+    if (!club) {
+      console.warn(`[ClubContent] Club not found: ${slug}. Available clubs: ${clubs.map((c: any) => c.name).join(', ')}`)
+      notFound()
+    }
 
     return <ClubDetail club={club} allClubs={clubs} />
   } catch (error) {

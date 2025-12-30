@@ -24,13 +24,16 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   const legacy = collections.find(c => c.enabled)
   const selected = display || legacy
   if (!selected) {
-    console.warn('No display or enabled collection found for club data')
+    console.warn('❌ No display or enabled collection found. Available collections:', collections.map(c => ({ id: c.id, name: c.name, display: c.display, enabled: c.enabled })))
     return []
   }
+
+  console.log(`[fetchClubsFromCollection] Using collection: ${selected.name} (id: ${selected.id})`)
 
   // 2. List all registration files for this collection
   const regPaths = await listPaths(`registrations/${selected.id}`)
   const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+  console.log(`[fetchClubsFromCollection] Found ${jsonPaths.length} registration files`)
   
   // 3. Read all registrations in parallel for performance
   const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
@@ -41,9 +44,11 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   )
   
   if (!registrations.length) {
-    console.warn('No approved registrations found in selected collection:', selected.name)
+    console.warn(`❌ No approved registrations found in collection "${selected.name}". Total files: ${allRegs.length}, Parsed: ${allRegs.filter(r => r).length}`)
     return []
   }
+
+  console.log(`[fetchClubsFromCollection] ✅ Found ${registrations.length} approved clubs`)
 
   // 3. Sort by approvedAt timestamp (newest first), fallback to submittedAt
   registrations.sort((a, b) => {
