@@ -160,9 +160,7 @@ export async function POST(request: NextRequest) {
   }
   const path = `registrations/${collection}/${registrationId}.json`
   
-  // Wrap with idempotency first, then registration-level lock
-  // Idempotency prevents duplicate denials from retried requests
-  return withIdempotency(request, async () => {
-    return withRegistrationLock(path, () => handler(request, body))
-  })
+  // Wrap handler with idempotency, then apply registration lock
+  const withLock = (req: NextRequest) => withRegistrationLock(path, () => handler(req, body))
+  return withIdempotency<any>(withLock)(request)
 }

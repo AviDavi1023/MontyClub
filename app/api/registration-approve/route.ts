@@ -9,151 +9,150 @@ import { withIdempotency } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
 
-
-export async function POST(request: NextRequest) {
+async function handler(request: NextRequest, body: any) {
   try {
-      const adminKey = request.headers.get('x-admin-key')
-      const expectedKey = process.env.ADMIN_API_KEY
+    const adminKey = request.headers.get('x-admin-key')
+    const expectedKey = process.env.ADMIN_API_KEY
 
-      if (!adminKey || adminKey !== expectedKey) {
-        return NextResponse.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        )
-      }
-
-      const { registrationId, collection } = body
-      if (!registrationId || !collection) {
-        return NextResponse.json(
-          { error: 'Missing registration ID or collection ID' },
-          { status: 400 }
-        )
-      }
-
-      // Read the registration using collection ID as folder
-      const path = `registrations/${collection}/${registrationId}.json`
-      const registration: ClubRegistration | null = await readJSONFromStorage(path)
-
-      if (!registration) {
-        return NextResponse.json(
-          { error: 'Registration not found' },
-          { status: 404 }
-        )
-      }
-
-      // Update status to approved and set approvedAt timestamp
-      registration.status = 'approved'
-      registration.approvedAt = new Date().toISOString()
-
-      // Save updated registration
-      const success = await writeJSONToStorage(path, registration)
-
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Failed to update registration' },
-          { status: 500 }
-        )
-      }
-
-      // Invalidate clubs cache since we changed registrations
-      invalidateClubsCache()
-
-      // AUTO-PUBLISH: Update snapshot immediately with lock to prevent races
-      // This ensures only one snapshot publish happens at a time
-      withSnapshotLock(async () => {
-        try {
-          console.log('[Snapshot] Auto-publishing catalog after registration approval...')
-          
-          // Get the display collection
-          const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
-          const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
-          
-          if (!displayCollection) {
-            console.warn('[Snapshot] No display collection found for snapshot')
-            return
-          }
-
-          // List and read all registrations
-          const regPaths = await listPaths(`registrations/${displayCollection.id}`)
-          const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
-          
-          const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
-          const allRegs = await Promise.all(registrationPromises)
-          
-          const registrations: ClubRegistration[] = allRegs.filter(
-            reg => reg && typeof reg === 'object' && reg.status === 'approved'
-          )
-
-          // Sort by approvedAt (newest first)
-          registrations.sort((a, b) => {
-            const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
-            const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
-            return timeB - timeA
-          })
-
-          // Map to Club objects
-          const clubs: Club[] = registrations.map((r) => ({
-            id: r.id,
-            name: r.clubName,
-            category: r.category || '',
-            description: r.statementOfPurpose,
-            advisor: r.advisorName,
-            studentLeader: r.studentContactName,
-            meetingTime: r.meetingDay,
-            meetingFrequency: r.meetingFrequency,
-            location: r.location,
-            contact: r.studentContactEmail,
-            socialMedia: r.socialMedia || '',
-            active: true,
-            notes: r.notes || '',
-            announcement: '',
-            keywords: [],
-          }))
-
-          // Create snapshot
-          const snapshot = {
-            clubs,
-            metadata: {
-              generatedAt: new Date().toISOString(),
-              collectionId: displayCollection.id,
-              collectionName: displayCollection.name,
-              clubCount: clubs.length,
-              version: 1,
-            }
-          }
-
-          // Write snapshot
-          const success = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
-          
-          if (success) {
-            console.log(`[Snapshot] ✅ Auto-published ${clubs.length} clubs`)
-          } else {
-            console.warn('[Snapshot] Failed to auto-publish (will fall back to dynamic fetch)')
-          }
-        } catch (err) {
-          console.error('[Snapshot] Error auto-publishing:', err)
-        }
-      }).catch(err => {
-        console.error('[Snapshot] Error in background publish:', err)
-      })
-
-      return NextResponse.json({ 
-        success: true,
-        message: 'Registration approved'
-      }, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        }
-      })
-    } catch (error) {
-      console.error('Error approving registration:', error)
+    if (!adminKey || adminKey !== expectedKey) {
       return NextResponse.json(
-        { error: 'Internal server error' },
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const { registrationId, collection } = body
+    if (!registrationId || !collection) {
+      return NextResponse.json(
+        { error: 'Missing registration ID or collection ID' },
+        { status: 400 }
+      )
+    }
+
+    // Read the registration using collection ID as folder
+    const path = `registrations/${collection}/${registrationId}.json`
+    const registration: ClubRegistration | null = await readJSONFromStorage(path)
+
+    if (!registration) {
+      return NextResponse.json(
+        { error: 'Registration not found' },
+        { status: 404 }
+      )
+    }
+
+    // Update status to approved and set approvedAt timestamp
+    registration.status = 'approved'
+    registration.approvedAt = new Date().toISOString()
+
+    // Save updated registration
+    const success = await writeJSONToStorage(path, registration)
+
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Failed to update registration' },
         { status: 500 }
       )
     }
+
+    // Invalidate clubs cache since we changed registrations
+    invalidateClubsCache()
+
+    // AUTO-PUBLISH: Update snapshot immediately with lock to prevent races
+    // This ensures only one snapshot publish happens at a time
+    withSnapshotLock(async () => {
+      try {
+        console.log('[Snapshot] Auto-publishing catalog after registration approval...')
+        
+        // Get the display collection
+        const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+        const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
+        
+        if (!displayCollection) {
+          console.warn('[Snapshot] No display collection found for snapshot')
+          return
+        }
+
+        // List and read all registrations
+        const regPaths = await listPaths(`registrations/${displayCollection.id}`)
+        const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+        
+        const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+        const allRegs = await Promise.all(registrationPromises)
+        
+        const registrations: ClubRegistration[] = allRegs.filter(
+          reg => reg && typeof reg === 'object' && reg.status === 'approved'
+        )
+
+        // Sort by approvedAt (newest first)
+        registrations.sort((a, b) => {
+          const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
+          const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
+          return timeB - timeA
+        })
+
+        // Map to Club objects
+        const clubs: Club[] = registrations.map((r) => ({
+          id: r.id,
+          name: r.clubName,
+          category: r.category || '',
+          description: r.statementOfPurpose,
+          advisor: r.advisorName,
+          studentLeader: r.studentContactName,
+          meetingTime: r.meetingDay,
+          meetingFrequency: r.meetingFrequency,
+          location: r.location,
+          contact: r.studentContactEmail,
+          socialMedia: r.socialMedia || '',
+          active: true,
+          notes: r.notes || '',
+          announcement: '',
+          keywords: [],
+        }))
+
+        // Create snapshot
+        const snapshot = {
+          clubs,
+          metadata: {
+            generatedAt: new Date().toISOString(),
+            collectionId: displayCollection.id,
+            collectionName: displayCollection.name,
+            clubCount: clubs.length,
+            version: 1,
+          }
+        }
+
+        // Write snapshot
+        const success = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
+        
+        if (success) {
+          console.log(`[Snapshot] ✅ Auto-published ${clubs.length} clubs`)
+        } else {
+          console.warn('[Snapshot] Failed to auto-publish (will fall back to dynamic fetch)')
+        }
+      } catch (err) {
+        console.error('[Snapshot] Error auto-publishing:', err)
+      }
+    }).catch(err => {
+      console.error('[Snapshot] Error in background publish:', err)
+    })
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Registration approved'
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    })
+  } catch (error) {
+    console.error('Error approving registration:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -167,9 +166,7 @@ export async function POST(request: NextRequest) {
   }
   const path = `registrations/${collection}/${registrationId}.json`
   
-  // Wrap with idempotency first, then registration-level lock
-  // Idempotency prevents duplicate approvals from retried requests
-  return withIdempotency(request, async () => {
-    return withRegistrationLock(path, () => handler(request, body))
-  })
+  // Wrap handler with idempotency, then apply registration lock
+  const withLock = (req: NextRequest) => withRegistrationLock(path, () => handler(req, body))
+  return withIdempotency<any>(withLock)(request)
 }

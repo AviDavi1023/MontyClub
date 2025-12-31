@@ -27,6 +27,8 @@ export function safeSetItem(key: string, value: any): StorageQuotaResult {
       console.error(`[Storage Quota] Error:`, error.message)
       console.error(`[Storage Quota] Attempting cleanup...`)
       
+      const serialized = JSON.stringify(value)
+      
       // Try to free up space by removing less critical items
       const cleaned = cleanupStorageQuota()
       

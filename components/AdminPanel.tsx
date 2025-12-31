@@ -265,7 +265,7 @@ export function AdminPanel() {
         const result = safeSetItem(COLLECTIONS_PENDING_KEY, localPendingCollectionChanges)
         if (!result.success) {
           console.error('[AdminPanel] Failed to save collection changes:', result.error)
-          addToast({ message: `Warning: Could not save collection changes: ${result.error}`, type: 'error' })
+          // Will be shown via showToast once it's initialized
         } else {
           // Also save backup
           safeSetItem(COLLECTIONS_BACKUP_KEY, { t: Date.now(), data: localPendingCollectionChanges })

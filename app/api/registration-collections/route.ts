@@ -108,12 +108,9 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   // Ensure only one has display: true
   const fixed = ensureSingleDisplay(collections)
   
-  const success = await writeJSONToStorage(COLLECTIONS_PATH, fixed)
-  return success
-}
   try {
     // Write with retry
-    const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)
+    const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, fixed), 3, 100)
     if (!ok) {
       console.error('[saveCollections] Write failed after retries')
       return false
@@ -132,7 +129,7 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
       return out
     }
 
-    const target = normalize(collections)
+    const target = normalize(fixed)
     // Read-back verification with cache-busting, a couple of attempts
     for (let attempt = 0; attempt < 3; attempt++) {
       // small backoff on subsequent attempts to allow storage propagation
@@ -146,7 +143,7 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
       }
       // Attempt a single re-write if mismatch, then re-verify in next loop
       log({ tag: 'collections-persistence', step: 'mismatch-rewrite', attempt })
-      await writeJSONToStorage(COLLECTIONS_PATH, collections)
+      await writeJSONToStorage(COLLECTIONS_PATH, fixed)
     }
     console.error('[saveCollections] Verification failed after retries')
     return false
