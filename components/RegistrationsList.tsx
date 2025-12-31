@@ -760,15 +760,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
   return (
     <div className="space-y-4">
-      {/* Collection Name Header */}
-      <div className="flex items-center gap-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-        <FileSpreadsheet className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{collectionName}</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Viewing registrations for this collection</p>
-        </div>
-      </div>
-
       {/* Renewal Settings Section - Only show if renewal is enabled */}
       {renewalEnabled && (
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -807,9 +798,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       </div>
       )}
 
-      {/* Search Controls */}
-      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <div className="flex-1">
+      {/* Search and Controls */}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <input
             type="text"
             placeholder="Search by club name, category, advisor, student..."
@@ -818,48 +809,53 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
-        {searchTerm && (
-          <div className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-            Showing {visible.length} of {registrations.length} registrations
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Showing {visible.length} of {registrations.length} registrations</h3>
           </div>
-        )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Sort Dropdown */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="submitted">Sort: Newest First</option>
+              <option value="name">Sort: Club Name (A-Z)</option>
+              <option value="category">Sort: Category (A-Z)</option>
+              <option value="status">Sort: Status</option>
+            </select>
+            {/* View Toggle */}
+            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button
+                className={`px-3 py-1.5 text-sm ${viewMode==='cards' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
+                onClick={() => setViewMode('cards')}
+                title="Cards View"
+              >
+                <LayoutList className="h-4 w-4"/> Cards
+              </button>
+              <button
+                className={`px-3 py-1.5 text-sm ${viewMode==='table' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
+                onClick={() => setViewMode('table')}
+                title="Table View"
+              >
+                <TableIcon className="h-4 w-4"/> Table
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Registrations ({visible.length})
-          </h3>
+      {/* Title and Actions Row - Changed from previous section structure */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <FileSpreadsheet className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{collectionName}</h2>
+            <p className="text-xs text-gray-600 dark:text-gray-400">Viewing registrations for this collection</p>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sort Dropdown */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="submitted">Sort: Newest First</option>
-            <option value="name">Sort: Club Name (A-Z)</option>
-            <option value="category">Sort: Category (A-Z)</option>
-            <option value="status">Sort: Status</option>
-          </select>
-          {/* View Toggle */}
-          <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-            <button
-              className={`px-3 py-1.5 text-sm ${viewMode==='cards' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
-              onClick={() => setViewMode('cards')}
-              title="Cards View"
-            >
-              <LayoutList className="h-4 w-4"/> Cards
-            </button>
-            <button
-              className={`px-3 py-1.5 text-sm ${viewMode==='table' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
-              onClick={() => setViewMode('table')}
-              title="Table View"
-            >
-              <TableIcon className="h-4 w-4"/> Table
-            </button>
-          </div>
           {/* Select All button for both views */}
           {visible.length > 0 && (
             <button
@@ -867,7 +863,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 if (selectedIds.size === visible.length) setSelectedIds(new Set())
                 else setSelectedIds(new Set(visible.map(r=>r.id)))
               }}
-              className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
+              className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg whitespace-nowrap"
             >
               {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
             </button>
@@ -1089,15 +1085,28 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.socialMedia || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.statementOfPurpose}>{reg.statementOfPurpose || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.notes}>{reg.notes || '—'}</td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">
-                        <div className="flex gap-1">
-                          <button onClick={() => openEditModal(reg)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">Edit</button>
-                          <span className="text-gray-300">•</span>
-                          <button onClick={() => {setCurrentReg(reg); setShowDenyModal(true);}} className="text-red-600 dark:text-red-400 hover:underline text-xs">Deny</button>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap sticky right-0 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+                        <div className="flex gap-2 items-center">
+                          <button 
+                            onClick={() => openEditModal(reg)} 
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => {setCurrentReg(reg); setShowDenyModal(true);}} 
+                            className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                          >
+                            Deny
+                          </button>
                           {reg.status === 'pending' && (
                             <>
-                              <span className="text-gray-300">•</span>
-                              <button onClick={() => handleApprove(reg)} className="text-green-600 dark:text-green-400 hover:underline text-xs">Approve</button>
+                              <button 
+                                onClick={() => handleApprove(reg)} 
+                                className="text-green-600 dark:text-green-400 hover:underline text-xs"
+                              >
+                                Approve
+                              </button>
                             </>
                           )}
                         </div>
@@ -1155,6 +1164,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           {reg.socialMedia && (
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {reg.socialMedia}
+                            </p>
+                          )}
+                          {reg.statementOfPurpose && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-3">
+                              {reg.statementOfPurpose}
                             </p>
                           )}
                         </div>
