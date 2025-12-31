@@ -141,8 +141,9 @@ export function AdminPanel() {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [importingExcel, setImportingExcel] = useState(false)
   const [creatingCollection, setCreatingCollection] = useState(false)
+  const [enableNewCollection, setEnableNewCollection] = useState(true)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string }
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
   const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
@@ -420,7 +421,7 @@ export function AdminPanel() {
     const tempId = `temp-col-${Date.now()}-${Math.random().toString(36).substring(2,7)}`
     // Add local pending created collection so it shows immediately
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [tempId]: { created: true, name, enabled: false } }
+      const next = { ...prev, [tempId]: { created: true, name, enabled: enableNewCollection, accepting: enableNewCollection } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -437,7 +438,7 @@ export function AdminPanel() {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify({ name, enabled: false })
+        body: JSON.stringify({ name, enabled: enableNewCollection })
       })
       if (!resp.ok) {
         const err = await resp.json()
@@ -513,7 +514,7 @@ export function AdminPanel() {
 
     // Optimistically update display
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -578,7 +579,7 @@ export function AdminPanel() {
     const nextAccepting = !effectiveCurrentAccepting
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -642,7 +643,7 @@ export function AdminPanel() {
     const nextRenewal = !effectiveCurrentRenewal
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -742,7 +743,7 @@ export function AdminPanel() {
 
     // Optimistically update localStorage immediately using functional updater to avoid stale closure
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled, _timestamp: Date.now() } }
       console.log(JSON.stringify({ 
         tag: 'collection-toggle', 
         step: 'local-save', 
@@ -842,10 +843,31 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
+
+    // Check for registrations in this collection
+    let registrationCount = 0
+    try {
+      const collection = collections.find(c => c.id === collectionId)
+      if (collection) {
+        const slug = slugifyName(collection.name)
+        const resp = await fetch(`/api/club-registration?collection=${encodeURIComponent(slug)}`, {
+          headers: { 'x-admin-key': adminApiKey }
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          registrationCount = data.registrations?.length || 0
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch registration count', e)
+    }
+
     {
       const ok = await confirm({
         title: 'Delete Collection',
-        message: 'Are you sure you want to delete this collection? This cannot be undone.',
+        message: registrationCount > 0 
+          ? `This collection has ${registrationCount} registration(s). Delete anyway? This cannot be undone.`
+          : 'Are you sure you want to delete this collection? This cannot be undone.',
         confirmText: 'Delete',
         cancelText: 'Cancel',
         variant: 'danger',
@@ -3103,7 +3125,7 @@ export function AdminPanel() {
             {/* Create New Collection */}
             <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Create New Collection</h4>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={newCollectionName}
@@ -3112,14 +3134,25 @@ export function AdminPanel() {
                   placeholder="e.g., 2026 Club Requests"
                   className="input-field text-sm flex-1"
                 />
-                <button
-                  onClick={createCollection}
-                  disabled={creatingCollection || !newCollectionName.trim()}
-                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  {creatingCollection ? 'Creating...' : 'Create'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={enableNewCollection}
+                      onChange={(e) => setEnableNewCollection(e.target.checked)}
+                      className="w-3.5 h-3.5"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Enable accepting</span>
+                  </label>
+                  <button
+                    onClick={createCollection}
+                    disabled={creatingCollection || !newCollectionName.trim()}
+                    className="btn-primary px-4 py-2 text-sm flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {creatingCollection ? 'Creating...' : 'Create'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3315,8 +3348,8 @@ export function AdminPanel() {
                           )
                         })()}
                       </div>
-                      <div className="flex flex-col gap-3 flex-shrink-0 w-48" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                      <div className="flex flex-col sm:flex-row lg:flex-col gap-3 flex-shrink-0 w-full lg:w-52" onClick={(e) => e.stopPropagation()}>
+                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Public Catalog</div>
                           <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                             <input
@@ -3334,7 +3367,7 @@ export function AdminPanel() {
                             <span className="text-gray-700 dark:text-gray-300">Display?</span>
                           </label>
                         </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Registration Form</div>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-700 dark:text-gray-300">Enable</span>
@@ -3349,7 +3382,7 @@ export function AdminPanel() {
                             />
                           </div>
                         </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Renewal Form</div>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-700 dark:text-gray-300">Enable</span>
@@ -3846,7 +3879,12 @@ export function AdminPanel() {
                   return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
                 })() )}
                 collectionId={activeCollectionId || ''}
-                collections={collections}
+                collections={collections.map(c => ({
+                  id: c.id,
+                  name: c.name,
+                  createdAt: c.createdAt,
+                  renewalEnabled: c.renewalEnabled
+                }))}
               />
             </div>
           </div>

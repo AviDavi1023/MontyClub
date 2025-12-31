@@ -11,7 +11,7 @@ interface RegistrationsListProps {
   collectionSlug: string
   collectionName: string
   collectionId: string
-  collections: Array<{ id: string; name: string; createdAt: string }>
+  collections: Array<{ id: string; name: string; createdAt: string; renewalEnabled?: boolean }>
 }
 
 const CATEGORY_OPTIONS = [
@@ -754,40 +754,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     )
   }
 
+  // Get renewalEnabled status from collections
+  const currentCollection = collections.find(c => c.id === collectionId)
+  const renewalEnabled = currentCollection?.renewalEnabled ?? false
+
   return (
     <div className="space-y-4">
-      {/* Search and Sort Controls */}
-      <div className="flex flex-col gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search by club name, category, advisor, student..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-            />
-          </div>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="submitted">Sort: Newest First</option>
-            <option value="name">Sort: Club Name (A-Z)</option>
-            <option value="category">Sort: Category (A-Z)</option>
-            <option value="status">Sort: Status</option>
-          </select>
+      {/* Collection Name Header */}
+      <div className="flex items-center gap-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+        <FileSpreadsheet className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{collectionName}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Viewing registrations for this collection</p>
         </div>
-        {searchTerm && (
-          <div className="text-xs text-gray-600 dark:text-gray-400">
-            Showing {visible.length} of {registrations.length} registrations
-          </div>
-        )}
       </div>
 
-      {/* Renewal Settings Section */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+      {/* Renewal Settings Section - Only show if renewal is enabled */}
+      {renewalEnabled && (
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Club Charter Renewal Settings</h4>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
           Configure which collection(s) clubs can renew from. Users with the renewal link for this collection can select clubs from the checked collections below.
@@ -821,15 +805,45 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           </div>
         )}
       </div>
+      )}
+
+      {/* Search Controls */}
+      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search by club name, category, advisor, student..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+          />
+        </div>
+        {searchTerm && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+            Showing {visible.length} of {registrations.length} registrations
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <FileSpreadsheet className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Club Registrations ({visible.length})
+            Registrations ({visible.length})
           </h3>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Sort Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            <option value="submitted">Sort: Newest First</option>
+            <option value="name">Sort: Club Name (A-Z)</option>
+            <option value="category">Sort: Category (A-Z)</option>
+            <option value="status">Sort: Status</option>
+          </select>
+          {/* View Toggle */}
           <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
             <button
               className={`px-3 py-1.5 text-sm ${viewMode==='cards' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
@@ -846,8 +860,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               <TableIcon className="h-4 w-4"/> Table
             </button>
           </div>
-          {/* Select All for Cards view */}
-          {viewMode === 'cards' && visible.length > 0 && (
+          {/* Select All button for both views */}
+          {visible.length > 0 && (
             <button
               onClick={() => {
                 if (selectedIds.size === visible.length) setSelectedIds(new Set())
@@ -1130,15 +1144,32 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </div>
                           <h4 className="font-semibold text-gray-900 dark:text-white">{reg.clubName}</h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {reg.advisorName} • {reg.email}
+                            <span className="font-medium">{reg.category}</span> • {reg.advisorName}
                           </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {reg.location} • {reg.meetingDay}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {reg.email} • {reg.studentContactName}
+                          </p>
+                          {reg.socialMedia && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {reg.socialMedia}
+                            </p>
+                          )}
                         </div>
-                        <div className="flex gap-2">
-                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
-                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                          </button>
-                          <button className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-xs px-2 py-1 rounded border border-blue-200 dark:border-blue-700" onClick={() => openEditModal(reg)}>
+                        <div className="flex gap-2 items-start">
+                          <button 
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                            onClick={(e) => { e.stopPropagation(); openEditModal(reg); }}
+                          >
                             Edit
+                          </button>
+                          <button 
+                            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" 
+                            onClick={() => setExpandedId(isExpanded ? null : reg.id)}
+                          >
+                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                           </button>
                         </div>
                             {showEditModal && editReg && (
