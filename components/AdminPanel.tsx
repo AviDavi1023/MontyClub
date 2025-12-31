@@ -2416,14 +2416,29 @@ export function AdminPanel() {
       const resp = await fetch('/api/settings')
       if (!resp.ok) throw new Error('Failed to fetch settings')
       const data = await resp.json()
-      const enabled = data.announcementsEnabled !== false
-      setAnnouncementsEnabled(enabled)
-      // Persist to localStorage so it survives reloads
+      const serverEnabled = data.announcementsEnabled !== false
+      
+      // Check if we have a pending optimistic update in localStorage
+      // If localStorage differs from server, trust localStorage (optimistic update in progress)
       try {
-        localStorage.setItem('settings:announcementsEnabled', String(enabled))
-      } catch (e) {
-        // Ignore localStorage errors
-      }
+        const localValue = localStorage.getItem('settings:announcementsEnabled')
+        if (localValue !== null) {
+          const localEnabled = localValue === 'true'
+          // Only override with server value if they match (confirming the update completed)
+          // Otherwise, keep the optimistic local value
+          if (localEnabled !== serverEnabled) {
+            console.log('[Settings] Using optimistic local value during sync:', localEnabled)
+            setAnnouncementsEnabled(localEnabled)
+            return // Don't overwrite localStorage with stale server data
+          }
+        }
+      } catch (e) {}
+      
+      // No conflict - use server value as source of truth
+      setAnnouncementsEnabled(serverEnabled)
+      try {
+        localStorage.setItem('settings:announcementsEnabled', String(serverEnabled))
+      } catch (e) {}
     } catch (err) {
       console.error('Error fetching settings:', err)
     }
@@ -2432,25 +2447,21 @@ export function AdminPanel() {
   const toggleAnnouncements = async () => {
     try {
       setSavingSettings(true)
-      // Use functional update to get current value and avoid stale closures
-      let previousValue: boolean
-      setAnnouncementsEnabled(prev => {
-        previousValue = prev !== null ? prev : true
-        const newValue = !previousValue
-        
-        // Optimistically update localStorage immediately
-        try { 
-          localStorage.setItem('settings:announcementsEnabled', String(newValue))
-          // Dispatch event to notify ClubsList component
-          window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
-          broadcast('announcements', 'update', { settingsChanged: true })
-        } catch {}
-        
-        return newValue
-      })
       
-      const newValue = !previousValue!
+      // Capture the current value before toggling
+      const currentValue = announcementsEnabled !== null ? announcementsEnabled : true
+      const newValue = !currentValue
       
+      // Optimistically update state and localStorage
+      setAnnouncementsEnabled(newValue)
+      try { 
+        localStorage.setItem('settings:announcementsEnabled', String(newValue))
+        // Dispatch event to notify ClubsList component
+        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { settingsChanged: true } }))
+        broadcast('announcements', 'update', { settingsChanged: true })
+      } catch {}
+      
+      // Send update to server
       const resp = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -2469,13 +2480,14 @@ export function AdminPanel() {
         throw new Error('Setting saved but verification failed')
       }
       
+      // Show correct message based on the NEW state
       showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
       
       // Refresh club data to apply changes
       await refreshData()
     } catch (err) {
       console.error('Error toggling announcements:', err)
-      // Revert on error using functional update with captured previous value
+      // Revert to previous value on error
       setAnnouncementsEnabled(prev => {
         const revertedValue = !prev
         try { 
