@@ -577,20 +577,19 @@ export function ClubsList() {
 
         {/* Show Filters button - only when filters are hidden */}
         {!showFilters && (
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
             onClick={() => setShowFilters(true)}
-            icon={<Filter className="h-4 w-4" />}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-medium"
           >
-            <span>Show Filters</span>
+            <Filter className="h-4 w-4" />
+            <span>Show Filters{hasActiveFilters ? ' (Filter by category, day, frequency)' : ''}</span>
             <ChevronDown className="h-4 w-4" />
             {hasActiveFilters && (
-              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium ml-1">
+              <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                 {Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== '').length}
               </span>
             )}
-          </Button>
+          </button>
         )}
 
         {showFilters && (
@@ -751,22 +750,22 @@ export function ClubsList() {
             </div>
             {/* Pagination Controls */}
             {paginationResult.totalPages > 1 && (
-              <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={!paginationResult.hasPrevPage}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   <span className="text-sm font-medium">Previous</span>
                 </button>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin">
                   {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
                         page === paginationResult.currentPage
                           ? 'bg-primary-600 text-white'
                           : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -780,7 +779,7 @@ export function ClubsList() {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
                   disabled={!paginationResult.hasNextPage}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
                   <span className="text-sm font-medium">Next</span>
                   <ChevronRight className="h-4 w-4" />
@@ -793,22 +792,22 @@ export function ClubsList() {
             <ClubsTable clubs={paginatedClubs} pendingAnnouncements={localPendingAnnouncements} />
             {/* Pagination Controls for Table View */}
             {paginationResult.totalPages > 1 && (
-              <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={!paginationResult.hasPrevPage}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   <span className="text-sm font-medium">Previous</span>
                 </button>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin">
                   {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
                         page === paginationResult.currentPage
                           ? 'bg-primary-600 text-white'
                           : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -822,7 +821,7 @@ export function ClubsList() {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
                   disabled={!paginationResult.hasNextPage}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
                   <span className="text-sm font-medium">Next</span>
                   <ChevronRight className="h-4 w-4" />
