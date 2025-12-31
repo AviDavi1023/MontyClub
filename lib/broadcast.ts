@@ -20,9 +20,20 @@ export interface BroadcastMessage<T = any> {
 const messageQueue: BroadcastMessage[] = []
 const MAX_QUEUE_SIZE = 100
 
-// Track recently seen messages to prevent duplicates
-const seenMessages = new Set<string>()
+// Track recently seen messages to prevent duplicates, but only for identical messages
+// Maps message hash to { timestamp, count }
+const seenMessages = new Map<string, { timestamp: number; count: number }>()
 const SEEN_MESSAGES_RETENTION = 60000 // Keep for 1 minute
+
+/**
+ * Generate a hash for deduplication (domain:action:payload)
+ * This way we only deduplicate truly identical operations
+ */
+function generateMessageHash(domain: BroadcastDomain, action: BroadcastAction, payload?: any): string {
+  // Include payload in hash so different changes aren't treated as duplicates
+  const payloadStr = payload ? JSON.stringify(payload) : 'null'
+  return `${domain}:${action}:${payloadStr}`
+}
 
 /**
  * Generate unique message ID
@@ -134,18 +145,28 @@ export function createBroadcastListener(
       return
     }
     
-    // Deduplication: skip if we've seen this message recently
-    if (message.messageId) {
-      if (seenMessages.has(message.messageId)) {
-        console.log(`[Broadcast] Duplicate message ignored: ${message.messageId}`)
+    // Deduplication: skip if we've seen this exact message recently
+    // This prevents duplicate processing of the same action with same payload
+    if (message.domain && message.action) {
+      const messageHash = generateMessageHash(message.domain as BroadcastDomain, message.action as BroadcastAction, message.payload)
+      const recent = seenMessages.get(messageHash)
+      
+      if (recent && Date.now() - recent.timestamp < 1000) {
+        // Same message within 1 second - likely a duplicate
+        console.log(`[Broadcast] Skipped duplicate: ${message.domain}:${message.action}`)
+        recent.count++
         return
       }
-      seenMessages.add(message.messageId)
       
-      // Clean up old seen messages periodically
-      setTimeout(() => {
-        seenMessages.delete(message.messageId)
-      }, SEEN_MESSAGES_RETENTION)
+      // Record this message
+      seenMessages.set(messageHash, { timestamp: Date.now(), count: 1 })
+      
+      // Clean up old entries
+      for (const [hash, record] of seenMessages.entries()) {
+        if (Date.now() - record.timestamp > SEEN_MESSAGES_RETENTION) {
+          seenMessages.delete(hash)
+        }
+      }
     }
     
     // Support legacy message format (type field)

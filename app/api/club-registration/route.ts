@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
     
     // Get collections and find by name slug with retry for eventual consistency
     let collection: RegistrationCollection | undefined
-    const maxRetries = 3
-    const retryDelay = 200 // ms
+    const maxRetries = 5
+    const baseDelay = 300 // ms - increased from 200
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
@@ -31,11 +31,16 @@ export async function POST(request: NextRequest) {
         slugifyName(c.name) === slugifyName(collectionSlug)
       )
       
-      if (collection) break
+      if (collection) {
+        console.log(`[Club Registration] Found collection on attempt ${attempt + 1}/${maxRetries}`)
+        break
+      }
       
-      // If not found and not last attempt, wait before retry
+      // If not found and not last attempt, wait before retry with exponential backoff
       if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+        const delay = baseDelay * Math.pow(1.5, attempt) // Exponential backoff: 300ms, 450ms, 675ms, etc.
+        console.log(`[Club Registration] Collection not found (attempt ${attempt + 1}), retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
     

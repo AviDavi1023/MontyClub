@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage, listPaths, removePaths } from '@/lib/supabase'
 import { RegistrationCollection } from '@/types/club'
+import { validateCollections, ensureSingleDisplay } from '@/lib/collection-validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +98,19 @@ async function getCollections(): Promise<RegistrationCollection[]> {
 }
 
 async function saveCollections(collections: RegistrationCollection[]): Promise<boolean> {
+  // Validate collections before saving
+  const errors = validateCollections(collections)
+  if (errors.length > 0) {
+    console.warn('[Collections Validation] Errors found:', errors)
+    // Continue anyway but log
+  }
+  
+  // Ensure only one has display: true
+  const fixed = ensureSingleDisplay(collections)
+  
+  const success = await writeJSONToStorage(COLLECTIONS_PATH, fixed)
+  return success
+}
   try {
     // Write with retry
     const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, collections), 3, 100)

@@ -13,6 +13,7 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
+import { safeSetItem, safeGetItem, getStorageWarning } from '@/lib/storage-quota'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -261,10 +262,18 @@ export function AdminPanel() {
         localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
       } else {
         const serialized = JSON.stringify(localPendingCollectionChanges)
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, serialized)
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingCollectionChanges }))
+        const result = safeSetItem(COLLECTIONS_PENDING_KEY, localPendingCollectionChanges)
+        if (!result.success) {
+          console.error('[AdminPanel] Failed to save collection changes:', result.error)
+          addToast({ message: `Warning: Could not save collection changes: ${result.error}`, type: 'error' })
+        } else {
+          // Also save backup
+          safeSetItem(COLLECTIONS_BACKUP_KEY, { t: Date.now(), data: localPendingCollectionChanges })
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[AdminPanel] Storage error:', e)
+    }
   }, [localPendingCollectionChanges, collectionsStorageLoaded])
 
   // Auto-clear pending collection changes that now match database state

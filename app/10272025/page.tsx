@@ -64,7 +64,7 @@ export default function EasterEggGame() {
 
   const playSequence = async (seq: number[]) => {
     setIsPlaying(true);
-    setMessage('Watch carefully...');
+    setMessage('Watch the meeting schedule...');
     await new Promise(resolve => setTimeout(resolve, 500));
     
     for (const buttonId of seq) {
@@ -97,7 +97,7 @@ export default function EasterEggGame() {
     // Check if the move is correct
     if (newPlayerSequence[newPlayerSequence.length - 1] !== sequence[newPlayerSequence.length - 1]) {
       setGameOver(true);
-      setMessage('Game Over! Wrong pattern!');
+      setMessage('Oops! You missed a meeting!');
       playSound(100); // Error sound
       return;
     }
@@ -106,7 +106,7 @@ export default function EasterEggGame() {
     if (newPlayerSequence.length === sequence.length) {
       const newScore = score + 1;
       setScore(newScore);
-      setMessage(`Correct! Level ${newScore + 1}`);
+      setMessage(`Perfect! Semester ${newScore + 1}`);
       
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -127,10 +127,10 @@ export default function EasterEggGame() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-2 drop-shadow-lg">
-            🎮 Monty&apos;s Memory Challenge
+            � Club President Training
           </h1>
           <p className="text-purple-200 text-lg">
-            You found the secret game! Can you beat the pattern?
+            Every great club leader needs a sharp memory! Can you pass the test?
           </p>
         </div>
 
@@ -163,10 +163,10 @@ export default function EasterEggGame() {
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-12 text-center border border-white/20">
             <div className="mb-6">
               <p className="text-white text-lg mb-4">
-                Watch the pattern of colors, then repeat it!
+                Watch the meeting sequence, then repeat it!
               </p>
               <p className="text-purple-200">
-                Each round adds one more move to remember. How long can you last?
+                Each semester gets busier. How many club events can you remember?
               </p>
             </div>
             <button
@@ -216,9 +216,6 @@ export default function EasterEggGame() {
           >
             ← Back to MontyClub
           </Link>
-          <p className="text-purple-400 text-sm mt-2">
-            Easter egg discovered on 10/27/2025 🥚✨
-          </p>
         </div>
       </div>
     </div>
