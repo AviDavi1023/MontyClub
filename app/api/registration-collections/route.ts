@@ -117,34 +117,65 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
     }
 
     // Normalize helper to compare regardless of key ordering
-    const normalize = (arr: RegistrationCollection[] | any): RegistrationCollection[] => {
+    // Include ALL fields that might be saved to ensure accurate comparison
+    const normalize = (arr: RegistrationCollection[] | any): any[] => {
       if (!Array.isArray(arr)) return []
       const out = arr.map((c: any) => ({
         id: String(c.id || ''),
         name: String(c.name || ''),
         enabled: Boolean(c.enabled),
         createdAt: String(c.createdAt || ''),
+        display: c.display === true ? true : (c.display === false ? false : undefined),
+        accepting: typeof c.accepting === 'boolean' ? Boolean(c.accepting) : undefined,
+        renewalEnabled: typeof c.renewalEnabled === 'boolean' ? Boolean(c.renewalEnabled) : undefined,
       }))
-      out.sort((a, b) => a.id.localeCompare(b.id))
-      return out
+      // Remove undefined values for clean comparison
+      const cleaned = out.map((c: any) => {
+        const obj: any = { id: c.id, name: c.name, enabled: c.enabled, createdAt: c.createdAt }
+        if (c.display !== undefined) obj.display = c.display
+        if (c.accepting !== undefined) obj.accepting = c.accepting
+        if (c.renewalEnabled !== undefined) obj.renewalEnabled = c.renewalEnabled
+        return obj
+      })
+      cleaned.sort((a, b) => a.id.localeCompare(b.id))
+      return cleaned
     }
 
     const target = normalize(fixed)
     // Read-back verification with cache-busting, a couple of attempts
     for (let attempt = 0; attempt < 3; attempt++) {
       // small backoff on subsequent attempts to allow storage propagation
-      if (attempt > 0) await new Promise(r => setTimeout(r, 100 * attempt))
+      if (attempt > 0) await new Promise(r => setTimeout(r, 150 * attempt))
       const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
       const current = normalize(after)
-      const equal = JSON.stringify(current) === JSON.stringify(target)
+      
+      const targetStr = JSON.stringify(target)
+      const currentStr = JSON.stringify(current)
+      const equal = targetStr === currentStr
+      
       if (equal) {
-        log({ tag: 'collections-persistence', step: 'verified', attempt })
+        log({ tag: 'collections-persistence', step: 'verified', attempt, count: current.length })
         return true
       }
-      // Attempt a single re-write if mismatch, then re-verify in next loop
-      log({ tag: 'collections-persistence', step: 'mismatch-rewrite', attempt })
-      await writeJSONToStorage(COLLECTIONS_PATH, fixed)
+      
+      // Log what's different for debugging
+      log({ 
+        tag: 'collections-persistence', 
+        step: 'mismatch', 
+        attempt,
+        targetCount: target.length,
+        currentCount: current.length,
+        targetIds: target.map(c => c.id),
+        currentIds: current.map(c => c.id)
+      })
+      
+      // Only re-write on first 2 attempts (not the last one)
+      if (attempt < 2) {
+        log({ tag: 'collections-persistence', step: 'rewrite', attempt })
+        await writeJSONToStorage(COLLECTIONS_PATH, fixed)
+      }
     }
+    
     console.error('[saveCollections] Verification failed after retries')
     return false
   } catch (err) {
