@@ -30,6 +30,7 @@ export function ClubsList() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 12 // Show 12 clubs per page
+  const contentTopRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
@@ -438,6 +439,13 @@ export function ClubsList() {
     setCurrentPage(1)
   }, [filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput])
 
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (contentTopRef.current) {
+      contentTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [currentPage])
+
   // Paginate the sorted clubs
   const paginationResult = usePagination(sortedClubs, currentPage, ITEMS_PER_PAGE)
   const paginatedClubs = paginationResult.items
@@ -546,6 +554,8 @@ export function ClubsList() {
 
   return (
     <div className="space-y-6">
+      {/* Scroll target for pagination */}
+      <div ref={contentTopRef} className="scroll-mt-4" />
       {/* Search and Filter Controls */}
       <div className="space-y-3 sm:space-y-4">
         {/* Search bar - full width */}
