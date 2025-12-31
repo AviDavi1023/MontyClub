@@ -2752,6 +2752,33 @@ export function AdminPanel() {
         </div>
       </div>
 
+      {/* Admin API Key */}
+      <div className="card">
+        <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+          <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          Admin API Key
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Required for managing registrations, analytics, announcements, and other admin features.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+            <input
+              type="password"
+              value={adminApiKey}
+              onChange={(e) => setAdminApiKey(e.target.value)}
+              className="input-field text-sm"
+              placeholder="Enter your ADMIN_API_KEY"
+            />
+          </div>
+          <button onClick={saveAdminApiKey} className="btn-primary whitespace-nowrap">
+            <Lock className="h-4 w-4 mr-2" />
+            Save Key
+          </button>
+        </div>
+      </div>
+
       {/* Update Requests */}
       <div ref={updatesRef} className="card">
         <div className="flex items-center justify-between mb-4">
@@ -3278,19 +3305,6 @@ export function AdminPanel() {
             <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">Pilot Analytics</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Manage temporary usage analytics for pilot testing. Data is anonymous and stored as JSON files you can clear anytime.</p>
             <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Admin API Key</label>
-                  <input
-                    type="password"
-                    value={adminApiKey}
-                    onChange={(e) => setAdminApiKey(e.target.value)}
-                    className="input-field text-sm"
-                    placeholder="Enter your ADMIN_API_KEY"
-                  />
-                </div>
-                <button onClick={saveAdminApiKey} className="btn-secondary whitespace-nowrap">Save Key</button>
-              </div>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Period Label</label>
