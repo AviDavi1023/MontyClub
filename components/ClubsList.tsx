@@ -389,49 +389,106 @@ export function ClubsList() {
     // Rebuild when sort changes or clubs list changes
   }, [filters.sort, clubs])
 
-  // Day order for sorting (Monday is first, Sunday is last)
-  const dayOrder: Record<string, number> = {
-    'Monday': 0,
-    'Tuesday': 1,
-    'Wednesday': 2,
-    'Thursday': 3,
-    'Friday': 4,
-    'Saturday': 5,
-    'Sunday': 6,
-  }
-
-  // Get the primary meeting day from meetingTime and its sort order
-  function getPrimaryDayOrder(club: Club): number {
-    if (!club.meetingTime) return 999 // No day specified, sort last
-    const meetingTime = club.meetingTime.toLowerCase()
+  // Calculate the next meeting date for a club based on current date
+  function getNextMeetingDate(club: Club): number {
+    if (!club.meetingTime) return 9999999999999 // No day specified, sort last
     
-    // Try to find the first mentioned day in order of days array
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    for (const day of days) {
-      if (meetingTime.includes(day) || meetingTime.includes(day + 's')) {
-        const capitalizedDay = day.charAt(0).toUpperCase() + day.slice(1)
-        return dayOrder[capitalizedDay] ?? 999
+    const today = new Date()
+    const currentDay = today.getDay() // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const currentDate = today.getDate()
+    const currentMonth = today.getMonth()
+    const currentYear = today.getFullYear()
+    
+    // Get week of month (1-5)
+    const getWeekOfMonth = (date: Date): number => {
+      const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
+      const firstDayOfWeek = firstDay.getDay()
+      const offsetDate = date.getDate() + firstDayOfWeek - 1
+      return Math.floor(offsetDate / 7) + 1
+    }
+    
+    const currentWeek = getWeekOfMonth(today)
+    
+    // Parse meeting day
+    const meetingTime = club.meetingTime.toLowerCase()
+    const dayMap: Record<string, number> = {
+      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+      'thursday': 4, 'friday': 5, 'saturday': 6
+    }
+    
+    let meetingDayOfWeek = -1
+    for (const [dayName, dayNum] of Object.entries(dayMap)) {
+      if (meetingTime.includes(dayName)) {
+        meetingDayOfWeek = dayNum
+        break
       }
     }
-    return 999 // Unknown day, sort last
+    
+    if (meetingDayOfWeek === -1) return 9999999999999 // Unknown day
+    
+    // Parse meeting frequency
+    const freq = (club.meetingFrequency || '').toLowerCase()
+    let validWeeks: number[] = [1, 2, 3, 4, 5] // Default: all weeks
+    
+    if (freq.includes('weekly') || !freq) {
+      validWeeks = [1, 2, 3, 4, 5] // Every week
+    } else if (freq.includes('1st') && freq.includes('3rd')) {
+      validWeeks = [1, 3]
+    } else if (freq.includes('2nd') && freq.includes('4th')) {
+      validWeeks = [2, 4]
+    } else if (freq.includes('1st') && !freq.includes('3rd')) {
+      validWeeks = [1]
+    } else if (freq.includes('2nd') && !freq.includes('4th')) {
+      validWeeks = [2]
+    } else if (freq.includes('3rd')) {
+      validWeeks = [3]
+    } else if (freq.includes('4th')) {
+      validWeeks = [4]
+    }
+    
+    // Find next valid meeting date
+    let daysToAdd = 0
+    let foundDate: Date | null = null
+    
+    // Check next 60 days (about 2 months) to find next meeting
+    for (let i = 0; i < 60; i++) {
+      const checkDate = new Date(currentYear, currentMonth, currentDate + i)
+      const checkDay = checkDate.getDay()
+      const checkWeek = getWeekOfMonth(checkDate)
+      
+      // Skip if not the right day of week
+      if (checkDay !== meetingDayOfWeek) continue
+      
+      // Skip if not a valid week
+      if (!validWeeks.includes(checkWeek)) continue
+      
+      // Skip today (meeting already happening/passed)
+      if (i === 0) continue
+      
+      foundDate = checkDate
+      break
+    }
+    
+    // Return timestamp (ms since epoch) for sorting
+    return foundDate ? foundDate.getTime() : 9999999999999
   }
 
   // Score function for 'relevant' sorting
-  // Now sorts by: announcements (top) → meeting day (soonest first) → alphabetical name
+  // Now sorts by: announcements (top) → next meeting date (soonest first) → alphabetical name
   function relevanceScore(club: Club): [number, number, string] {
     // First priority: clubs with announcements (1 = has announcement, 0 = no announcement)
     // Use negative so higher values sort first
     const hasAnnouncement = (club.announcement && club.announcement.trim()) ? 1 : 0
     
-    // Second priority: meeting day order (0-6 for Mon-Sun, 999 for unknown)
-    const dayOrder = getPrimaryDayOrder(club)
+    // Second priority: next meeting date timestamp (lower = sooner)
+    const nextMeeting = getNextMeetingDate(club)
     
     // Third priority: alphabetical by name (for clubs on same day with/without announcements)
     const nameForSort = (club.name || '').toLowerCase()
     
-    // Return tuple: [negative hasAnnouncement (so it sorts descending), dayOrder, name]
-    // This ensures: announcements first, then by earliest day, then alphabetically
-    return [-hasAnnouncement, dayOrder, nameForSort]
+    // Return tuple: [negative hasAnnouncement (so it sorts descending), nextMeeting, name]
+    // This ensures: announcements first, then by soonest next meeting, then alphabetically
+    return [-hasAnnouncement, nextMeeting, nameForSort]
   }
 
   const sortedClubs = useMemo(() => {
