@@ -5,6 +5,7 @@ import { Send, CheckCircle2, XCircle, Moon, Sun, RefreshCw } from 'lucide-react'
 import { getUserFriendlyError } from '@/lib/error-messages'
 import { RegistrationCollection } from '@/types/club'
 import { Button, Input, Textarea } from '@/components/ui'
+import BackButton from '@/components/BackButton'
 import { useToast } from '@/lib/use-toast'
 import { ToastContainer } from '@/components/Toast'
 
@@ -117,6 +118,26 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         return
       }
 
+      if (advisorAgreementDate !== 'agreed') {
+        setError('Please agree to the Club Advisor Agreement.')
+        setSubmitting(false)
+        document.querySelector('[name="advisorAgreement"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (clubAgreementDate !== 'agreed') {
+        setError('Please agree to the Club Agreement.')
+        setSubmitting(false)
+        document.querySelector('[name="clubAgreement"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (notes !== 'data-accurate') {
+        setError('Please certify that all information is accurate.')
+        setSubmitting(false)
+        return
+      }
+
       const response = await fetch(`/api/club-registration?collection=${encodeURIComponent(collectionSlug || '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,11 +151,11 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           meetingFrequency: finalFrequency,
           studentContactName,
           studentContactEmail,
-          advisorAgreementDate,
-          clubAgreementDate,
+          advisorAgreementDate: new Date().toISOString(),
+          clubAgreementDate: new Date().toISOString(),
           socialMedia,
           category: finalCategory,
-          notes
+          notes: ''
         })
       })
 
@@ -231,6 +252,8 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-4xl mx-auto">
+        <BackButton />
+        
         {/* Header Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-start justify-between">
@@ -468,58 +491,69 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           )}
         </div>
 
-        <Textarea
-          label="Notes (optional)"
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          helperText="Any public notes to be displayed on the clubs discovery site about registration, requirements, dates, etc."
-        />
-
         {/* Agreements Section */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Required Agreements
+        <div className="space-y-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            Required Agreements *
           </h3>
 
           {/* Club Advisor Agreement */}
           <div>
-            <label htmlFor="advisorAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Club Advisor Agreement <span className="text-red-500">*</span>
             </label>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            As the advisor of this club, I agree that I will be present at all club meetings and activities. If applicable, I agree to supervise all club fundraisers and deposit or store the money with the School Treasurer or Activities Director within 24 hours of the fundraising activity. Also, I agree to follow the proper money handling and expenditure procedures as set forth by the California State Ed. Code and the Carlmont Trust Agreement. If this is a renewal, I agree that all club officers have been fairly elected by the members of the club. If this is a new or unrenewed club, I agree that all club officers will be fairly elected by the members of the club.
-          </p>
-          <input
-            type="date"
-            id="advisorAgreementDate"
-            required
-            value={advisorAgreementDate}
-            onChange={(e) => setAdvisorAgreementDate(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
-        </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              As the advisor of this club, I agree that I will be present at all club meetings and activities. If applicable, I agree to supervise all club fundraisers and deposit or store the money with the School Treasurer or Activities Director within 24 hours of the fundraising activity. Also, I agree to follow the proper money handling and expenditure procedures as set forth by the California State Ed. Code and the Carlmont Trust Agreement. If this is a new club, I agree that all club officers will be fairly elected by the members of the club.
+            </p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={advisorAgreementDate === 'agreed'}
+                onChange={(e) => setAdvisorAgreementDate(e.target.checked ? 'agreed' : '')}
+                className="mt-1 w-4 h-4"
+                required
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                I agree to the above Club Advisor Agreement
+              </span>
+            </label>
+          </div>
 
           {/* Club Agreement */}
           <div>
-            <label htmlFor="clubAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Club Agreement <span className="text-red-500">*</span>
             </label>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            By submitting this form, we (club advisor and officers) agree that we will abide by all school, Ed. Code, and ASB rules pertaining to club functions. We will meet as indicated. We will notify ASB should any of the above information change. We agree that not fulfilling our agreed upon meetings and club activities may result in deactivation of the club in this and possibly following school years. We agree that all club activities must be school appropriate and are expected, unless otherwise approved, to be conducted on campus. We understand that off-campus club activities require field trip paperwork. Also, because it is against California State Ed. Code, we understand that ASB cannot approve any clubs whose purpose is to raise money for charity.
-          </p>
-          <input
-            type="date"
-            id="clubAgreementDate"
-            required
-            value={clubAgreementDate}
-            onChange={(e) => setClubAgreementDate(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-          />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              By submitting this form, we (club advisor and officers) agree that we will abide by all school, Ed. Code, and ASB rules pertaining to club functions. We will meet as indicated. We will notify ASB should any of the above information change. We agree that not fulfilling our agreed upon meetings and club activities may result in deactivation of the club in this and possibly following school years. We agree that all club activities must be school appropriate and are expected, unless otherwise approved, to be conducted on campus. We understand that off-campus club activities require field trip paperwork. Also, because it is against California State Ed. Code, we understand that ASB cannot approve any clubs whose purpose is to raise money for charity.
+            </p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={clubAgreementDate === 'agreed'}
+                onChange={(e) => setClubAgreementDate(e.target.checked ? 'agreed' : '')}
+                className="mt-1 w-4 h-4"
+                required
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                I agree to the above Club Agreement
+              </span>
+            </label>
           </div>
-        </div>
 
+          {/* Data Accuracy */}
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={notes === 'data-accurate'}
+              onChange={(e) => setNotes(e.target.checked ? 'data-accurate' : '')}
+              className="mt-1 w-4 h-4"
+              required
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              I certify that all information provided is accurate and up to date
+            </span>
+          </label>        </div>
         <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
           <Button
             type="submit"
