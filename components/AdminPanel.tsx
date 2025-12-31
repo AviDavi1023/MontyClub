@@ -2961,27 +2961,6 @@ export function AdminPanel() {
             </button>
           </div>
 
-          <div className="p-4 border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-            <div className="flex items-start gap-2 mb-2">
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                  <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Catalog (Auto-Published)
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Catalog automatically updates when you approve or deny registrations. ✨ No manual action needed!
-                </p>
-              </div>
-            </div>
-            {catalogStatus?.exists && (
-              <div className="text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 p-2 rounded">
-                ✅ Current: {catalogStatus.clubCount} clubs • Last updated {new Date(catalogStatus.generatedAt || '').toLocaleString()}
-              </div>
-            )}
-          </div>
-
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
