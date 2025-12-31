@@ -842,34 +842,43 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 <TableIcon className="h-4 w-4"/> Table
               </button>
             </div>
+            {/* Select All button for both views */}
+            {visible.length > 0 && (
+              <button
+                onClick={() => {
+                  if (selectedIds.size === visible.length) setSelectedIds(new Set())
+                  else setSelectedIds(new Set(visible.map(r=>r.id)))
+                }}
+                className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg whitespace-nowrap"
+              >
+                {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
+            {/* Refresh button */}
+            <button
+              onClick={loadRegistrations}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </button>
+            {/* Export CSV button */}
+            <button
+              onClick={exportToCSV}
+              disabled={visible.length === 0}
+              className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Title and Actions Row - Changed from previous section structure */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-3">
-          <FileSpreadsheet className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{collectionName}</h2>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Viewing registrations for this collection</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Select All button for both views */}
-          {visible.length > 0 && (
-            <button
-              onClick={() => {
-                if (selectedIds.size === visible.length) setSelectedIds(new Set())
-                else setSelectedIds(new Set(visible.map(r=>r.id)))
-              }}
-              className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg whitespace-nowrap"
-            >
-              {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
-            </button>
-          )}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
+      {/* Bulk Actions Row - Only show when items are selected */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 flex-wrap p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{selectedIds.size} selected:</span>
               <button
                 onClick={async () => {
                   const confirmed = await confirm({
@@ -1003,25 +1012,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 }}
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
               >Delete Selected</button>
-            </div>
-          )}
-          <button
-            onClick={loadRegistrations}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className="h-5 w-5" />
-          </button>
-          <button
-            onClick={exportToCSV}
-            disabled={visible.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
         </div>
-      </div>
+      )}
 
       {visible.length === 0 ? (
         <div className="text-center py-12 px-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">

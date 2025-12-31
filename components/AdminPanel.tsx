@@ -2824,8 +2824,11 @@ export function AdminPanel() {
             onClick={() => {
               // Ensure a collection is selected before opening registrations
               if (!activeCollectionId && collections.length > 0) {
+                // First try to find the collection that is currently displayed
+                const displayedCol = collections.find(c => c.display && !localPendingCollectionChanges[c.id]?.deleted)
+                // If no displayed collection, try enabled one
                 const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
-                setActiveCollectionId(enabledCol?.id || collections[0].id)
+                setActiveCollectionId(displayedCol?.id || enabledCol?.id || collections[0].id)
               }
               setShowRegistrations(true)
               setTimeout(() => registrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
@@ -3838,8 +3841,11 @@ export function AdminPanel() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span>Club Registrations</span>
-                  <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." />
+                  <span>{(() => {
+                    const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
+                    return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || 'Collection')
+                  })()}</span>
+                  <InfoTooltip text="Review and manage registration requests for the active collection. Links below open public registration and renewal." />
                 </h2>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
                     <div>
