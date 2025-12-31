@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, FormEvent, useEffect } from 'react'
-import { Send, CheckCircle2, XCircle, Moon, Sun } from 'lucide-react'
+import { Send, CheckCircle2, XCircle, Moon, Sun, RefreshCw } from 'lucide-react'
 import { getUserFriendlyError } from '@/lib/error-messages'
 import { RegistrationCollection } from '@/types/club'
 import { Button, Input, Textarea } from '@/components/ui'
@@ -178,21 +178,25 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto p-6 flex items-center justify-center min-h-[400px]">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary-600 border-t-transparent"></div>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+        <div className="flex items-center justify-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
       </div>
     )
   }
 
   if (error && !collection) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-8 text-center">
-          <XCircle className="h-16 w-16 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-yellow-900 dark:text-yellow-100 mb-2">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="h-10 w-10 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Invalid Link
           </h2>
-          <p className="text-yellow-700 dark:text-yellow-300">
+          <p className="text-gray-600 dark:text-gray-400">
             {error}
           </p>
         </div>
@@ -201,53 +205,44 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   }
 
   if (submitted) {
-    // Scroll to top when success screen shows
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-8 text-center">
-          <CheckCircle2 className="h-16 w-16 text-green-600 dark:text-green-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-green-900 dark:text-green-100 mb-2">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Registration Submitted!
           </h2>
-          <p className="text-green-700 dark:text-green-300">
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Your club charter request has been received. You will be notified via email once it has been reviewed.
           </p>
+          <Button
+            variant="primary"
+            onClick={() => window.location.href = '/'}
+          >
+            Return to Home
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <>
-    <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
-      {/* Collection Tagging (hidden input, visible for admin context) */}
-      {collectionSlug && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Registration Collection
-          </label>
-          <input
-            type="text"
-            value={collectionSlug}
-            readOnly
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white cursor-not-allowed"
-            tabIndex={-1}
-            aria-readonly="true"
-          />
-          <input type="hidden" name="collection" value={collectionSlug} />
-        </div>
-      )}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Club Charter Request
-            </h1>
-          </div>
-          <button
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                Club Charter Request
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Submit a new club charter for review
+              </p>
+            </div>
+            <button
             type="button"
             onClick={() => {
               const html = document.documentElement
@@ -265,16 +260,23 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           >
             {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
+          </div>
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          This request must be completed by the advisor who must be a Carlmont teacher. Please note that the California Education Code states that clubs cannot raise funds for charitable causes. Clubs are not allowed to discriminate based on gender, race, ethnicity, religion, or ability level. If certain members do not have the required ability to perform for the club if necessary, they must be allowed to join the club as "board members." Club members cannot be required to pay membership dues.
-        </p>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+            <p className="text-red-800 dark:text-red-400">{error}</p>
           </div>
         )}
+
+        {/* Main Form Card */}
+        <form onSubmit={handleSubmit}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
+            <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                This request must be completed by the advisor who must be a Carlmont teacher. Please note that the California Education Code states that clubs cannot raise funds for charitable causes. Clubs are not allowed to discriminate based on gender, race, ethnicity, religion, or ability level. If certain members do not have the required ability to perform for the club if necessary, they must be allowed to join the club as "board members." Club members cannot be required to pay membership dues.
+              </p>
+            </div>
 
         <Input
           label="Email"
@@ -331,11 +333,11 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         />
 
         {/* Meeting Day */}
-        <div id="meetingDaySection" className="mb-6">
+        <div id="meetingDaySection">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Meeting Day of Week <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Select all days that apply
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -359,16 +361,16 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             ))}
           </div>
           {!meetingDay && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">Please select at least one day</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-2">Please select at least one day</p>
           )}
         </div>
 
         {/* Meeting Frequency */}
-        <div className="mb-6">
+        <div>
           <label htmlFor="meetingFrequency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Frequency <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             "Every other week" and "Once a month" is not specific enough.
           </p>
           <select
@@ -430,7 +432,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         />
 
         {/* Category (required) */}
-        <div className="mb-6">
+        <div>
           <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Category <span className="text-red-500">*</span>
           </label>
@@ -475,12 +477,18 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           helperText="Any public notes to be displayed on the clubs discovery site about registration, requirements, dates, etc."
         />
 
-        {/* Club Advisor Agreement */}
-        <div className="mb-6">
-          <label htmlFor="advisorAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Club Advisor Agreement <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+        {/* Agreements Section */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Required Agreements
+          </h3>
+
+          {/* Club Advisor Agreement */}
+          <div>
+            <label htmlFor="advisorAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Club Advisor Agreement <span className="text-red-500">*</span>
+            </label>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             As the advisor of this club, I agree that I will be present at all club meetings and activities. If applicable, I agree to supervise all club fundraisers and deposit or store the money with the School Treasurer or Activities Director within 24 hours of the fundraising activity. Also, I agree to follow the proper money handling and expenditure procedures as set forth by the California State Ed. Code and the Carlmont Trust Agreement. If this is a renewal, I agree that all club officers have been fairly elected by the members of the club. If this is a new or unrenewed club, I agree that all club officers will be fairly elected by the members of the club.
           </p>
           <input
@@ -493,12 +501,12 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           />
         </div>
 
-        {/* Club Agreement */}
-        <div className="mb-6">
-          <label htmlFor="clubAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Club Agreement <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          {/* Club Agreement */}
+          <div>
+            <label htmlFor="clubAgreementDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Club Agreement <span className="text-red-500">*</span>
+            </label>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             By submitting this form, we (club advisor and officers) agree that we will abide by all school, Ed. Code, and ASB rules pertaining to club functions. We will meet as indicated. We will notify ASB should any of the above information change. We agree that not fulfilling our agreed upon meetings and club activities may result in deactivation of the club in this and possibly following school years. We agree that all club activities must be school appropriate and are expected, unless otherwise approved, to be conducted on campus. We understand that off-campus club activities require field trip paperwork. Also, because it is against California State Ed. Code, we understand that ASB cannot approve any clubs whose purpose is to raise money for charity.
           </p>
           <input
@@ -509,21 +517,25 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
             onChange={(e) => setClubAgreementDate(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
           />
+          </div>
         </div>
 
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={submitting || !!emailError || !!studentEmailError}
-          isLoading={submitting}
-          className="w-full"
-          icon={!submitting ? <Send className="h-4 w-4" /> : undefined}
-        >
-          {submitting ? 'Submitting...' : 'Submit Charter Request'}
-        </Button>
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={submitting || !!emailError || !!studentEmailError}
+            isLoading={submitting}
+            className="w-full"
+            icon={!submitting ? <Send className="h-4 w-4" /> : undefined}
+          >
+            {submitting ? 'Submitting...' : 'Submit Charter Request'}
+          </Button>
+        </div>
+          </div>
+        </form>
       </div>
-    </form>
-    <ToastContainer toasts={toasts} onClose={removeToast} />
-    </>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+    </div>
   )
 }
