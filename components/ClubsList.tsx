@@ -389,26 +389,49 @@ export function ClubsList() {
     // Rebuild when sort changes or clubs list changes
   }, [filters.sort, clubs])
 
-  // Score function for 'relevant' sorting
-  function relevanceScore(club: Club): number {
-    let score = 0
-    // Boost clubs with announcements
-    if (club.announcement && club.announcement.trim()) score += 100
-    const query = (searchInput || '').toLowerCase().trim()
-    if (query) {
-      const inName = (club.name || '').toLowerCase()
-      const inDesc = (club.description || '').toLowerCase()
-      const inCategory = (club.category || '').toLowerCase()
-      const inKeywords = (club.keywords || []).map(k => (k || '').toLowerCase())
-      if (inName.startsWith(query)) score += 50
-      if (inName.includes(query)) score += 30
-      if (inKeywords.some(k => k.startsWith(query))) score += 20
-      if (inCategory.includes(query)) score += 10
-      if (inDesc.includes(query)) score += 5
+  // Day order for sorting (Monday is first, Sunday is last)
+  const dayOrder: Record<string, number> = {
+    'Monday': 0,
+    'Tuesday': 1,
+    'Wednesday': 2,
+    'Thursday': 3,
+    'Friday': 4,
+    'Saturday': 5,
+    'Sunday': 6,
+  }
+
+  // Get the primary meeting day from meetingTime and its sort order
+  function getPrimaryDayOrder(club: Club): number {
+    if (!club.meetingTime) return 999 // No day specified, sort last
+    const meetingTime = club.meetingTime.toLowerCase()
+    
+    // Try to find the first mentioned day in order of days array
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    for (const day of days) {
+      if (meetingTime.includes(day) || meetingTime.includes(day + 's')) {
+        const capitalizedDay = day.charAt(0).toUpperCase() + day.slice(1)
+        return dayOrder[capitalizedDay] ?? 999
+      }
     }
-    // Slight boost for active clubs
-    if (club.active) score += 1
-    return score
+    return 999 // Unknown day, sort last
+  }
+
+  // Score function for 'relevant' sorting
+  // Now sorts by: announcements (top) → meeting day (soonest first) → alphabetical name
+  function relevanceScore(club: Club): [number, number, string] {
+    // First priority: clubs with announcements (1 = has announcement, 0 = no announcement)
+    // Use negative so higher values sort first
+    const hasAnnouncement = (club.announcement && club.announcement.trim()) ? 1 : 0
+    
+    // Second priority: meeting day order (0-6 for Mon-Sun, 999 for unknown)
+    const dayOrder = getPrimaryDayOrder(club)
+    
+    // Third priority: alphabetical by name (for clubs on same day with/without announcements)
+    const nameForSort = (club.name || '').toLowerCase()
+    
+    // Return tuple: [negative hasAnnouncement (so it sorts descending), dayOrder, name]
+    // This ensures: announcements first, then by earliest day, then alphabetically
+    return [-hasAnnouncement, dayOrder, nameForSort]
   }
 
   const sortedClubs = useMemo(() => {
@@ -427,8 +450,20 @@ export function ClubsList() {
         arr.sort(() => Math.random() - 0.5)
       }
     } else {
-      // Relevant
-      arr.sort((a, b) => relevanceScore(b) - relevanceScore(a))
+      // Relevant: sort by [announcements DESC, day order ASC, name ASC]
+      arr.sort((a, b) => {
+        const scoreA = relevanceScore(a)
+        const scoreB = relevanceScore(b)
+        
+        // Compare by announcement first (higher is better, so reverse)
+        if (scoreA[0] !== scoreB[0]) return scoreA[0] - scoreB[0]
+        
+        // Then by meeting day (lower/earlier day is better)
+        if (scoreA[1] !== scoreB[1]) return scoreA[1] - scoreB[1]
+        
+        // Finally alphabetically by name
+        return scoreA[2].localeCompare(scoreB[2])
+      })
     }
     return arr
     // Include dependencies that affect sorting
