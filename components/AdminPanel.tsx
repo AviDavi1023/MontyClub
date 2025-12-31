@@ -13,7 +13,6 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
-import { safeSetItem, safeGetItem, getStorageWarning } from '@/lib/storage-quota'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -262,18 +261,10 @@ export function AdminPanel() {
         localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
       } else {
         const serialized = JSON.stringify(localPendingCollectionChanges)
-        const result = safeSetItem(COLLECTIONS_PENDING_KEY, localPendingCollectionChanges)
-        if (!result.success) {
-          console.error('[AdminPanel] Failed to save collection changes:', result.error)
-          // Will be shown via showToast once it's initialized
-        } else {
-          // Also save backup
-          safeSetItem(COLLECTIONS_BACKUP_KEY, { t: Date.now(), data: localPendingCollectionChanges })
-        }
+        localStorage.setItem(COLLECTIONS_PENDING_KEY, serialized)
+        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingCollectionChanges }))
       }
-    } catch (e) {
-      console.error('[AdminPanel] Storage error:', e)
-    }
+    } catch (e) {}
   }, [localPendingCollectionChanges, collectionsStorageLoaded])
 
   // Auto-clear pending collection changes that now match database state
@@ -2533,6 +2524,8 @@ export function AdminPanel() {
       
       // Optionally refresh clubs data in this panel too
       await refreshData()
+      // Refresh snapshot status too
+      await checkSnapshotStatus()
     } catch (err) {
       console.error('Error refreshing cache:', err)
       showToast(`Failed to refresh cache: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
@@ -2540,6 +2533,76 @@ export function AdminPanel() {
       setRefreshingCache(false)
     }
   }
+
+  const checkSnapshotStatus = async () => {
+    try {
+      if (!adminApiKey) return
+      
+      const resp = await fetch('/api/admin/snapshot-status', {
+        method: 'GET',
+        headers: {
+          'x-admin-key': adminApiKey
+        }
+      })
+      
+      if (!resp.ok) {
+        console.warn('Failed to check snapshot status')
+        setCatalogStatus(null)
+        return
+      }
+      
+      const data = await resp.json()
+      setCatalogStatus(data)
+    } catch (err) {
+      console.error('Error checking snapshot status:', err)
+      setCatalogStatus(null)
+    }
+  }
+
+  const publishSnapshotNow = async () => {
+    try {
+      setPublishingCatalog(true)
+      
+      const resp = await fetch('/api/admin/snapshot-status', {
+        method: 'POST',
+        headers: {
+          'x-admin-key': adminApiKey,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to publish snapshot')
+      }
+      
+      const data = await resp.json()
+      showToast(`✅ Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
+      
+      // Refresh snapshot status and clear cache
+      await checkSnapshotStatus()
+      await refreshCache()
+    } catch (err) {
+      console.error('Error publishing snapshot:', err)
+      showToast(`Failed to publish snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+    } finally {
+      setPublishingCatalog(false)
+    }
+  }
+
+  // Load snapshot status on mount and periodically
+  useEffect(() => {
+    if (!isAuthenticated || !adminApiKey) return
+    
+    checkSnapshotStatus()
+    
+    // Check every 30 seconds
+    const interval = setInterval(() => {
+      checkSnapshotStatus()
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [isAuthenticated, adminApiKey])
 
   const publishCatalog = async () => {
     try {
@@ -3006,6 +3069,28 @@ export function AdminPanel() {
             >
               <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
               {refreshingCache ? 'Refreshing...' : 'Refresh Now'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Snapshot Status</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              {!catalogStatus ? 'Loading...' : catalogStatus.exists 
+                ? `✅ Published: ${catalogStatus.clubCount} clubs` 
+                : '⚠️ Not published'}
+            </p>
+            {catalogStatus?.exists && catalogStatus.generatedAt && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Last updated: {new Date(catalogStatus.generatedAt).toLocaleString()}
+              </p>
+            )}
+            <button
+              onClick={publishSnapshotNow}
+              disabled={publishingCatalog}
+              className="btn-primary w-full sm:w-auto flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} />
+              {publishingCatalog ? 'Publishing...' : 'Publish Catalog'}
             </button>
           </div>
 

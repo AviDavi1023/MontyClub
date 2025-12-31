@@ -253,11 +253,6 @@ export default function EasterEggGame() {
           >
             {spinning ? '🎲 SPINNING... 🎲' : '🎰 GENERATE CLUB 🎰'}
           </button>
-          
-          {/* Stats */}
-          <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-500">
-            <p>98,437,500 possible combinations! (35 × 35 × 35 × 30 × 30)</p>
-          </div>
         </div>
 
         {/* Secret Achievement */}
