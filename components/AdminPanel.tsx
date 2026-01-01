@@ -547,6 +547,25 @@ export function AdminPanel() {
       } catch {}
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
       await loadCollections()
+      // Publish catalog and refresh cache when display collection changes
+      if (nextDisplay) {
+        try {
+          await fetch('/api/admin/publish-catalog', {
+            method: 'POST',
+            headers: { 'x-admin-key': adminApiKey }
+          })
+        } catch (err) {
+          console.error('Failed to publish catalog:', err)
+        }
+        try {
+          await fetch('/api/admin/refresh-cache', {
+            method: 'POST',
+            headers: { 'x-admin-key': adminApiKey }
+          })
+        } catch (err) {
+          console.error('Failed to refresh cache:', err)
+        }
+      }
       try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
       setLocalPendingCollectionChanges(prev => {
