@@ -24,8 +24,8 @@ export function ClubsList() {
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
-  // Start with filters hidden on mobile, visible on desktop
-  const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false)
+  // Start with filters hidden on mobile and medium screens (where they wrap 2x2), visible on large+ screens
+  const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [currentPage, setCurrentPage] = useState(1)
@@ -592,7 +592,7 @@ export function ClubsList() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-medium"
           >
             <Filter className="h-4 w-4" />
-            <span>Show Filters{hasActiveFilters ? ' (Filter by category, day, frequency)' : ''}</span>
+            <span>Show Filters <span className="hidden sm:inline text-gray-500 dark:text-gray-400">(Category, Day, Frequency, Status)</span></span>
             <ChevronDown className="h-4 w-4" />
             {hasActiveFilters && (
               <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">

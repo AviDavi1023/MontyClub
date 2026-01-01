@@ -175,6 +175,9 @@ export function AdminPanel() {
     registrationCollections: false,
     registrations: false,
     analytics: false,
+    settings: false,
+    renewalSettings: false,
+    adminUsers: false,
   })
   const [clearingData, setClearingData] = useState(false)
 
@@ -1238,6 +1241,9 @@ export function AdminPanel() {
         registrationCollections: false,
         registrations: false,
         analytics: false,
+        settings: false,
+        renewalSettings: false,
+        adminUsers: false,
       })
       setShowClearDataModal(false)
 
@@ -4054,6 +4060,45 @@ export function AdminPanel() {
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">Analytics Events</div>
                     <div className="text-xs text-gray-600 dark:text-gray-400">Clear all analytics tracking data</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.settings}
+                    onChange={(e) => setClearOptions({ ...clearOptions, settings: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">General Settings</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Reset all application settings to defaults</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.renewalSettings}
+                    onChange={(e) => setClearOptions({ ...clearOptions, renewalSettings: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Renewal Settings</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear renewal configuration</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.adminUsers}
+                    onChange={(e) => setClearOptions({ ...clearOptions, adminUsers: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">⚠️ Admin Users</div>
+                    <div className="text-xs text-red-700 dark:text-red-300">Delete all admin user accounts (you will need to reinitialize)</div>
                   </div>
                 </label>
               </div>

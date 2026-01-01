@@ -16,6 +16,9 @@ interface ClearDataRequest {
     registrationCollections: boolean
     registrations: boolean
     analytics: boolean
+    settings: boolean
+    renewalSettings: boolean
+    adminUsers: boolean
   }
 }
 
@@ -28,6 +31,9 @@ interface ClearDataResponse {
     registrationCollections?: { count: number }
     registrations?: { count: number }
     analytics?: { filesRemoved: number }
+    settings?: { count: number }
+    renewalSettings?: { count: number }
+    adminUsers?: { count: number }
   }
   errors?: string[]
 }
@@ -166,6 +172,41 @@ export async function POST(request: NextRequest) {
         response.cleared.analytics = { filesRemoved }
       } catch (err) {
         errors.push(`Failed to clear analytics: ${err}`)
+      }
+    }
+
+    // Clear Settings
+    if (clearOptions.settings) {
+      try {
+        const currentSettings = await readData('settings', {})
+        await writeData('settings', { announcementsEnabled: true })
+        response.cleared.settings = { count: Object.keys(currentSettings).length }
+      } catch (err) {
+        errors.push(`Failed to clear settings: ${err}`)
+      }
+    }
+
+    // Clear Renewal Settings
+    if (clearOptions.renewalSettings) {
+      try {
+        const currentSettings = await readData('renewal-settings', {})
+        await writeData('renewal-settings', {})
+        response.cleared.renewalSettings = { count: Object.keys(currentSettings).length }
+      } catch (err) {
+        errors.push(`Failed to clear renewal settings: ${err}`)
+      }
+    }
+
+    // Clear Admin Users (but keep at least one admin user)
+    if (clearOptions.adminUsers) {
+      try {
+        const currentUsers = await readData('admin-users', {})
+        const currentCount = Object.keys(currentUsers).length
+        // Reset to empty - users will need to be recreated
+        await writeData('admin-users', {})
+        response.cleared.adminUsers = { count: currentCount }
+      } catch (err) {
+        errors.push(`Failed to clear admin users: ${err}`)
       }
     }
 
