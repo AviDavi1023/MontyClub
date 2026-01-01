@@ -387,8 +387,10 @@ export function AdminPanel() {
           if (activeCollectionId && overlayMap.has(activeCollectionId)) {
             setActiveCollectionId(activeCollectionId)
           } else {
+            // Prefer displayed collection, then enabled, then first
+            const displayedFirst = overlayList.find(c => c.display)
             const enabledFirst = overlayList.find(c => c.enabled)
-            setActiveCollectionId((enabledFirst || overlayList[0]).id)
+            setActiveCollectionId((displayedFirst || enabledFirst || overlayList[0]).id)
           }
         } else {
           setActiveCollectionId(null)
@@ -396,8 +398,9 @@ export function AdminPanel() {
       } catch {
         // Fallback to server-only selection
         if (data.collections && data.collections.length > 0) {
+          const displayedCol = data.collections.find((c: RegistrationCollection) => c.display)
           const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-          setActiveCollectionId(enabledCol?.id || data.collections[0].id)
+          setActiveCollectionId(displayedCol?.id || enabledCol?.id || data.collections[0].id)
         } else {
           setActiveCollectionId(null)
         }
@@ -2979,11 +2982,16 @@ export function AdminPanel() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
                       <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
-                      {u.reviewed ? (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
-                      )}
+                      {(() => {
+                        const currentReviewed = localPendingChanges[String(u.id)]?.reviewed !== undefined
+                          ? localPendingChanges[String(u.id)].reviewed
+                          : u.reviewed
+                        return currentReviewed ? (
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
+                        )
+                      })()}
                       {singleProcessingId === String(u.id) && (
                         <span className="text-xs text-gray-500">Processing...</span>
                       )}
@@ -3000,7 +3008,12 @@ export function AdminPanel() {
                       disabled={updatingBatch || singleProcessingId === String(u.id)}
                       className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
                     >
-                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
+                      {(() => {
+                        const currentReviewed = localPendingChanges[String(u.id)]?.reviewed !== undefined
+                          ? localPendingChanges[String(u.id)].reviewed
+                          : u.reviewed
+                        return currentReviewed ? 'Mark Unreviewed' : 'Mark Reviewed'
+                      })()}
                     </button>
                     <button
                       onClick={() => handleDeleteSingle(u)}
