@@ -142,10 +142,10 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
     }
 
     const target = normalize(fixed)
-    // Read-back verification with cache-busting, one retry if needed
-    for (let attempt = 0; attempt < 2; attempt++) {
-      // Longer delay on retry to allow S3 consistency
-      if (attempt > 0) await new Promise(r => setTimeout(r, 500))
+    // Read-back verification with cache-busting, allow time for S3 eventual consistency
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // Increase delay based on attempt number - first wait 800ms, then 1.5s
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt === 1 ? 800 : 1500))
       const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
       const current = normalize(after)
       
@@ -159,17 +159,18 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
       }
       
       // Log what's different for debugging
-      if (attempt === 0) {
-        log({ 
-          tag: 'collections-persistence', 
-          step: 'mismatch', 
-          attempt,
-          targetCount: target.length,
-          currentCount: current.length,
-          targetIds: target.map(c => c.id),
-          currentIds: current.map(c => c.id)
-        })
-        // Only re-write once on mismatch
+      log({ 
+        tag: 'collections-persistence', 
+        step: 'mismatch', 
+        attempt,
+        targetCount: target.length,
+        currentCount: current.length,
+        targetIds: target.map(c => c.id),
+        currentIds: current.map(c => c.id)
+      })
+      
+      // Re-write on mismatches to ensure data is persisted
+      if (attempt < 2) {
         log({ tag: 'collections-persistence', step: 'rewrite', attempt })
         await writeJSONToStorage(COLLECTIONS_PATH, fixed)
       }
