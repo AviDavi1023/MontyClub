@@ -310,6 +310,11 @@ export function AdminPanel() {
           delete newPending[collectionId].renewalEnabled
           hasChanges = true
         }
+        // If display matches DB, clear display flag
+        if (pending.display !== undefined && found.display === pending.display) {
+          delete newPending[collectionId].display
+          hasChanges = true
+        }
         // If name matches DB, clear name flag
         if (pending.name && found.name === pending.name) {
           delete newPending[collectionId].name
@@ -317,7 +322,7 @@ export function AdminPanel() {
         }
         // If no remaining flags, remove entry
         const entry = newPending[collectionId]
-        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
+        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && entry.display === undefined && !entry.name && !entry.created) {
           delete newPending[collectionId]
           hasChanges = true
         }
@@ -519,8 +524,22 @@ export function AdminPanel() {
     const nextDisplay = !effectiveCurrentDisplay
 
     // Optimistically update display
+    // When enabling display on one collection, disable it on all others
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() } }
+      const next = { ...prev }
+      
+      // If enabling display, mark all other collections as not displayed
+      if (nextDisplay) {
+        collections.forEach(c => {
+          if (c.id !== collectionId) {
+            next[c.id] = { ...(next[c.id] || {}), display: false, _timestamp: Date.now() }
+          }
+        })
+      }
+      
+      // Set the target collection's display state
+      next[collectionId] = { ...(next[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() }
+      
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -547,25 +566,8 @@ export function AdminPanel() {
       } catch {}
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
       await loadCollections()
-      // Publish catalog and refresh cache when display collection changes
-      if (nextDisplay) {
-        try {
-          await fetch('/api/admin/publish-catalog', {
-            method: 'POST',
-            headers: { 'x-admin-key': adminApiKey }
-          })
-        } catch (err) {
-          console.error('Failed to publish catalog:', err)
-        }
-        try {
-          await fetch('/api/admin/refresh-cache', {
-            method: 'POST',
-            headers: { 'x-admin-key': adminApiKey }
-          })
-        } catch (err) {
-          console.error('Failed to refresh cache:', err)
-        }
-      }
+      // Server already auto-publishes snapshot and invalidates cache when display changes
+      // Broadcast to ClubsList to refresh UI
       try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
       setLocalPendingCollectionChanges(prev => {
@@ -3343,7 +3345,7 @@ export function AdminPanel() {
                               </>
                             )
                           })()}
-                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
+                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.renewalEnabled !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
                           )}
                         </div>
@@ -3351,8 +3353,13 @@ export function AdminPanel() {
                           Created {new Date(collection.createdAt).toLocaleDateString()}
                         </p>
                         {(() => {
-                          const isAccepting = collection.accepting ?? collection.enabled ?? false
-                          const isRenewalEnabled = collection.renewalEnabled ?? false
+                          const pending = localPendingCollectionChanges[collection.id]
+                          const isAccepting = pending?.accepting !== undefined 
+                            ? pending.accepting 
+                            : (collection.accepting ?? collection.enabled ?? false)
+                          const isRenewalEnabled = pending?.renewalEnabled !== undefined
+                            ? pending.renewalEnabled
+                            : (collection.renewalEnabled ?? false)
                           return (
                             <>
                               {isAccepting && (
