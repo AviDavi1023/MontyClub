@@ -136,15 +136,14 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
         continue
       }
       
-      // Check if states match
-      const pending = pendingState as { reviewed?: boolean; deleted?: boolean }
+      // Check if states match - pendingState is already properly typed from pendingChanges
       let needsSync = false
       
-      if (pending.reviewed !== undefined && serverUpdate.reviewed !== pending.reviewed) {
+      if (pendingState.reviewed !== undefined && serverUpdate.reviewed !== pendingState.reviewed) {
         needsSync = true
       }
       
-      if (pending.deleted && !serverUpdate.deleted) {
+      if (pendingState.deleted && !serverUpdate.deleted) {
         needsSync = true
       }
       
@@ -159,7 +158,7 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
             },
             body: JSON.stringify({
               id: updateId,
-              ...pending
+              ...pendingState
             })
           })
           
@@ -167,11 +166,11 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
             syncedCount++
           } else {
             // Keep in pending
-            stillPending[updateId] = pending
+            stillPending[updateId] = pendingState
           }
         } catch (err) {
           // Keep in pending
-          stillPending[updateId] = pending
+          stillPending[updateId] = pendingState
         }
       }
     }
