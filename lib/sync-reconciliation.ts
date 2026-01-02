@@ -137,14 +137,14 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
       }
       
       // Check if states match
-      const pending = pendingState as any
+      const pending = pendingState as { reviewed?: boolean; deleted?: boolean }
       let needsSync = false
       
       if (pending.reviewed !== undefined && serverUpdate.reviewed !== pending.reviewed) {
         needsSync = true
       }
       
-      if (pending.deleted && !pending.deleted) {
+      if (pending.deleted && !serverUpdate.deleted) {
         needsSync = true
       }
       
