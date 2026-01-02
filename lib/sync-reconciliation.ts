@@ -15,6 +15,11 @@ interface PendingSync {
   lastAttempt: number
 }
 
+interface PendingUpdateState {
+  reviewed?: boolean
+  deleted?: boolean
+}
+
 interface ReconciliationStats {
   announcementsSynced: number
   updatesSynced: number
@@ -100,11 +105,11 @@ async function reconcileAnnouncements(adminApiKey: string): Promise<number> {
 async function reconcileUpdates(adminApiKey: string): Promise<number> {
   try {
     const pendingKey = 'montyclub:pendingUpdateChanges'
-    const pending = localStorage.getItem(pendingKey)
+    const pendingRaw = localStorage.getItem(pendingKey)
     
-    if (!pending || pending === '{}') return 0
+    if (!pendingRaw || pendingRaw === '{}') return 0
     
-    const pendingChanges: Record<string, { reviewed?: boolean; deleted?: boolean }> = JSON.parse(pending)
+    const pendingChanges = JSON.parse(pendingRaw) as Record<string, PendingUpdateState>
     const pendingIds = Object.keys(pendingChanges)
     
     if (pendingIds.length === 0) return 0
@@ -125,10 +130,11 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
     const serverMap = new Map(serverUpdates.map((u: any) => [u.id, u]))
     
     let syncedCount = 0
-    const stillPending: Record<string, any> = {}
+    const stillPending: Record<string, PendingUpdateState> = {}
     
     // Check each pending change
-    for (const [updateId, pendingState] of Object.entries(pendingChanges)) {
+    for (const updateId of pendingIds) {
+      const pendingState: PendingUpdateState = pendingChanges[updateId]
       const serverUpdate = serverMap.get(updateId)
       
       if (!serverUpdate) {
@@ -136,7 +142,7 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
         continue
       }
       
-      // Check if states match - pendingState is already properly typed from pendingChanges
+      // Check if states match
       let needsSync = false
       
       if (pendingState.reviewed !== undefined && serverUpdate.reviewed !== pendingState.reviewed) {
