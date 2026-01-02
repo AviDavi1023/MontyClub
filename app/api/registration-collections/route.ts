@@ -142,11 +142,18 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
     }
 
     const target = normalize(fixed)
-    // Read-back verification with cache-busting, allow time for S3 eventual consistency
-    // Single verification attempt - don't cascade retries, as write already has retry built in
-    for (let attempt = 0; attempt < 3; attempt++) {
-      // Increase delay - first wait 800ms, then 1.5s, then 2.5s
-      if (attempt > 0) await new Promise(r => setTimeout(r, attempt === 1 ? 800 : 2500))
+    // Read-back verification with exponential backoff polling
+    // Check if data actually persisted and is readable, not just guessing with delays
+    const maxRetries = 5
+    const baseDelay = 300 // ms
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // First attempt has no delay, subsequent attempts use exponential backoff
+      if (attempt > 0) {
+        const delay = baseDelay * Math.pow(1.5, attempt - 1)
+        await new Promise(r => setTimeout(r, delay))
+      }
+      
       const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
       const current = normalize(after)
       
