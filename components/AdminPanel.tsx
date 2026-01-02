@@ -13,6 +13,7 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
+import { startPeriodicReconciliation, getReconciliationDiagnostics } from '@/lib/sync-reconciliation'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -73,7 +74,8 @@ if (typeof window !== 'undefined') {
       },
       registrations: {
         pending: localStorage.getItem('montyclub:pendingRegistrationChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingRegistrationChanges')!) : {}
-      }
+      },
+      reconciliation: getReconciliationDiagnostics()
     }
     console.group('=== COMPLETE SYNC DIAGNOSTICS ===')
     console.log(JSON.stringify(report, null, 2))
@@ -180,6 +182,11 @@ export function AdminPanel() {
     adminUsers: false,
   })
   const [clearingData, setClearingData] = useState(false)
+  
+  // Sync reconciliation state
+  const [lastReconciliation, setLastReconciliation] = useState<Date | null>(null)
+  const [reconciliationRunning, setReconciliationRunning] = useState(false)
+  const reconciliationCleanupRef = useRef<(() => void) | null>(null)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -217,6 +224,35 @@ export function AdminPanel() {
     if (!isAuthenticated || !adminApiKey || !collectionsStorageLoaded) return
     loadCollections()
   }, [isAuthenticated, adminApiKey, collectionsStorageLoaded])
+
+  // Start periodic sync reconciliation when authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !adminApiKey) {
+      // Not authenticated - stop reconciliation if running
+      if (reconciliationCleanupRef.current) {
+        reconciliationCleanupRef.current()
+        reconciliationCleanupRef.current = null
+        setReconciliationRunning(false)
+      }
+      return
+    }
+
+    // Authenticated - start periodic reconciliation
+    console.log('[AdminPanel] Starting automatic sync reconciliation...')
+    setReconciliationRunning(true)
+    
+    const cleanup = startPeriodicReconciliation(adminApiKey)
+    reconciliationCleanupRef.current = cleanup
+    setLastReconciliation(new Date())
+
+    return () => {
+      if (reconciliationCleanupRef.current) {
+        reconciliationCleanupRef.current()
+        reconciliationCleanupRef.current = null
+        setReconciliationRunning(false)
+      }
+    }
+  }, [isAuthenticated, adminApiKey])
 
   // Reload collections when localStorage changes are detected (cross-tab or after operations)
   useEffect(() => {
@@ -2917,6 +2953,28 @@ export function AdminPanel() {
           </button>
         </div>
       </div>
+
+      {/* Sync Reconciliation Status */}
+      {reconciliationRunning && (
+        <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Auto-Sync Active
+                </span>
+              </div>
+              {lastReconciliation && (
+                <span className="text-xs text-blue-700 dark:text-blue-300">
+                  Last sync: {lastReconciliation.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            <InfoTooltip text="Automatically syncs pending changes every 30 seconds. Failed updates, announcements, and snapshot publishes are retried automatically." />
+          </div>
+        </div>
+      )}
 
       {/* Update Requests */}
       <div ref={updatesRef} className="card">

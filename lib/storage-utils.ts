@@ -47,8 +47,10 @@ export function safeGetJSON<T>(key: string, fallback: T): T {
 /**
  * Safely set JSON to localStorage with quota checking
  * Uses a lock-based approach to prevent concurrent writes
+ * Tracks failures for automatic retry
  */
 const storageWriteLock = new Map<string, Promise<boolean>>()
+const failedWrites = new Map<string, { value: any; timestamp: number; retryCount: number }>()
 
 export async function safeSetJSON<T>(key: string, value: T): Promise<boolean> {
   // Create lock entry if it doesn't exist
@@ -79,18 +81,24 @@ export async function safeSetJSON<T>(key: string, value: T): Promise<boolean> {
       } catch (e: any) {
         if (e.name === 'QuotaExceededError') {
           console.error('[safeSetJSON] localStorage quota exceeded')
+          // Track for retry after cleanup
+          failedWrites.set(key, { value, timestamp: Date.now(), retryCount: 0 })
           return false
         }
       }
 
       // Perform actual write
       localStorage.setItem(key, jsonString)
+      // Success - remove from failed writes if it was there
+      failedWrites.delete(key)
       return true
     } catch (error: any) {
       console.error(`[safeSetJSON] Error writing to ${key}:`, error)
       if (error.name === 'QuotaExceededError') {
         console.error('[safeSetJSON] localStorage quota exceeded')
       }
+      // Track for retry
+      failedWrites.set(key, { value, timestamp: Date.now(), retryCount: 0 })
       return false
     }
   })()
@@ -98,6 +106,44 @@ export async function safeSetJSON<T>(key: string, value: T): Promise<boolean> {
   storageWriteLock.set(key, newOp)
 
   return await newOp
+}
+
+/**
+ * Get failed writes that need retry
+ */
+export function getFailedWrites(): Array<{ key: string; value: any; timestamp: number; retryCount: number }> {
+  return Array.from(failedWrites.entries()).map(([key, data]) => ({ key, ...data }))
+}
+
+/**
+ * Retry failed localStorage writes
+ * Returns number of successful retries
+ */
+export async function retryFailedWrites(): Promise<number> {
+  let successCount = 0
+  const toRetry = Array.from(failedWrites.entries())
+  
+  for (const [key, data] of toRetry) {
+    if (data.retryCount >= 5) {
+      console.warn(`[retryFailedWrites] Giving up on ${key} after 5 retries`)
+      failedWrites.delete(key)
+      continue
+    }
+    
+    const success = await safeSetJSON(key, data.value)
+    if (success) {
+      successCount++
+      failedWrites.delete(key)
+      console.log(`[retryFailedWrites] ✅ Successfully retried ${key}`)
+    } else {
+      // Increment retry count
+      data.retryCount++
+      failedWrites.set(key, data)
+      console.warn(`[retryFailedWrites] ❌ Retry ${data.retryCount} failed for ${key}`)
+    }
+  }
+  
+  return successCount
 }
 
 /**

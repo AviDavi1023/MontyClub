@@ -55,23 +55,29 @@ async function handler(request: NextRequest, body: any) {
     }
 
     // AUTO-PUBLISH: Update snapshot with lock to prevent races
-    // IMPORTANT: Do this BEFORE invalidating cache to prevent race condition
-    // See: https://github.com/carlmont/montyclub/issues/snapshot-race
+    // CRITICAL: Invalidate cache INSIDE the lock BEFORE writing to prevent race
+    // This ensures no request can read stale cache after new snapshot exists
+    let snapshotPublishFailed = false
     try {
       await withSnapshotLock(async () => {
         try {
           console.log('[Snapshot] Auto-publishing catalog after registration approval...')
           
-          // Get the display collection
+          // STEP 1: Invalidate cache FIRST (inside lock, before snapshot write)
+          // This prevents the race where a request reads stale cache after snapshot is written
+          console.log('[Cache] Invalidating cache BEFORE snapshot publish (inside lock)')
+          invalidateClubsCache()
+          
+          // STEP 2: Get the display collection
           const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
           const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
           
           if (!displayCollection) {
             console.warn('[Snapshot] No display collection found for snapshot')
-            return
+            throw new Error('No display collection configured')
           }
 
-          // List and read all registrations
+          // STEP 3: List and read all registrations
           const regPaths = await listPaths(`registrations/${displayCollection.id}`)
           const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
           
@@ -82,14 +88,14 @@ async function handler(request: NextRequest, body: any) {
             reg => reg && typeof reg === 'object' && reg.status === 'approved'
           )
 
-          // Sort by approvedAt (newest first)
+          // STEP 4: Sort by approvedAt (newest first)
           registrations.sort((a, b) => {
             const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
             const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
             return timeB - timeA
           })
 
-          // Map to Club objects
+          // STEP 5: Map to Club objects
           const clubs: Club[] = registrations.map((r) => ({
             id: r.id,
             name: r.clubName,
@@ -108,7 +114,7 @@ async function handler(request: NextRequest, body: any) {
             keywords: [],
           }))
 
-          // Create snapshot
+          // STEP 6: Create snapshot
           const snapshot = {
             clubs,
             metadata: {
@@ -120,28 +126,38 @@ async function handler(request: NextRequest, body: any) {
             }
           }
 
-          // Write snapshot
+          // STEP 7: Write snapshot
           const success = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
           
-          if (success) {
-            console.log(`[Snapshot] ✅ Auto-published ${clubs.length} clubs`)
-          } else {
+          if (!success) {
             console.error('[Snapshot] ❌ Failed to write snapshot file')
+            throw new Error('Snapshot write failed')
           }
+          
+          console.log(`[Snapshot] ✅ Auto-published ${clubs.length} clubs`)
         } catch (err) {
           console.error('[Snapshot] ❌ Error auto-publishing:', err)
-          throw err // Re-throw to reject the outer promise
+          snapshotPublishFailed = true
+          throw err // Re-throw to mark as failed
         }
       })
     } catch (err) {
       console.error('[Snapshot] ❌ Error in snapshot publish:', err)
-      // Don't fail the approval just because snapshot failed
-      // Cache invalidation will still help eventual consistency
+      // Mark registration in storage for retry on next admin panel load
+      try {
+        const failedPublishes = await readData('failed-snapshot-publishes', [])
+        failedPublishes.push({
+          registrationId,
+          collectionId: collection,
+          timestamp: new Date().toISOString(),
+          error: String(err)
+        })
+        await writeData('failed-snapshot-publishes', failedPublishes.slice(-50)) // Keep last 50
+        console.log('[Snapshot] Queued for retry on next admin login')
+      } catch (queueErr) {
+        console.error('[Snapshot] Failed to queue for retry:', queueErr)
+      }
     }
-
-    // NOW invalidate cache (after snapshot is done)
-    console.log('[Cache] Invalidating after successful snapshot publish')
-    invalidateClubsCache()
 
     return NextResponse.json({ 
       success: true,
