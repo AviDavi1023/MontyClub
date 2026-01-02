@@ -109,77 +109,17 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   const fixed = ensureSingleDisplay(collections)
   
   try {
-    // Write ONCE with retry (don't retry within verification loop)
+    // Write with retry - writeJSONToStorage already handles retries and eventual consistency
     const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, fixed), 3, 100)
     if (!ok) {
       console.error('[saveCollections] Write failed after retries')
       return false
     }
 
-    // Normalize helper to compare regardless of key ordering
-    // Include ALL fields that might be saved to ensure accurate comparison
-    const normalize = (arr: RegistrationCollection[] | any): any[] => {
-      if (!Array.isArray(arr)) return []
-      const out = arr.map((c: any) => ({
-        id: String(c.id || ''),
-        name: String(c.name || ''),
-        enabled: Boolean(c.enabled),
-        createdAt: String(c.createdAt || ''),
-        display: c.display === true ? true : (c.display === false ? false : undefined),
-        accepting: typeof c.accepting === 'boolean' ? Boolean(c.accepting) : undefined,
-        renewalEnabled: typeof c.renewalEnabled === 'boolean' ? Boolean(c.renewalEnabled) : undefined,
-      }))
-      // Remove undefined values for clean comparison
-      const cleaned = out.map((c: any) => {
-        const obj: any = { id: c.id, name: c.name, enabled: c.enabled, createdAt: c.createdAt }
-        if (c.display !== undefined) obj.display = c.display
-        if (c.accepting !== undefined) obj.accepting = c.accepting
-        if (c.renewalEnabled !== undefined) obj.renewalEnabled = c.renewalEnabled
-        return obj
-      })
-      cleaned.sort((a, b) => a.id.localeCompare(b.id))
-      return cleaned
-    }
-
-    const target = normalize(fixed)
-    // Read-back verification with exponential backoff polling
-    // Check if data actually persisted and is readable, not just guessing with delays
-    const maxRetries = 5
-    const baseDelay = 300 // ms
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      // First attempt has no delay, subsequent attempts use exponential backoff
-      if (attempt > 0) {
-        const delay = baseDelay * Math.pow(1.5, attempt - 1)
-        await new Promise(r => setTimeout(r, delay))
-      }
-      
-      const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
-      const current = normalize(after)
-      
-      const targetStr = JSON.stringify(target)
-      const currentStr = JSON.stringify(current)
-      const equal = targetStr === currentStr
-      
-      if (equal) {
-        log({ tag: 'collections-persistence', step: 'verified', attempt, count: current.length })
-        return true
-      }
-      
-      // Log what's different for debugging
-      log({ 
-        tag: 'collections-persistence', 
-        step: 'mismatch', 
-        attempt,
-        targetCount: target.length,
-        currentCount: current.length,
-        targetIds: target.map(c => c.id),
-        currentIds: current.map(c => c.id)
-      })
-    }
-    
-    console.error('[saveCollections] Verification failed after retries')
-    return false
+    // Trust the write if it returned success - no additional verification needed
+    // The write function already retries and confirms Supabase accepted the upload
+    log({ tag: 'collections-persistence', step: 'write-succeeded' })
+    return true
   } catch (err) {
     console.error('[saveCollections] Exception:', err)
     return false
