@@ -104,7 +104,7 @@ async function reconcileUpdates(adminApiKey: string): Promise<number> {
     
     if (!pending || pending === '{}') return 0
     
-    const pendingChanges = JSON.parse(pending)
+    const pendingChanges: Record<string, { reviewed?: boolean; deleted?: boolean }> = JSON.parse(pending)
     const pendingIds = Object.keys(pendingChanges)
     
     if (pendingIds.length === 0) return 0
