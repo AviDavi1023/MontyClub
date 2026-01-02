@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage, listPaths, removePaths } from '@/lib/supabase'
-import { RegistrationCollection } from '@/types/club'
+import { RegistrationCollection, ClubRegistration, Club } from '@/types/club'
 import { validateCollections, ensureSingleDisplay } from '@/lib/collection-validation'
 
 export const dynamic = 'force-dynamic'
@@ -109,7 +109,7 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   const fixed = ensureSingleDisplay(collections)
   
   try {
-    // Write with retry
+    // Write ONCE with retry (don't retry within verification loop)
     const ok = await withRetry(() => writeJSONToStorage(COLLECTIONS_PATH, fixed), 3, 100)
     if (!ok) {
       console.error('[saveCollections] Write failed after retries')
@@ -143,9 +143,10 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
 
     const target = normalize(fixed)
     // Read-back verification with cache-busting, allow time for S3 eventual consistency
+    // Single verification attempt - don't cascade retries, as write already has retry built in
     for (let attempt = 0; attempt < 3; attempt++) {
-      // Increase delay based on attempt number - first wait 800ms, then 1.5s
-      if (attempt > 0) await new Promise(r => setTimeout(r, attempt === 1 ? 800 : 1500))
+      // Increase delay - first wait 800ms, then 1.5s, then 2.5s
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt === 1 ? 800 : 2500))
       const after = await readJSONFromStorage(COLLECTIONS_PATH, true /* bust cache */)
       const current = normalize(after)
       
@@ -168,12 +169,6 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
         targetIds: target.map(c => c.id),
         currentIds: current.map(c => c.id)
       })
-      
-      // Re-write on mismatches to ensure data is persisted
-      if (attempt < 2) {
-        log({ tag: 'collections-persistence', step: 'rewrite', attempt })
-        await writeJSONToStorage(COLLECTIONS_PATH, fixed)
-      }
     }
     
     console.error('[saveCollections] Verification failed after retries')
@@ -410,6 +405,79 @@ export async function PATCH(request: NextRequest) {
           { error: 'Failed to update collection' },
           { status: 500 }
         )
+      }
+
+      // If display collection changed, auto-publish snapshot and invalidate cache
+      // This ensures catalog refreshes instantly when a different collection is selected
+      if (display === true) {
+        try {
+          const { withSnapshotLock } = await import('@/lib/snapshot-lock')
+          const { invalidateClubsCache } = await import('@/lib/cache-utils')
+          
+          log({ tag: 'collections-api', step: 'publishing-snapshot', operationId, collectionId: collections[collectionIndex].id })
+          
+          await withSnapshotLock(async () => {
+            const displayCollection = collections.find(c => c.display)
+            if (!displayCollection) return
+
+            const { listPaths } = await import('@/lib/supabase')
+            const { readJSONFromStorage } = await import('@/lib/supabase')
+            const regPaths = await listPaths(`registrations/${displayCollection.id}`)
+            const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+            
+            const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+            const allRegs = await Promise.all(registrationPromises)
+            
+            const registrations: ClubRegistration[] = allRegs.filter(
+              reg => reg && typeof reg === 'object' && reg.status === 'approved'
+            )
+
+            registrations.sort((a, b) => {
+              const timeA = a.approvedAt ? new Date(a.approvedAt).getTime() : new Date(a.submittedAt).getTime()
+              const timeB = b.approvedAt ? new Date(b.approvedAt).getTime() : new Date(b.submittedAt).getTime()
+              return timeB - timeA
+            })
+
+            const clubs: Club[] = registrations.map((r) => ({
+              id: r.id,
+              name: r.clubName,
+              category: r.category || '',
+              description: r.statementOfPurpose,
+              advisor: r.advisorName,
+              studentLeader: r.studentContactName,
+              meetingTime: r.meetingDay,
+              meetingFrequency: r.meetingFrequency,
+              location: r.location,
+              contact: r.studentContactEmail,
+              socialMedia: r.socialMedia || '',
+              active: true,
+              notes: r.notes || '',
+              announcement: '',
+              keywords: [],
+            }))
+
+            const snapshot = {
+              clubs,
+              metadata: {
+                generatedAt: new Date().toISOString(),
+                clubCount: clubs.length,
+                collectionId: displayCollection.id,
+                collectionName: displayCollection.name,
+              }
+            }
+
+            const { writeJSONToStorage } = await import('@/lib/supabase')
+            await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
+            log({ tag: 'collections-api', step: 'snapshot-published', operationId, count: clubs.length })
+          })
+          
+          // Invalidate cache to force fresh load
+          invalidateClubsCache()
+          log({ tag: 'collections-api', step: 'cache-invalidated', operationId })
+        } catch (err) {
+          console.warn('[collections-api] Failed to auto-publish snapshot:', err)
+          // Don't fail the request if snapshot publish fails
+        }
       }
 
       log({ tag: 'collections-api', step: 'done', operationId, id: collections[collectionIndex].id })
