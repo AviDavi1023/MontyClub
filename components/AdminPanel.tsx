@@ -13,7 +13,12 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
-import { startPeriodicReconciliation, getReconciliationDiagnostics } from '@/lib/sync-reconciliation'
+import { 
+  retryFailedOperations, 
+  recordFailedOperation, 
+  getFailedOperationsCount,
+  clearFailedOperations 
+} from '@/lib/sync-reconciliation'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -74,8 +79,7 @@ if (typeof window !== 'undefined') {
       },
       registrations: {
         pending: localStorage.getItem('montyclub:pendingRegistrationChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingRegistrationChanges')!) : {}
-      },
-      reconciliation: getReconciliationDiagnostics()
+      }
     }
     console.group('=== COMPLETE SYNC DIAGNOSTICS ===')
     console.log(JSON.stringify(report, null, 2))
@@ -183,12 +187,11 @@ export function AdminPanel() {
   })
   const [clearingData, setClearingData] = useState(false)
   
-  // Sync reconciliation state
-  const [lastReconciliation, setLastReconciliation] = useState<Date | null>(null)
-  const [reconciliationRunning, setReconciliationRunning] = useState(false)
-  const reconciliationCleanupRef = useRef<(() => void) | null>(null)
+  // Reconciliation state
+  const [failedOpsCount, setFailedOpsCount] = useState(0)
+  const [retryingFailedOps, setRetryingFailedOps] = useState(false)
 
-  // Load analytics settings from localStorage
+  // Load analytics settings and check failed operations count
   useEffect(() => {
     try {
       const enabled = localStorage.getItem('analytics:enabled')
@@ -197,6 +200,9 @@ export function AdminPanel() {
       if (period) setAnalyticsPeriod(period)
       const key = localStorage.getItem('analytics:adminKey')
       if (key) setAdminApiKey(key)
+      
+      // Check for failed operations
+      setFailedOpsCount(getFailedOperationsCount())
     } catch {}
     // Announcements enabled: load from localStorage first, then server
     try {
@@ -224,35 +230,6 @@ export function AdminPanel() {
     if (!isAuthenticated || !adminApiKey || !collectionsStorageLoaded) return
     loadCollections()
   }, [isAuthenticated, adminApiKey, collectionsStorageLoaded])
-
-  // Start periodic sync reconciliation when authenticated
-  useEffect(() => {
-    if (!isAuthenticated || !adminApiKey) {
-      // Not authenticated - stop reconciliation if running
-      if (reconciliationCleanupRef.current) {
-        reconciliationCleanupRef.current()
-        reconciliationCleanupRef.current = null
-        setReconciliationRunning(false)
-      }
-      return
-    }
-
-    // Authenticated - start periodic reconciliation
-    console.log('[AdminPanel] Starting automatic sync reconciliation...')
-    setReconciliationRunning(true)
-    
-    const cleanup = startPeriodicReconciliation(adminApiKey)
-    reconciliationCleanupRef.current = cleanup
-    setLastReconciliation(new Date())
-
-    return () => {
-      if (reconciliationCleanupRef.current) {
-        reconciliationCleanupRef.current()
-        reconciliationCleanupRef.current = null
-        setReconciliationRunning(false)
-      }
-    }
-  }, [isAuthenticated, adminApiKey])
 
   // Reload collections when localStorage changes are detected (cross-tab or after operations)
   useEffect(() => {
@@ -606,22 +583,15 @@ export function AdminPanel() {
       // Broadcast to ClubsList to refresh UI
       try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.display
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
+      // Record failed operation for reconciliation
+      recordFailedOperation({
+        type: 'collection',
+        action: 'toggle',
+        data: { display: nextDisplay },
+        targetId: collectionId
       })
-      showToast('Failed to update display', 'error')
+      setFailedOpsCount(getFailedOperationsCount())
+      showToast('Failed to update display. Will retry automatically.', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -670,22 +640,15 @@ export function AdminPanel() {
       showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
       await loadCollections()
     } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.accepting
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
+      // Record failed operation for reconciliation
+      recordFailedOperation({
+        type: 'collection',
+        action: 'toggle',
+        data: { accepting: nextAccepting },
+        targetId: collectionId
       })
-      showToast('Failed to update accepting', 'error')
+      setFailedOpsCount(getFailedOperationsCount())
+      showToast('Failed to update accepting. Will retry automatically.', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -734,22 +697,15 @@ export function AdminPanel() {
       showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
       await loadCollections()
     } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.renewalEnabled
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
+      // Record failed operation for reconciliation
+      recordFailedOperation({
+        type: 'collection',
+        action: 'toggle',
+        data: { renewalEnabled: nextRenewal },
+        targetId: collectionId
       })
-      showToast('Failed to update renewal', 'error')
+      setFailedOpsCount(getFailedOperationsCount())
+      showToast('Failed to update renewal. Will retry automatically.', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -1204,6 +1160,39 @@ export function AdminPanel() {
         const savedKey = localStorage.getItem('analytics:adminKey')
         if (!savedKey || savedKey.trim() === '') {
           setShowApiKeyPrompt(true)
+        }
+        
+        // Auto-retry failed operations after successful login
+        const pendingCount = getFailedOperationsCount()
+        if (pendingCount > 0 && savedKey) {
+          console.log(`[Reconciliation] Found ${pendingCount} failed operations, retrying...`)
+          setRetryingFailedOps(true)
+          
+          // Run in background, don't block UI
+          setTimeout(async () => {
+            try {
+              const result = await retryFailedOperations(savedKey)
+              setFailedOpsCount(getFailedOperationsCount())
+              
+              if (result.succeeded > 0) {
+                showToast(`✅ Reconciled ${result.succeeded} pending operation(s)`, 'success')
+              }
+              if (result.failed > 0) {
+                showToast(`⚠️ ${result.failed} operation(s) still pending (will retry later)`, 'info')
+              }
+              
+              // Refresh data after reconciliation
+              if (result.succeeded > 0) {
+                refreshData()
+                fetchUpdates(true)
+                loadCollections()
+              }
+            } catch (error) {
+              console.error('[Reconciliation] Auto-retry failed:', error)
+            } finally {
+              setRetryingFailedOps(false)
+            }
+          }, 500)
         }
       } else {
         setError('Invalid credentials')
@@ -2421,20 +2410,18 @@ export function AdminPanel() {
       console.log(`Timestamp: ${new Date().toISOString()}`)
       console.groupEnd()
 
-      // Clear from pending on error (revert)
-      const revertPending = { ...localPendingAnnouncements }
-      delete revertPending[id]
-      setLocalPendingAnnouncements(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
-          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
-        }
-      } catch (e) {}
-      showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      // Record failed operation for reconciliation (instead of losing it)
+      recordFailedOperation({
+        type: 'announcement',
+        action: 'update',
+        data: { [id]: text || '' },
+        targetId: id
+      })
+      setFailedOpsCount(getFailedOperationsCount())
+      
+      // Keep in pending (will be retried on next login)
+      // Don't revert - let reconciliation handle it
+      showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}. Will retry automatically.`, 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
       console.log(`[DONE] Saving announcement ${id} completed`)
@@ -2953,28 +2940,6 @@ export function AdminPanel() {
           </button>
         </div>
       </div>
-
-      {/* Sync Reconciliation Status */}
-      {reconciliationRunning && (
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Auto-Sync Active
-                </span>
-              </div>
-              {lastReconciliation && (
-                <span className="text-xs text-blue-700 dark:text-blue-300">
-                  Last sync: {lastReconciliation.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-            <InfoTooltip text="Automatically syncs pending changes every 30 seconds. Failed updates, announcements, and snapshot publishes are retried automatically." />
-          </div>
-        </div>
-      )}
 
       {/* Update Requests */}
       <div ref={updatesRef} className="card">

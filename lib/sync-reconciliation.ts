@@ -1,329 +1,284 @@
 /**
- * Automatic sync reconciliation system
- * Periodically checks for pending changes and retries failed syncs
- * Runs when admin is authenticated to ensure data integrity
+ * Sync Reconciliation System
+ * Tracks failed API operations and retries them when admin is authenticated
+ * Prevents phantom changes from being lost or shown incorrectly
  */
 
-import { retryFailedWrites, getFailedWrites } from './storage-utils'
-
-interface PendingSync {
-  key: string
+export interface FailedOperation {
+  type: 'announcement' | 'update' | 'collection' | 'registration'
+  action: 'create' | 'update' | 'delete' | 'toggle'
   data: any
-  apiEndpoint: string
-  method: 'POST' | 'PATCH' | 'DELETE'
-  retryCount: number
-  lastAttempt: number
+  timestamp: number
+  attempts: number
+  lastError?: string
+  targetId?: string
 }
 
-interface PendingUpdateState {
-  reviewed?: boolean
-  deleted?: boolean
-}
+const FAILED_OPS_KEY = 'montyclub:failedOperations'
+const MAX_RETRY_ATTEMPTS = 5
+const RETRY_BACKOFF_MS = 2000
 
-interface ReconciliationStats {
-  announcementsSynced: number
-  updatesSynced: number
-  collectionsSynced: number
-  snapshotsSynced: number
-  localStorageRetried: number
-  totalErrors: number
+/**
+ * Record a failed operation for later retry
+ */
+export function recordFailedOperation(operation: Omit<FailedOperation, 'timestamp' | 'attempts'>): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    const existing = getFailedOperations()
+    const newOp: FailedOperation = {
+      ...operation,
+      timestamp: Date.now(),
+      attempts: 0
+    }
+    
+    // Add to list
+    existing.push(newOp)
+    
+    // Save
+    localStorage.setItem(FAILED_OPS_KEY, JSON.stringify(existing))
+    console.log(`[Reconciliation] Recorded failed ${operation.type} operation for retry`)
+  } catch (error) {
+    console.error('[Reconciliation] Failed to record operation:', error)
+  }
 }
 
 /**
- * Reconcile pending announcements with server
+ * Get all failed operations
  */
-async function reconcileAnnouncements(adminApiKey: string): Promise<number> {
+export function getFailedOperations(): FailedOperation[] {
+  if (typeof window === 'undefined') return []
+  
   try {
-    const pendingKey = 'montyclub:pendingAnnouncements'
-    const pending = localStorage.getItem(pendingKey)
+    const stored = localStorage.getItem(FAILED_OPS_KEY)
+    if (!stored) return []
     
-    if (!pending || pending === '{}') return 0
+    const ops = JSON.parse(stored)
+    return Array.isArray(ops) ? ops : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remove a successfully completed operation
+ */
+export function removeFailedOperation(index: number): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    const ops = getFailedOperations()
+    ops.splice(index, 1)
+    localStorage.setItem(FAILED_OPS_KEY, JSON.stringify(ops))
+    console.log(`[Reconciliation] Removed completed operation`)
+  } catch (error) {
+    console.error('[Reconciliation] Failed to remove operation:', error)
+  }
+}
+
+/**
+ * Update attempt count and error for an operation
+ */
+function updateOperationAttempt(index: number, error: string): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    const ops = getFailedOperations()
+    if (ops[index]) {
+      ops[index].attempts += 1
+      ops[index].lastError = error
+      localStorage.setItem(FAILED_OPS_KEY, JSON.stringify(ops))
+    }
+  } catch (e) {
+    console.error('[Reconciliation] Failed to update attempt:', e)
+  }
+}
+
+/**
+ * Retry all failed operations
+ * Returns { succeeded: number, failed: number, errors: string[] }
+ */
+export async function retryFailedOperations(
+  adminApiKey: string
+): Promise<{ succeeded: number; failed: number; errors: string[] }> {
+  const ops = getFailedOperations()
+  if (ops.length === 0) {
+    return { succeeded: 0, failed: 0, errors: [] }
+  }
+  
+  console.log(`[Reconciliation] Retrying ${ops.length} failed operations...`)
+  
+  let succeeded = 0
+  let failed = 0
+  const errors: string[] = []
+  
+  // Process in order (FIFO)
+  for (let i = ops.length - 1; i >= 0; i--) {
+    const op = ops[i]
     
-    const pendingAnnouncements = JSON.parse(pending)
-    const pendingCount = Object.keys(pendingAnnouncements).length
-    
-    if (pendingCount === 0) return 0
-    
-    console.log(`[Reconciliation] Found ${pendingCount} pending announcements, syncing...`)
-    
-    // Fetch current server state
-    const response = await fetch('/api/announcements', {
-      headers: { 'x-admin-key': adminApiKey }
-    })
-    
-    if (!response.ok) {
-      console.error('[Reconciliation] Failed to fetch announcements:', response.status)
-      return 0
+    // Skip if max attempts reached
+    if (op.attempts >= MAX_RETRY_ATTEMPTS) {
+      errors.push(`${op.type} operation exceeded max retries (${MAX_RETRY_ATTEMPTS})`)
+      failed++
+      continue
     }
     
-    const serverAnnouncements = await response.json()
-    
-    // Find differences that need syncing
-    const toSync: Record<string, string> = {}
-    for (const [clubId, announcement] of Object.entries(pendingAnnouncements)) {
-      if (serverAnnouncements[clubId] !== announcement) {
-        toSync[clubId] = announcement as string
+    try {
+      // Wait before retry (exponential backoff)
+      if (op.attempts > 0) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_BACKOFF_MS * Math.pow(2, op.attempts - 1)))
       }
+      
+      // Retry based on operation type
+      let success = false
+      
+      switch (op.type) {
+        case 'announcement':
+          success = await retryAnnouncementOperation(op, adminApiKey)
+          break
+        case 'update':
+          success = await retryUpdateOperation(op, adminApiKey)
+          break
+        case 'collection':
+          success = await retryCollectionOperation(op, adminApiKey)
+          break
+        case 'registration':
+          success = await retryRegistrationOperation(op, adminApiKey)
+          break
+      }
+      
+      if (success) {
+        removeFailedOperation(i)
+        succeeded++
+        console.log(`[Reconciliation] ✅ Retry succeeded for ${op.type} operation`)
+      } else {
+        updateOperationAttempt(i, 'Retry returned false')
+        failed++
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      updateOperationAttempt(i, errorMsg)
+      errors.push(`${op.type}: ${errorMsg}`)
+      failed++
+      console.error(`[Reconciliation] ❌ Retry failed for ${op.type}:`, error)
     }
-    
-    if (Object.keys(toSync).length === 0) {
-      // All synced already, clear pending
-      localStorage.removeItem(pendingKey)
-      console.log('[Reconciliation] ✅ All announcements already synced')
-      return 0
-    }
-    
-    // Sync differences
-    const syncResponse = await fetch('/api/announcements', {
+  }
+  
+  console.log(`[Reconciliation] Complete: ${succeeded} succeeded, ${failed} failed`)
+  return { succeeded, failed, errors }
+}
+
+/**
+ * Retry announcement operation
+ */
+async function retryAnnouncementOperation(op: FailedOperation, adminApiKey: string): Promise<boolean> {
+  if (op.action === 'update' || op.action === 'create') {
+    const response = await fetch('/api/announcements', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-key': adminApiKey
       },
-      body: JSON.stringify(toSync)
+      body: JSON.stringify(op.data)
     })
-    
-    if (!syncResponse.ok) {
-      console.error('[Reconciliation] Failed to sync announcements:', syncResponse.status)
-      return 0
-    }
-    
-    // Success - clear pending
-    localStorage.removeItem(pendingKey)
-    console.log(`[Reconciliation] ✅ Synced ${Object.keys(toSync).length} announcements`)
-    return Object.keys(toSync).length
-    
-  } catch (error) {
-    console.error('[Reconciliation] Error reconciling announcements:', error)
-    return 0
+    return response.ok
   }
+  
+  if (op.action === 'delete' && op.targetId) {
+    const response = await fetch('/api/announcements', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminApiKey
+      },
+      body: JSON.stringify({ ids: [op.targetId] })
+    })
+    return response.ok
+  }
+  
+  return false
 }
 
 /**
- * Reconcile pending update changes with server
+ * Retry update operation
  */
-async function reconcileUpdates(adminApiKey: string): Promise<number> {
-  try {
-    const pendingKey = 'montyclub:pendingUpdateChanges'
-    const pendingRaw = localStorage.getItem(pendingKey)
-    
-    if (!pendingRaw || pendingRaw === '{}') return 0
-    
-    const pendingChanges = JSON.parse(pendingRaw) as Record<string, PendingUpdateState>
-    const pendingIds = Object.keys(pendingChanges)
-    
-    if (pendingIds.length === 0) return 0
-    
-    console.log(`[Reconciliation] Found ${pendingIds.length} pending update changes, syncing...`)
-    
-    // Fetch current server state
-    const response = await fetch('/api/updates', {
-      headers: { 'x-admin-key': adminApiKey }
+async function retryUpdateOperation(op: FailedOperation, adminApiKey: string): Promise<boolean> {
+  if (op.action === 'update' && op.targetId) {
+    const response = await fetch(`/api/updates/${op.targetId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminApiKey
+      },
+      body: JSON.stringify(op.data)
     })
-    
-    if (!response.ok) {
-      console.error('[Reconciliation] Failed to fetch updates:', response.status)
-      return 0
-    }
-    
-    const serverUpdates = await response.json()
-    const serverMap = new Map(serverUpdates.map((u: any) => [u.id, u]))
-    
-    let syncedCount = 0
-    const stillPending: Record<string, PendingUpdateState> = {}
-    
-    // Check each pending change
-    for (const updateId of pendingIds) {
-      const pendingState: PendingUpdateState = pendingChanges[updateId]
-      const serverUpdate = serverMap.get(updateId)
-      
-      if (!serverUpdate) {
-        // Update deleted on server, can clear pending
-        continue
-      }
-      
-      // Check if states match
-      let needsSync = false
-      
-      if (pendingState.reviewed !== undefined && serverUpdate.reviewed !== pendingState.reviewed) {
-        needsSync = true
-      }
-      
-      if (pendingState.deleted && !serverUpdate.deleted) {
-        needsSync = true
-      }
-      
-      if (needsSync) {
-        // Try to sync this update
-        try {
-          const syncResponse = await fetch('/api/updates', {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-admin-key': adminApiKey
-            },
-            body: JSON.stringify({
-              id: updateId,
-              ...pendingState
-            })
-          })
-          
-          if (syncResponse.ok) {
-            syncedCount++
-          } else {
-            // Keep in pending
-            stillPending[updateId] = pendingState
-          }
-        } catch (err) {
-          // Keep in pending
-          stillPending[updateId] = pendingState
-        }
-      }
-    }
-    
-    // Update localStorage with remaining pending
-    if (Object.keys(stillPending).length === 0) {
-      localStorage.removeItem(pendingKey)
-    } else {
-      localStorage.setItem(pendingKey, JSON.stringify(stillPending))
-    }
-    
-    if (syncedCount > 0) {
-      console.log(`[Reconciliation] ✅ Synced ${syncedCount} update changes`)
-    }
-    
-    return syncedCount
-    
-  } catch (error) {
-    console.error('[Reconciliation] Error reconciling updates:', error)
-    return 0
+    return response.ok
   }
-}
-
-/**
- * Retry failed snapshot publishes
- */
-async function retryFailedSnapshots(adminApiKey: string): Promise<number> {
-  try {
-    // Check for failed snapshot publish queue (server-side storage)
-    const response = await fetch('/api/admin/retry-snapshots', {
-      method: 'POST',
+  
+  if (op.action === 'delete' && op.targetId) {
+    const response = await fetch(`/api/updates/${op.targetId}`, {
+      method: 'DELETE',
       headers: {
         'x-admin-key': adminApiKey
       }
     })
-    
-    if (!response.ok) {
-      // Endpoint might not exist yet, ignore
-      return 0
-    }
-    
-    const result = await response.json()
-    return result.retried || 0
-    
-  } catch (error) {
-    // Endpoint might not exist yet, ignore
-    return 0
+    return response.ok
   }
+  
+  return false
 }
 
 /**
- * Main reconciliation function
- * Runs all reconciliation tasks and returns stats
+ * Retry collection operation
  */
-export async function runSyncReconciliation(adminApiKey: string): Promise<ReconciliationStats> {
-  console.log('[Reconciliation] Starting automatic sync reconciliation...')
-  
-  const stats: ReconciliationStats = {
-    announcementsSynced: 0,
-    updatesSynced: 0,
-    collectionsSynced: 0,
-    snapshotsSynced: 0,
-    localStorageRetried: 0,
-    totalErrors: 0
+async function retryCollectionOperation(op: FailedOperation, adminApiKey: string): Promise<boolean> {
+  if (op.action === 'toggle' && op.targetId) {
+    const response = await fetch(`/api/registration-collections/${op.targetId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminApiKey
+      },
+      body: JSON.stringify(op.data)
+    })
+    return response.ok
   }
   
-  try {
-    // 1. Retry failed localStorage writes
-    stats.localStorageRetried = await retryFailedWrites()
-    
-    // 2. Reconcile announcements
-    stats.announcementsSynced = await reconcileAnnouncements(adminApiKey)
-    
-    // 3. Reconcile updates
-    stats.updatesSynced = await reconcileUpdates(adminApiKey)
-    
-    // 4. Retry failed snapshots
-    stats.snapshotsSynced = await retryFailedSnapshots(adminApiKey)
-    
-    const totalSynced = stats.announcementsSynced + stats.updatesSynced + 
-                        stats.collectionsSynced + stats.snapshotsSynced + 
-                        stats.localStorageRetried
-    
-    if (totalSynced > 0) {
-      console.log(`[Reconciliation] ✅ Completed: ${totalSynced} items synced`)
-    } else {
-      console.log('[Reconciliation] ✅ Completed: All data already synced')
-    }
-    
-  } catch (error) {
-    console.error('[Reconciliation] Error during reconciliation:', error)
-    stats.totalErrors++
-  }
-  
-  return stats
+  return false
 }
 
 /**
- * Start periodic reconciliation (runs every 30 seconds when admin is logged in)
+ * Retry registration operation
  */
-export function startPeriodicReconciliation(adminApiKey: string): () => void {
-  console.log('[Reconciliation] Starting periodic reconciliation (every 30s)')
-  
-  // Run immediately on start
-  runSyncReconciliation(adminApiKey).catch(console.error)
-  
-  // Then every 30 seconds
-  const interval = setInterval(() => {
-    runSyncReconciliation(adminApiKey).catch(console.error)
-  }, 30000)
-  
-  // Return cleanup function
-  return () => {
-    console.log('[Reconciliation] Stopping periodic reconciliation')
-    clearInterval(interval)
+async function retryRegistrationOperation(op: FailedOperation, adminApiKey: string): Promise<boolean> {
+  if (op.action === 'update' && op.targetId) {
+    const endpoint = op.data.approved ? '/api/registration-approve' : '/api/registration-deny'
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminApiKey
+      },
+      body: JSON.stringify(op.data)
+    })
+    return response.ok
   }
+  
+  return false
 }
 
 /**
- * Get current failed writes for diagnostics
+ * Clear all failed operations (for testing or manual intervention)
  */
-export function getReconciliationDiagnostics() {
-  return {
-    failedWrites: getFailedWrites(),
-    pendingAnnouncements: (() => {
-      try {
-        const data = localStorage.getItem('montyclub:pendingAnnouncements')
-        return data ? Object.keys(JSON.parse(data)).length : 0
-      } catch {
-        return 0
-      }
-    })(),
-    pendingUpdates: (() => {
-      try {
-        const data = localStorage.getItem('montyclub:pendingUpdateChanges')
-        return data ? Object.keys(JSON.parse(data)).length : 0
-      } catch {
-        return 0
-      }
-    })(),
-    pendingCollections: (() => {
-      try {
-        const data = localStorage.getItem('montyclub:pendingCollectionChanges')
-        return data ? Object.keys(JSON.parse(data)).length : 0
-      } catch {
-        return 0
-      }
-    })()
-  }
+export function clearFailedOperations(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(FAILED_OPS_KEY)
+  console.log('[Reconciliation] Cleared all failed operations')
+}
+
+/**
+ * Get count of failed operations for UI display
+ */
+export function getFailedOperationsCount(): number {
+  return getFailedOperations().length
 }
