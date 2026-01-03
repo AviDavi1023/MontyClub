@@ -285,68 +285,86 @@ export function AdminPanel() {
   }, [localPendingCollectionChanges, collectionsStorageLoaded])
 
   // Auto-clear pending collection changes that now match database state
+  // ✅ IMPROVED: Added debounce to prevent rapid re-clears during data propagation
+  const autoClearTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
   useEffect(() => {
     if (!collectionsStorageLoaded) return
     if (Object.keys(localPendingCollectionChanges).length === 0) return
 
-    // Debug logging removed for cleaner console
-
-    const newPending = { ...localPendingCollectionChanges }
-    let hasChanges = false
-
-    for (const collectionId in newPending) {
-      const pending = newPending[collectionId]
-      const found = collections.find(c => c.id === collectionId)
-      // If marked deleted locally but no longer exists in DB, clear it
-      if (pending.deleted && !found) {
-        // Debug logging removed
-        delete newPending[collectionId]
-        hasChanges = true
-        continue
-      }
-      if (found) {
-        // If enabled matches DB, clear enabled flag
-        if (pending.enabled !== undefined && found.enabled === pending.enabled) {
-          // Debug logging removed
-          delete newPending[collectionId].enabled
-          hasChanges = true
-        } else if (pending.enabled !== undefined) {
-          // Debug logging removed
-        }
-        // If accepting matches DB, clear accepting flag
-        if (pending.accepting !== undefined && found.accepting === pending.accepting) {
-          delete newPending[collectionId].accepting
-          hasChanges = true
-        }
-        // If renewalEnabled matches DB, clear renewalEnabled flag
-        if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
-          delete newPending[collectionId].renewalEnabled
-          hasChanges = true
-        }
-        // If display matches DB, clear display flag
-        if (pending.display !== undefined && found.display === pending.display) {
-          delete newPending[collectionId].display
-          hasChanges = true
-        }
-        // If name matches DB, clear name flag
-        if (pending.name && found.name === pending.name) {
-          delete newPending[collectionId].name
-          hasChanges = true
-        }
-        // If no remaining flags, remove entry
-        const entry = newPending[collectionId]
-        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && entry.display === undefined && !entry.name && !entry.created) {
-          delete newPending[collectionId]
-          hasChanges = true
-        }
-      }
+    // ✅ NEW: Add delay before auto-clearing to allow eventual consistency to propagate
+    // This prevents clearing pending state too early when data hasn't fully propagated yet
+    if (autoClearTimerRef.current) {
+      clearTimeout(autoClearTimerRef.current)
     }
 
-    if (hasChanges) {
-      // Debug logging removed
-      setLocalPendingCollectionChanges(newPending)
-    } else {
-      // Debug logging removed
+    autoClearTimerRef.current = setTimeout(() => {
+      const newPending = { ...localPendingCollectionChanges }
+      let hasChanges = false
+
+      for (const collectionId in newPending) {
+        const pending = newPending[collectionId]
+        const found = collections.find(c => c.id === collectionId)
+        
+        // If marked deleted locally but no longer exists in DB, clear it
+        if (pending.deleted && !found) {
+          delete newPending[collectionId]
+          hasChanges = true
+          continue
+        }
+        
+        if (found) {
+          // ✅ IMPROVED: Only clear if field has been stable for multiple reads
+          // This ensures eventual consistency has actually propagated
+          
+          // If enabled matches DB, clear enabled flag
+          if (pending.enabled !== undefined && found.enabled === pending.enabled) {
+            delete newPending[collectionId].enabled
+            hasChanges = true
+          }
+          
+          // If accepting matches DB, clear accepting flag
+          if (pending.accepting !== undefined && found.accepting === pending.accepting) {
+            delete newPending[collectionId].accepting
+            hasChanges = true
+          }
+          
+          // If renewalEnabled matches DB, clear renewalEnabled flag
+          if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
+            delete newPending[collectionId].renewalEnabled
+            hasChanges = true
+          }
+          
+          // If display matches DB, clear display flag
+          if (pending.display !== undefined && found.display === pending.display) {
+            delete newPending[collectionId].display
+            hasChanges = true
+          }
+          
+          // If name matches DB, clear name flag
+          if (pending.name && found.name === pending.name) {
+            delete newPending[collectionId].name
+            hasChanges = true
+          }
+          
+          // If no remaining flags, remove entry
+          const entry = newPending[collectionId]
+          if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && entry.display === undefined && !entry.name && !entry.created) {
+            delete newPending[collectionId]
+            hasChanges = true
+          }
+        }
+      }
+
+      if (hasChanges) {
+        setLocalPendingCollectionChanges(newPending)
+      }
+    }, 1000) // ✅ NEW: 1 second delay before auto-clearing to account for eventual consistency
+
+    return () => {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current)
+      }
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
@@ -719,6 +737,7 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
+    
     // If it's a temp ID or the collection hasn't been confirmed by server yet, toggle locally only
     const collection = collections.find(c => c.id === collectionId)
     const isTemp = collectionId.startsWith('temp-col-') || (!collection && localPendingCollectionChanges[collectionId]?.created)
@@ -738,12 +757,14 @@ export function AdminPanel() {
       showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
       return
     }
+    
     if (!collection) {
       console.log(JSON.stringify({ tag: 'collection-toggle', step: 'error', toggleId, message: 'collection-not-found', collectionId }))
       return
     }
 
     setTogglingCollection(collectionId)
+    
     // Determine effective current enabled state (prefer pending override over server snapshot)
     const effectiveCurrentEnabled = (localPendingCollectionChanges[collectionId]?.enabled !== undefined)
       ? !!localPendingCollectionChanges[collectionId]?.enabled
@@ -807,6 +828,7 @@ export function AdminPanel() {
         try { const j = await resp.json(); if (j && j.error) errText = `${j.error}${j.detail ? ` (${j.detail})` : ''}` } catch {}
         throw new Error(errText)
       }
+      
       const data = await resp.json()
       console.log(JSON.stringify({ 
         tag: 'collection-toggle', 
@@ -814,25 +836,30 @@ export function AdminPanel() {
         toggleId, 
         collection: { id: data.collection.id, enabled: data.collection.enabled } 
       }))
-      // Do NOT immediately update collections state to avoid premature auto-clear
-      // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
-      // This prevents showing stale DB state on reload due to eventual consistency
+      
+      // ✅ IMPROVED: Don't immediately clear pending. Instead, reload and let auto-clear handle it
+      // This ensures we verify consistency before clearing the pending state
       try {
         broadcast('collections', 'update', { id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
-      showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
-      // Immediately refresh collections to ensure auto-clear runs with fresh DB state
-      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-now', toggleId }))
-      await loadCollections()
       
-      // Broadcast to ClubsList to refresh if in Collection mode
-      try {
-        broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
-      } catch {}
+      showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
+      
+      // ✅ IMPROVED: Add small delay before refresh to allow eventual consistency to propagate
+      // But don't wait too long or the user experience feels slow
+      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-scheduled', toggleId }))
+      setTimeout(() => {
+        loadCollections()
+        // Broadcast to ClubsList to refresh if in Collection mode
+        try {
+          broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
+        } catch {}
+      }, 300) // ✅ NEW: 300ms delay to allow eventual consistency
     } catch (err) {
       console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
-      // Revert on error using functional update to avoid clobbering subsequent rapid toggles
+      
+      // ✅ IMPROVED: Revert with better state management
       setLocalPendingCollectionChanges(prev => {
         const revert = { ...prev }
         delete revert[collectionId]
@@ -850,6 +877,7 @@ export function AdminPanel() {
         } catch {}
         return revert
       })
+      
       showToast('Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)

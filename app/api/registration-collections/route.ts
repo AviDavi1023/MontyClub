@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readJSONFromStorage, writeJSONToStorage, listPaths, removePaths } from '@/lib/supabase'
 import { RegistrationCollection, ClubRegistration, Club } from '@/types/club'
 import { validateCollections, ensureSingleDisplay } from '@/lib/collection-validation'
+import { getQueueLock } from '@/lib/queue-lock'
 
 export const dynamic = 'force-dynamic'
 
 const COLLECTIONS_PATH = 'settings/registration-collections.json'
 const DEBUG = process.env.NODE_ENV === 'development'
-
-// In-memory lock to prevent concurrent writes to the same file
-// Force test comment
-// This ensures read-modify-write operations are atomic across multiple requests
-let updateLock: Promise<any> = Promise.resolve()
+const collectionsLock = getQueueLock('registration-collections', 30000)
 
 // Simple logging helper - only logs in development
 function log(data: object) {
@@ -48,35 +45,49 @@ async function withRetry<T>(
 }
 
 /**
- * Execute a function with exclusive lock to prevent concurrent modifications
- * @param fn Async function to execute with lock
- * @returns Result of the function
+ * Wait for Supabase to propagate a write (read-after-write consistency)
+ * Retries reading the collection until the expected state is found
+ * @param collectionId Collection ID to verify
+ * @param expectedState Partial state that must exist in the collection
+ * @param maxRetries How many times to retry (each ~200ms)
  */
-async function withLock<R>(fn: () => Promise<R>): Promise<R> {
-  const operationId = `col-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-  
-  log({ tag: 'collections-lock', step: 'wait', operationId })
-
-  // Create a new operation that waits for the previous one to complete
-  const currentOperation = (async () => {
-    // First, wait for the previous operation to complete
-    await updateLock.catch(() => {})
-    
-    log({ tag: 'collections-lock', step: 'acquired', operationId })
+async function verifyConsistency(
+  collectionId: string,
+  expectedState: Partial<RegistrationCollection>,
+  maxRetries: number = 5
+): Promise<boolean> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      // Wait before retry (increasing backoff: 100ms, 200ms, 400ms...)
+      await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt - 1)))
+    }
 
     try {
-      const result = await fn()
-      return result
-    } finally {
-      log({ tag: 'collections-lock', step: 'released', operationId })
+      const collections = await readJSONFromStorage(COLLECTIONS_PATH) || []
+      const found = collections.find((c: RegistrationCollection) => c.id === collectionId)
+
+      if (found) {
+        // Check if all expected fields match
+        let allMatch = true
+        for (const [key, expectedValue] of Object.entries(expectedState)) {
+          if ((found as any)[key] !== expectedValue) {
+            allMatch = false
+            break
+          }
+        }
+
+        if (allMatch) {
+          log({ tag: 'collections-consistency', step: 'verified', collectionId, attempt })
+          return true
+        }
+      }
+    } catch (e) {
+      log({ tag: 'collections-consistency', step: 'read-failed', collectionId, attempt, error: String(e) })
     }
-  })()
+  }
 
-  // Update lock to point to current operation BEFORE returning
-  // This ensures the next request will wait for this one
-  updateLock = currentOperation.catch(() => {})
-
-  return currentOperation
+  log({ tag: 'collections-consistency', step: 'verification-timeout', collectionId, maxRetries })
+  return false
 }
 
 async function getCollections(): Promise<RegistrationCollection[]> {
@@ -126,8 +137,10 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
   }
 }
 
-// GET - List all collections
+// GET - List all collections (no lock needed, read-only)
 export async function GET(request: NextRequest) {
+  const operationId = `GET-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  
   try {
     const adminKey = request.headers.get('x-admin-key')
     const expectedKey = process.env.ADMIN_API_KEY
@@ -139,8 +152,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    log({ tag: 'collections-api', step: 'get-start', operationId })
     const collections = await getCollections()
-    log({ tag: 'collections-get', count: collections.length })
+    log({ tag: 'collections-api', step: 'get-done', operationId, count: collections.length })
     
     // Sort by creation date (newest first)
     const sorted = [...collections].sort((a, b) => 
@@ -159,7 +173,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new collection
 export async function POST(request: NextRequest) {
-  return withLock(async () => {
+  const operationId = `POST-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+
+  return collectionsLock.withLock(operationId, async () => {
     try {
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
@@ -180,6 +196,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
+
+      log({ tag: 'collections-api', step: 'post-start', operationId, name })
 
       const collections = await getCollections()
 
@@ -222,6 +240,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      log({ tag: 'collections-api', step: 'post-done', operationId, id: newCollection.id })
       return NextResponse.json({ success: true, collection: newCollection })
     } catch (error) {
       console.error('Error creating collection:', error)
@@ -235,9 +254,10 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update collection (name or enabled status)
 export async function PATCH(request: NextRequest) {
-  return withLock(async () => {
+  const operationId = `PATCH-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+
+  return collectionsLock.withLock(operationId, async () => {
     const body = await request.json()
-    const operationId = `PATCH-${body.id}-${Date.now()}`
     log({ tag: 'collections-api', step: 'received', operationId, id: body.id, enabled: body.enabled })
 
     try {
@@ -280,6 +300,9 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
+      // Track what we're actually changing
+      const changes: Partial<RegistrationCollection> = {}
+
       // Update fields if provided
       if (name !== undefined) {
         if (typeof name !== 'string' || !name.trim()) {
@@ -306,6 +329,7 @@ export async function PATCH(request: NextRequest) {
           )
         }
         collections[collectionIndex].name = name.trim()
+        changes.name = name.trim()
       }
 
       // Back-compat: 'enabled' now maps to 'accepting' unless 'accepting' explicitly provided
@@ -315,6 +339,8 @@ export async function PATCH(request: NextRequest) {
         collections[collectionIndex].accepting = val
         // keep legacy field in sync for older clients
         collections[collectionIndex].enabled = val
+        changes.accepting = val
+        changes.enabled = val
       }
 
       if (accepting !== undefined) {
@@ -322,12 +348,15 @@ export async function PATCH(request: NextRequest) {
         log({ tag: 'collections-api', step: 'update-accepting', operationId, id, from: collections[collectionIndex].accepting, to: val })
         collections[collectionIndex].accepting = val
         collections[collectionIndex].enabled = val
+        changes.accepting = val
+        changes.enabled = val
       }
 
       if (renewalEnabled !== undefined) {
         const val = Boolean(renewalEnabled)
         log({ tag: 'collections-api', step: 'update-renewal', operationId, id, from: collections[collectionIndex].renewalEnabled, to: val })
         collections[collectionIndex].renewalEnabled = val
+        changes.renewalEnabled = val
       }
 
       if (display !== undefined) {
@@ -341,6 +370,7 @@ export async function PATCH(request: NextRequest) {
         } else {
           collections[collectionIndex].display = false
         }
+        changes.display = val
       }
 
       log({ tag: 'collections-api', step: 'save-start', operationId })
@@ -354,6 +384,13 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
+      // ✅ NEW: Verify consistency before proceeding with snapshot operations
+      const consistencyOk = await verifyConsistency(id, changes, 5)
+      if (!consistencyOk) {
+        log({ tag: 'collections-api', step: 'consistency-timeout', operationId, id })
+        // Don't fail the response, just warn - changes are in DB, eventual consistency will happen
+      }
+
       // If display collection changed, auto-publish snapshot and invalidate cache
       // This ensures catalog refreshes instantly when a different collection is selected
       if (display === true) {
@@ -363,9 +400,9 @@ export async function PATCH(request: NextRequest) {
           
           log({ tag: 'collections-api', step: 'publishing-snapshot', operationId, collectionId: collections[collectionIndex].id })
           
-          await withSnapshotLock(async () => {
+          const snapshotPublishOk = await withSnapshotLock(async () => {
             const displayCollection = collections.find(c => c.display)
-            if (!displayCollection) return
+            if (!displayCollection) return false
 
             const { listPaths } = await import('@/lib/supabase')
             const { readJSONFromStorage } = await import('@/lib/supabase')
@@ -414,16 +451,34 @@ export async function PATCH(request: NextRequest) {
             }
 
             const { writeJSONToStorage } = await import('@/lib/supabase')
-            await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
+            const writeOk = await writeJSONToStorage('settings/clubs-snapshot.json', snapshot)
+            if (!writeOk) {
+              throw new Error('Snapshot write failed')
+            }
             log({ tag: 'collections-api', step: 'snapshot-published', operationId, count: clubs.length })
+            return true
           })
           
-          // Invalidate cache to force fresh load
-          invalidateClubsCache()
-          log({ tag: 'collections-api', step: 'cache-invalidated', operationId })
+          // Only invalidate cache if snapshot publish succeeded
+          if (snapshotPublishOk) {
+            invalidateClubsCache()
+            log({ tag: 'collections-api', step: 'cache-invalidated', operationId })
+          } else {
+            // ✅ NEW: Properly propagate snapshot publish failure
+            log({ tag: 'collections-api', step: 'snapshot-publish-failed', operationId })
+            return NextResponse.json({
+              success: false,
+              error: 'Collection display set but catalog snapshot failed to publish. Please manually publish the catalog.'
+            }, { status: 500 })
+          }
         } catch (err) {
-          console.warn('[collections-api] Failed to auto-publish snapshot:', err)
-          // Don't fail the request if snapshot publish fails
+          console.error('[collections-api] Failed to auto-publish snapshot:', err)
+          // ✅ NEW: Return error instead of silently swallowing it
+          log({ tag: 'collections-api', step: 'snapshot-error', operationId, error: String(err) })
+          return NextResponse.json({
+            success: false,
+            error: 'Collection display set but catalog snapshot failed to publish. Please manually publish the catalog.'
+          }, { status: 500 })
         }
       }
 
@@ -441,7 +496,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete collection (and optionally its registrations)
 export async function DELETE(request: NextRequest) {
-  return withLock(async () => {
+  const operationId = `DELETE-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+
+  return collectionsLock.withLock(operationId, async () => {
     try {
       const adminKey = request.headers.get('x-admin-key')
       const expectedKey = process.env.ADMIN_API_KEY
@@ -463,6 +520,8 @@ export async function DELETE(request: NextRequest) {
           { status: 400 }
         )
       }
+
+      log({ tag: 'collections-api', step: 'delete-start', operationId, id })
 
       const collections = await getCollections()
       const collectionIndex = collections.findIndex(c => c.id === id)
@@ -524,6 +583,7 @@ export async function DELETE(request: NextRequest) {
         )
       }
 
+      log({ tag: 'collections-api', step: 'delete-done', operationId, id })
       return NextResponse.json({ success: true })
     } catch (error) {
       console.error('Error deleting collection:', error)
