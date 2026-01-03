@@ -155,6 +155,7 @@ export function AdminPanel() {
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
   const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
   const collectionsRefreshTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastCollectionsRefreshRef = useRef<number>(0)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -383,14 +384,28 @@ export function AdminPanel() {
 
   const loadCollections = async () => {
     if (!adminApiKey) return
-    // Debug logging removed
+    
+    // ✅ DEBUG: Log collection refresh attempts
+    const now = Date.now()
+    const pendingCount = Object.keys(localPendingCollectionChanges).length
+    console.log(`[Collections] loadCollections called - pending: ${pendingCount}, last refresh: ${now - lastCollectionsRefreshRef.current}ms ago`)
+    
+    // ✅ THROTTLE: Prevent rapid successive refreshes (max once per 300ms)
+    // This prevents feedback loops when broadcast listener fires
+    if (now - lastCollectionsRefreshRef.current < 300) {
+      console.log(`[Collections] Skipping refresh - too recent (${now - lastCollectionsRefreshRef.current}ms ago)`)
+      return
+    }
+    
+    lastCollectionsRefreshRef.current = now
+    
     try {
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      // Debug logging removed
+      console.log(`[Collections] Loaded ${data.collections?.length || 0} collections from server`)
       setCollections(data.collections || [])
       // Choose active collection using localStorage overlay precedence
       // Build an overlay that prioritizes locally pending created/enabled state
@@ -1124,8 +1139,21 @@ export function AdminPanel() {
       if (message.domain === 'clubs') {
         refreshData()
       }
-      // Handle collections domain messages
+      // ✅ FIXED: Handle collections domain messages with feedback loop prevention
+      // Only refresh if we don't have pending changes (those will eventually be applied)
       if (message.domain === 'collections') {
+        const hasPending = Object.keys(localPendingCollectionChanges).length > 0
+        console.log(`[Collections Broadcast] Received collections:${message.action} - pending: ${Object.keys(localPendingCollectionChanges).length}`)
+        
+        // ✅ SKIP refresh if pending changes exist
+        // This prevents the broadcast listener from triggering constant refreshes
+        // while we're still applying changes to the database
+        if (hasPending) {
+          console.log(`[Collections Broadcast] Skipping refresh - ${Object.keys(localPendingCollectionChanges).length} pending changes`)
+          return
+        }
+        
+        // Only refresh if no pending changes
         loadCollections()
       }
     })
@@ -1136,7 +1164,66 @@ export function AdminPanel() {
         clearTimeout(collectionsRefreshTimerRef.current)
       }
     }
-  }, [])
+  }, [localPendingCollectionChanges])
+
+  // ✅ NEW: Expose diagnostics functions for debugging
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
+    // Get all pending collection changes
+    (window as any).getCollectionsPending = () => {
+      return {
+        pending: localPendingCollectionChanges,
+        pendingCount: Object.keys(localPendingCollectionChanges).length,
+        collections: collections.map(c => ({
+          id: c.id,
+          name: c.name,
+          enabled: c.enabled,
+          display: c.display,
+          accepting: c.accepting,
+          pending: localPendingCollectionChanges[c.id]
+        }))
+      }
+    }
+    
+    // Get comprehensive sync diagnostics
+    (window as any).syncDiagnostics = () => {
+      const pending = localPendingCollectionChanges
+      const localStorage_pending = globalThis.localStorage?.getItem('montyclub:pendingCollectionChanges')
+      const localStorage_backup = globalThis.localStorage?.getItem('montyclub:pendingCollectionChanges:backup')
+      
+      return {
+        collections: {
+          pending: pending,
+          pendingCount: Object.keys(pending).length,
+          memoryState: collections.length,
+          localStorage_has_pending: !!localStorage_pending,
+          localStorage_has_backup: !!localStorage_backup,
+          lastRefresh: lastCollectionsRefreshRef.current ? Date.now() - lastCollectionsRefreshRef.current : 'never',
+          togglingCollection: togglingCollection
+        },
+        timestamp: new Date().toISOString()
+      }
+    }
+    
+    // Get detailed collection state including database data
+    (window as any).debugCollections = () => {
+      return {
+        collections: collections,
+        pending: localPendingCollectionChanges,
+        active: activeCollectionId,
+        toggling: togglingCollection,
+        pendingCount: Object.keys(localPendingCollectionChanges).length,
+        localStorage: {
+          pending: localStorage.getItem('montyclub:pendingCollectionChanges'),
+          backup: localStorage.getItem('montyclub:pendingCollectionChanges:backup'),
+          updated: localStorage.getItem('montyclub:collectionsUpdated')
+        }
+      }
+    }
+    
+    console.log('[AdminPanel] Diagnostics functions ready: window.syncDiagnostics(), window.getCollectionsPending(), window.debugCollections()')
+  }, [localPendingCollectionChanges, collections, activeCollectionId, togglingCollection])
 
   // Check if this is first-time setup
   useEffect(() => {
