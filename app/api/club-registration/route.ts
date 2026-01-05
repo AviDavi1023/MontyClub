@@ -162,10 +162,11 @@ export async function GET(request: NextRequest) {
     const { slugifyName } = await import('@/lib/slug')
     
     // Get collections and find by name slug with retry for eventual consistency
+    // NEW COLLECTIONS: Need more aggressive retrying since they may have just been written
     const { listPaths } = await import('@/lib/supabase')
     let collection: RegistrationCollection | undefined
-    const maxRetries = 3
-    const retryDelay = 200 // ms
+    const maxRetries = 8  // Increased from 3 to handle newly created collections
+    const retryDelay = 300 // Increased from 200 to 300ms
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
@@ -176,9 +177,10 @@ export async function GET(request: NextRequest) {
       
       if (collection) break
       
-      // If not found and not last attempt, wait before retry
+      // If not found and not last attempt, wait before retry with exponential backoff
       if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
+        const delayMs = retryDelay * Math.pow(1.5, attempt)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
       }
     }
     

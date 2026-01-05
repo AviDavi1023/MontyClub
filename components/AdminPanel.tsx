@@ -405,13 +405,60 @@ export function AdminPanel() {
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      console.log(`[Collections] Loaded ${data.collections?.length || 0} collections from server`)
-      setCollections(data.collections || [])
+      const serverCollections: RegistrationCollection[] = data.collections || []
+      console.log(`[Collections] Loaded ${serverCollections.length} collections from server`)
+      setCollections(serverCollections)
+      
+      // AUTO-SYNC: Clear pending temp IDs when real collections arrive
+      // When a collection with temp-col-* ID is created, it gets a real ID from server
+      // We need to clear the temp ID from pending once we see the real one
+      const hasTempPendings = Object.keys(localPendingCollectionChanges).some(id => id.startsWith('temp-col-'))
+      if (hasTempPendings) {
+        const createdTempIds = Object.entries(localPendingCollectionChanges)
+          .filter(([id, change]) => id.startsWith('temp-col-') && change.created)
+          .map(([id]) => id)
+        
+        if (createdTempIds.length > 0) {
+          // Try to match temp collections with real ones by name
+          const realizedIds: string[] = []
+          for (const tempId of createdTempIds) {
+            const tempChange = localPendingCollectionChanges[tempId]
+            if (tempChange?.name) {
+              const { slugifyName } = await import('@/lib/slug')
+              const tempSlug = slugifyName(tempChange.name)
+              const matchingReal = serverCollections.find(c => slugifyName(c.name) === tempSlug)
+              if (matchingReal) {
+                realizedIds.push(tempId)
+              }
+            }
+          }
+          
+          // Clear realized temp IDs and persist
+          if (realizedIds.length > 0) {
+            setLocalPendingCollectionChanges(prev => {
+              const next = { ...prev }
+              realizedIds.forEach(id => delete next[id])
+              try {
+                if (Object.keys(next).length === 0) {
+                  localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+                  localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+                } else {
+                  localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+                  localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+                }
+              } catch {}
+              return next
+            })
+            console.log(`[Collections] Cleared ${realizedIds.length} temp collection IDs after server sync`)
+          }
+        }
+      }
+      
       // Choose active collection using localStorage overlay precedence
       // Build an overlay that prioritizes locally pending created/enabled state
       try {
         const overlayMap = new Map<string, RegistrationCollection>()
-        for (const c of (data.collections || [])) overlayMap.set(c.id, { ...c })
+        for (const c of serverCollections) overlayMap.set(c.id, { ...c })
         for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
           if (change.deleted) {
             overlayMap.delete(id)

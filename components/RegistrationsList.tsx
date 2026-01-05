@@ -110,13 +110,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       })
 
       if (!response.ok) {
-        // Gracefully handle 404 for just-created collections not yet propagated
+        // For 404, might be a newly created collection - still treat as empty registrations
+        // but let the retry logic in the API handle eventual consistency
         if (response.status === 404) {
-          const pend = pendingCollectionsBySlug[collectionSlug]
-          if (pend && pend.created) {
-            setRegistrations([])
-            return
-          }
+          setRegistrations([])
+          return
         }
         throw new Error('Failed to load registrations')
       }
@@ -231,16 +229,19 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
-      // Load pending collections and index by slug for created entries
+      // Load pending collections and index by ID to slug mapping
+      // This is just for tracking if a collection was recently created
       try {
         const raw = localStorage.getItem(COLLECTIONS_PENDING_KEY)
         if (raw) {
-          const parsed = JSON.parse(raw) as Record<string, { created?: boolean; enabled?: boolean; name?: string }>
+          const parsed = JSON.parse(raw) as Record<string, any>
           const bySlug: Record<string, { created?: boolean; enabled?: boolean; name?: string }> = {}
-          Object.values(parsed || {}).forEach((v) => {
-            if (!v) return
-            const slug = (v.name || '').toLowerCase().replace(/\s+/g, '-')
-            if (slug) bySlug[slug] = v
+          // Index by collection ID to extract pending metadata
+          Object.entries(parsed || {}).forEach(([id, v]) => {
+            if (!v || typeof v !== 'object') return
+            // For created collections, use the temp ID as the key for now
+            // Will be cleared when the real server collection arrives
+            bySlug[id] = v
           })
           setPendingCollectionsBySlug(bySlug)
         }
