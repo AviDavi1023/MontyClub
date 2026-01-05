@@ -1,10 +1,14 @@
 import { ApiCache } from './api-cache'
+import { RegistrationCollection } from '@/types/club'
 
 // Central cache instances per domain. Extend as needed in later stages.
 export const updatesCache = new ApiCache<any[]>('updates-cache')
 export const announcementsCache = new ApiCache<Record<string, string>>('announcements-cache')
 export const registrationsCache = new ApiCache<any[]>('registrations-cache')
 export const usersCache = new ApiCache<any[]>('users-cache')
+
+// Cache for registration collections (critical for read-after-write consistency)
+export const collectionsCache = new ApiCache<RegistrationCollection[]>('collections-cache')
 
 // Cache for individual registration actions (approve/deny/delete)
 // Maps registration path to { status, denialReason?, timestamp }

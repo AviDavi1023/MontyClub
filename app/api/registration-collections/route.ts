@@ -3,12 +3,16 @@ import { readJSONFromStorage, writeJSONToStorage, listPaths, removePaths } from 
 import { RegistrationCollection, ClubRegistration, Club } from '@/types/club'
 import { validateCollections, ensureSingleDisplay } from '@/lib/collection-validation'
 import { getQueueLock } from '@/lib/queue-lock'
+import { collectionsCache } from '@/lib/caches'
 
 export const dynamic = 'force-dynamic'
 
 const COLLECTIONS_PATH = 'settings/registration-collections.json'
 const DEBUG = process.env.NODE_ENV === 'development'
 const collectionsLock = getQueueLock('registration-collections', 30000)
+
+// Track last write time for read-after-write consistency optimization
+let lastWriteTimestamp = 0
 
 // Simple logging helper - only logs in development
 function log(data: object) {
@@ -17,6 +21,15 @@ function log(data: object) {
       console.log(JSON.stringify(data))
     } catch {}
   }
+}
+
+/**
+ * Clear the collections cache
+ * Useful when you want to force a fresh read from Supabase
+ */
+function clearCollectionsCache(): void {
+  collectionsCache.clear()
+  log({ tag: 'collections-cache', step: 'cleared' })
 }
 
 // Retry helper with exponential backoff + jitter
@@ -91,11 +104,43 @@ async function verifyConsistency(
 }
 
 async function getCollections(): Promise<RegistrationCollection[]> {
-  const data = await readJSONFromStorage(COLLECTIONS_PATH, true)
-  if (!data || !Array.isArray(data)) {
-    return []
+  // STRATEGY 1: Check cache first (5-second TTL)
+  // This handles read-after-write within same serverless worker
+  const cached = collectionsCache.get(5000)
+  if (cached) {
+    log({ tag: 'collections-read', step: 'cache-hit', count: cached.length })
+    return cached
   }
-  // Back-compat defaults: accepting mirrors enabled; display is undefined unless explicitly set
+
+  // STRATEGY 2: Enhanced retry logic for recent writes
+  // If we just wrote to Supabase (<3 seconds ago), be more aggressive with retries
+  const timeSinceLastWrite = Date.now() - lastWriteTimestamp
+  const wasRecentWrite = timeSinceLastWrite < 3000
+  const maxAttempts = wasRecentWrite ? 8 : 3 // More retries if recent write
+  const baseDelay = wasRecentWrite ? 150 : 100 // Longer delays if recent write
+
+  log({ 
+    tag: 'collections-read', 
+    step: 'read-start', 
+    wasRecentWrite, 
+    timeSinceLastWrite,
+    maxAttempts 
+  })
+
+  // STRATEGY 3: Retry with exponential backoff + jitter
+  const data = await withRetry(
+    async () => {
+      const result = await readJSONFromStorage(COLLECTIONS_PATH, true)
+      if (!result || !Array.isArray(result)) {
+        throw new Error('Collections data not found or invalid')
+      }
+      return result
+    },
+    maxAttempts,
+    baseDelay
+  )
+
+  // Parse and normalize collections
   const cols: RegistrationCollection[] = data.map((c: any) => ({
     id: String(c.id),
     name: String(c.name),
@@ -105,6 +150,11 @@ async function getCollections(): Promise<RegistrationCollection[]> {
     accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
     renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
   }))
+
+  // Update cache for subsequent reads
+  collectionsCache.set(cols)
+  log({ tag: 'collections-read', step: 'cache-updated', count: cols.length })
+
   return cols
 }
 
@@ -127,9 +177,17 @@ async function saveCollections(collections: RegistrationCollection[]): Promise<b
       return false
     }
 
-    // Trust the write if it returned success - no additional verification needed
-    // The write function already retries and confirms Supabase accepted the upload
-    log({ tag: 'collections-persistence', step: 'write-succeeded' })
+    // CRITICAL: Update cache immediately after successful write
+    // This ensures subsequent reads within 5 seconds see the latest data
+    collectionsCache.set(fixed)
+    lastWriteTimestamp = Date.now()
+    
+    log({ 
+      tag: 'collections-persistence', 
+      step: 'write-succeeded',
+      cacheUpdated: true,
+      timestamp: lastWriteTimestamp
+    })
     return true
   } catch (err) {
     console.error('[saveCollections] Exception:', err)
@@ -294,8 +352,26 @@ export async function PATCH(request: NextRequest) {
       const collectionIndex = collections.findIndex(c => c.id === id)
 
       if (collectionIndex === -1) {
+        // Provide helpful context if this might be a recent write consistency issue
+        const timeSinceWrite = Date.now() - lastWriteTimestamp
+        const isRecentWrite = timeSinceWrite < 3000
+        
+        log({ 
+          tag: 'collections-api', 
+          step: 'collection-not-found',
+          operationId,
+          collectionId: id,
+          timeSinceWrite,
+          isRecentWrite
+        })
+
         return NextResponse.json(
-          { error: 'Collection not found' },
+          { 
+            error: 'Collection not found',
+            detail: isRecentWrite 
+              ? 'Collection was recently created. Please wait a moment and try again.'
+              : undefined
+          },
           { status: 404 }
         )
       }
