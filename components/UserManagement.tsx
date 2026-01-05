@@ -17,13 +17,48 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
   const [newPassword, setNewPassword] = useState('')
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [pendingUserChanges, setPendingUserChanges] = useState<Record<string, { deleted?: boolean; created?: boolean; username?: string }>>({})
+  
+  const USERS_PENDING_KEY = 'montyclub:pendingUserChanges'
+  const USERS_BACKUP_KEY = 'montyclub:pendingUserChanges:backup'
 
   const fetchUsers = async () => {
     try {
       const resp = await fetch('/api/admin/users')
       if (!resp.ok) throw new Error('Failed to fetch users')
       const data = await resp.json()
-      setUsers(data.users || [])
+      
+      // OPTIMISTIC: Merge server users with pending changes
+      const serverUsers: any[] = data.users || []
+      const displayUsers = serverUsers.filter((u: any) => !pendingUserChanges[u.username]?.deleted)
+      setUsers(displayUsers)
+      
+      // Auto-clear pending deletions that are confirmed on server
+      const stillPending: Record<string, any> = {}
+      let hasCleared = false
+      for (const [key, change] of Object.entries(pendingUserChanges)) {
+        if (change.deleted && !serverUsers.some((u: any) => u.username === key)) {
+          // This user was deleted on server, remove from pending
+          hasCleared = true
+        } else if (!change.deleted || serverUsers.some((u: any) => u.username === key)) {
+          // Keep pending if not deleted or still on server
+          stillPending[key] = change
+        }
+      }
+      
+      if (hasCleared && Object.keys(stillPending).length === 0) {
+        try {
+          localStorage.removeItem(USERS_PENDING_KEY)
+          localStorage.removeItem(USERS_BACKUP_KEY)
+        } catch {}
+        setPendingUserChanges({})
+      } else if (hasCleared) {
+        try {
+          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(stillPending))
+          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
+        } catch {}
+        setPendingUserChanges(stillPending)
+      }
     } catch (err) {
       console.error('Error fetching users:', err)
       showToast(getUserFriendlyError(err), 'error')
@@ -31,12 +66,39 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
   }
 
   useEffect(() => {
+    // Load pending changes from localStorage on mount
+    try {
+      const primary = localStorage.getItem(USERS_PENDING_KEY)
+      if (primary) {
+        const parsed = JSON.parse(primary)
+        setPendingUserChanges(parsed)
+      } else {
+        const backup = localStorage.getItem(USERS_BACKUP_KEY)
+        if (backup) {
+          const bp = JSON.parse(backup)
+          if (bp && bp.data) setPendingUserChanges(bp.data)
+        }
+      }
+    } catch {}
+    
     fetchUsers()
   }, [])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    
+    // OPTIMISTIC: Create temp ID and add to pending immediately
+    const tempId = `temp-user-${Date.now()}`
+    const newPending = {
+      ...pendingUserChanges,
+      [tempId]: { created: true, username: newUsername }
+    }
+    setPendingUserChanges(newPending)
+    try {
+      localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch {}
 
     try {
       const resp = await fetch('/api/admin/users', {
@@ -51,6 +113,19 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       if (!resp.ok) {
         const data = await resp.json()
+        // Revert optimistic update
+        const reverted = { ...pendingUserChanges }
+        delete reverted[tempId]
+        setPendingUserChanges(reverted)
+        try {
+          if (Object.keys(reverted).length === 0) {
+            localStorage.removeItem(USERS_PENDING_KEY)
+            localStorage.removeItem(USERS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(reverted))
+            localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: reverted }))
+          }
+        } catch {}
         showToast(data.error || 'Failed to create user', 'error')
         setLoading(false)
         return
@@ -61,10 +136,38 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       showToast(`User ${data.user.username} created successfully`)
       setNewUsername('')
       setNewPassword('')
+      
+      // Clear temp ID from pending
+      const cleared = { ...pendingUserChanges }
+      delete cleared[tempId]
+      setPendingUserChanges(cleared)
+      try {
+        if (Object.keys(cleared).length === 0) {
+          localStorage.removeItem(USERS_PENDING_KEY)
+          localStorage.removeItem(USERS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(cleared))
+          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
+        }
+      } catch {}
+      
       await fetchUsers()
       setShowCreateForm(false)
     } catch (err) {
       console.error('Error creating user:', err)
+      // Revert on error
+      const reverted = { ...pendingUserChanges }
+      delete reverted[tempId]
+      setPendingUserChanges(reverted)
+      try {
+        if (Object.keys(reverted).length === 0) {
+          localStorage.removeItem(USERS_PENDING_KEY)
+          localStorage.removeItem(USERS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(reverted))
+          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: reverted }))
+        }
+      } catch {}
       showToast(getUserFriendlyError(err), 'error')
     } finally {
       setLoading(false)
@@ -79,6 +182,17 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
     if (!confirm(`Delete user ${username}? This cannot be undone.`)) return
 
+    // OPTIMISTIC: Mark as deleted immediately
+    const newPending = {
+      ...pendingUserChanges,
+      [username]: { deleted: true }
+    }
+    setPendingUserChanges(newPending)
+    try {
+      localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(newPending))
+      localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+    } catch {}
+
     try {
       const resp = await fetch('/api/admin/users', {
         method: 'DELETE',
@@ -88,14 +202,55 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       if (!resp.ok) {
         const data = await resp.json()
+        // Revert optimistic deletion
+        const reverted = { ...pendingUserChanges }
+        delete reverted[username]
+        setPendingUserChanges(reverted)
+        try {
+          if (Object.keys(reverted).length === 0) {
+            localStorage.removeItem(USERS_PENDING_KEY)
+            localStorage.removeItem(USERS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(reverted))
+            localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: reverted }))
+          }
+        } catch {}
         showToast(data.error || 'Failed to delete user', 'error')
         return
       }
 
       showToast(`User ${username} deleted`)
+      
+      // Clear from pending since deletion succeeded
+      const cleared = { ...pendingUserChanges }
+      delete cleared[username]
+      setPendingUserChanges(cleared)
+      try {
+        if (Object.keys(cleared).length === 0) {
+          localStorage.removeItem(USERS_PENDING_KEY)
+          localStorage.removeItem(USERS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(cleared))
+          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
+        }
+      } catch {}
+      
       await fetchUsers()
     } catch (err) {
       console.error('Error deleting user:', err)
+      // Revert on error
+      const reverted = { ...pendingUserChanges }
+      delete reverted[username]
+      setPendingUserChanges(reverted)
+      try {
+        if (Object.keys(reverted).length === 0) {
+          localStorage.removeItem(USERS_PENDING_KEY)
+          localStorage.removeItem(USERS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(reverted))
+          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: reverted }))
+        }
+      } catch {}
       showToast(getUserFriendlyError(err), 'error')
     }
   }

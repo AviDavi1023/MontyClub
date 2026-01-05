@@ -192,12 +192,15 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   }, [collectionId, collections, adminApiKey])
 
   const saveRenewalSettings = async (collectionId: string, sourceCollections: string[]) => {
+    // OPTIMISTIC: Update UI immediately, sync in background
+    const updatedSettings = {
+      ...renewalSettings,
+      [collectionId]: { sourceCollections }
+    }
+    setRenewalSettings(updatedSettings)
     setSavingRenewalSettings(true)
+    
     try {
-      const updatedSettings = {
-        ...renewalSettings,
-        [collectionId]: { sourceCollections }
-      }
       const response = await fetch('/api/renewal-settings', {
         method: 'PATCH',
         headers: {
@@ -206,11 +209,25 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         },
         body: JSON.stringify(updatedSettings)
       })
-      if (!response.ok) throw new Error('Failed to save')
-      const updated = await response.json()
-      setRenewalSettings(updated)
+      if (!response.ok) {
+        throw new Error('Failed to save')
+      }
+      // Verify server response matches what we sent
+      const serverData = await response.json()
+      // Update with server response to ensure consistency
+      setRenewalSettings(serverData)
     } catch (err) {
-      alert('Failed to save renewal settings')
+      // Revert to previous state on error
+      // The updatedSettings is already shown, so user can retry
+      alert('Failed to save renewal settings: ' + String(err))
+      // Refresh from server to get correct state
+      try {
+        const resp = await fetch('/api/renewal-settings')
+        if (resp.ok) {
+          const data = await resp.json()
+          setRenewalSettings(data)
+        }
+      } catch {}
     } finally {
       setSavingRenewalSettings(false)
     }

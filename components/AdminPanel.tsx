@@ -2792,6 +2792,9 @@ export function AdminPanel() {
     try {
       setPublishingCatalog(true)
       
+      // OPTIMISTIC: Show success immediately while syncing in background
+      showToast('Publishing catalog...', 'info')
+      
       const resp = await fetch('/api/admin/snapshot-status', {
         method: 'POST',
         headers: {
@@ -2806,11 +2809,13 @@ export function AdminPanel() {
       }
       
       const data = await resp.json()
-      showToast(`✅ Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
+      showToast(`✅ Published ${data.clubCount || 'clubs'} to catalog!`, 'success')
       
-      // Refresh snapshot status and clear cache
-      await checkSnapshotStatus()
-      await refreshCache()
+      // Refresh snapshot status and clear cache in background (non-blocking)
+      setTimeout(async () => {
+        await checkSnapshotStatus()
+        await refreshCache()
+      }, 500)
     } catch (err) {
       console.error('Error publishing snapshot:', err)
       showToast(`Failed to publish snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
