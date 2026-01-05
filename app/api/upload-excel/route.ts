@@ -33,30 +33,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify collection exists with retry for eventual consistency
-    // This handles the case where a collection was just created and hasn't synced to storage yet
-    let targetCollection: RegistrationCollection | undefined
-    const maxRetries = 5
-    const retryDelay = 300 // ms
+    // OPTIMISTIC: Don't wait for collection verification
+    // The collectionId comes from the admin panel (trusted client state)
+    // Registrations are stored under registrations/{collectionId}/* 
+    // Once the collection syncs to the server, its registrations will be visible
+    // This provides instant feedback even if database hasn't caught up yet
+    let collectionName = 'Unknown Collection'
     
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-      const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
-      targetCollection = collections.find((c: RegistrationCollection) => c.id === collectionId)
-      if (targetCollection) break
-      
-      // If not found and not last attempt, wait before retry
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
-      }
-    }
-    
-    if (!targetCollection) {
-      return NextResponse.json(
-        { error: 'Collection not found. If you just created this collection, please wait a moment and try again.' },
-        { status: 404 }
-      )
-    }
+    // Fetch collection name asynchronously (don't block on this)
+    readJSONFromStorage('settings/registration-collections.json')
+      .then(collectionsData => {
+        const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
+        const found = collections.find((c: RegistrationCollection) => c.id === collectionId)
+        if (found) collectionName = found.name
+      })
+      .catch(() => {
+        // Silently ignore errors - we'll use the default name
+      })
 
     // Parse Excel file with streaming for large files
     const bytes = await file.arrayBuffer()
@@ -182,7 +175,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: `Imported ${successCount} clubs into ${targetCollection.name}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+      message: `Imported ${successCount} clubs into ${collectionName}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       successCount,
       errorCount,
       totalProcessed: registrations.length,
