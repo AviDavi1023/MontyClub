@@ -874,26 +874,18 @@ export function AdminPanel() {
     } catch (err) {
       console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
       
-      // ✅ IMPROVED: Revert with better state management
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]
-        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-revert', toggleId }))
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-          broadcast('collections', 'update', { id: collectionId })
-          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        } catch {}
-        return revert
+      // ✅ IMPORTANT: Do NOT revert pending state on error!
+      // Keep it in localStorage so it persists across page reloads
+      // and can be retried automatically by the sync-reconciliation system
+      recordFailedOperation({
+        type: 'collection',
+        action: 'toggle',
+        data: { enabled: nextEnabled },
+        targetId: collectionId
       })
+      setFailedOpsCount(getFailedOperationsCount())
       
-      showToast('Failed to update collection', 'error')
+      showToast('Failed to update collection. Will retry automatically.', 'error')
     } finally {
       setTogglingCollection(null)
       console.log(JSON.stringify({ tag: 'collection-toggle', step: 'complete', toggleId }))
