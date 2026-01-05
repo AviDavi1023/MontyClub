@@ -3487,10 +3487,11 @@ export function AdminPanel() {
                   }
                   return Array.from(map.values())
                 })()
-                return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
+                
+                return overlayed.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
                 ) : (
-                  <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
+                  <>{overlayed.map((collection) => (
                     <div
                       key={collection.id}
                       onClick={() => setActiveCollectionId(collection.id)}
