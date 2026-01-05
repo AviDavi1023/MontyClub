@@ -812,7 +812,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         </div>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Showing {visible.length} of {registrations.length} registrations</h3>
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Showing {visible.length} of {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length} registrations</h3>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Sort Dropdown */}
