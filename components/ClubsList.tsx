@@ -389,11 +389,10 @@ export function ClubsList() {
     // Rebuild when sort changes or clubs list changes
   }, [filters.sort, clubs])
 
-  // Helper: get which week of the month a date falls into
+  // Helper: get which week of the month a date falls into (1-5)
+  // Week 1: days 1-7, Week 2: days 8-14, Week 3: days 15-21, Week 4: days 22-28, Week 5: days 29+
   function getWeekOfMonth(date: Date): number {
-    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
-    const dayOfMonth = date.getDate()
-    return Math.ceil((dayOfMonth + firstDay.getDay()) / 7)
+    return Math.ceil(date.getDate() / 7)
   }
 
   // Helper: parse frequency string to get allowed weeks
