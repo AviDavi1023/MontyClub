@@ -389,26 +389,94 @@ export function ClubsList() {
     // Rebuild when sort changes or clubs list changes
   }, [filters.sort, clubs])
 
-  // Score function for 'relevant' sorting
-  function relevanceScore(club: Club): number {
-    let score = 0
-    // Boost clubs with announcements
-    if (club.announcement && club.announcement.trim()) score += 100
-    const query = (searchInput || '').toLowerCase().trim()
-    if (query) {
-      const inName = (club.name || '').toLowerCase()
-      const inDesc = (club.description || '').toLowerCase()
-      const inCategory = (club.category || '').toLowerCase()
-      const inKeywords = (club.keywords || []).map(k => (k || '').toLowerCase())
-      if (inName.startsWith(query)) score += 50
-      if (inName.includes(query)) score += 30
-      if (inKeywords.some(k => k.startsWith(query))) score += 20
-      if (inCategory.includes(query)) score += 10
-      if (inDesc.includes(query)) score += 5
+  // Helper: get which week of the month a date falls into
+  function getWeekOfMonth(date: Date): number {
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
+    const dayOfMonth = date.getDate()
+    return Math.ceil((dayOfMonth + firstDay.getDay()) / 7)
+  }
+
+  // Helper: parse frequency string to get allowed weeks
+  function getAllowedWeeks(frequency: string): Set<number> {
+    const freq = (frequency || '').toLowerCase().trim()
+    // Weekly or empty = all weeks
+    if (freq.includes('weekly') || freq === '') {
+      return new Set([1, 2, 3, 4, 5])
     }
-    // Slight boost for active clubs
-    if (club.active) score += 1
-    return score
+    
+    // Extract specific weeks from patterns like "1st and 3rd weeks" or "1st & 3rd"
+    const weeks = new Set<number>()
+    if (freq.includes('1st')) weeks.add(1)
+    if (freq.includes('2nd')) weeks.add(2)
+    if (freq.includes('3rd')) weeks.add(3)
+    if (freq.includes('4th')) weeks.add(4)
+    if (freq.includes('5th')) weeks.add(5)
+    
+    // If we found specific weeks, use them; otherwise default to all
+    return weeks.size > 0 ? weeks : new Set([1, 2, 3, 4, 5])
+  }
+
+  // Helper: find next occurrence of a meeting day that matches the frequency
+  function getNextMeetingDate(meetingDay: string, frequency: string, currentDate: Date = new Date()): Date | null {
+    if (!meetingDay || !meetingDay.trim()) return null
+    
+    const meetingDayLower = meetingDay.toLowerCase().trim()
+    const allowedWeeks = getAllowedWeeks(frequency)
+    
+    // Map day names to day-of-week numbers
+    const dayMap: Record<string, number> = {
+      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+      'thursday': 4, 'friday': 5, 'saturday': 6
+    }
+    
+    const targetDayOfWeek = dayMap[meetingDayLower]
+    if (targetDayOfWeek === undefined) return null
+    
+    // Search up to 6 weeks ahead
+    let searchDate = new Date(currentDate)
+    searchDate.setHours(0, 0, 0, 0)
+    
+    for (let i = 0; i < 42; i++) {
+      const week = getWeekOfMonth(searchDate)
+      if (searchDate.getDay() === targetDayOfWeek && allowedWeeks.has(week)) {
+        return new Date(searchDate)
+      }
+      searchDate.setDate(searchDate.getDate() + 1)
+    }
+    
+    return null
+  }
+
+  // Helper: days between two dates
+  function daysDifference(date1: Date, date2: Date): number {
+    const d1 = new Date(date1)
+    const d2 = new Date(date2)
+    d1.setHours(0, 0, 0, 0)
+    d2.setHours(0, 0, 0, 0)
+    return Math.floor((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24))
+  }
+
+  // Score function for 'relevant' sorting: by next meeting date, with announcements prioritized
+  function getRelevanceData(club: Club): { score: number; nextMeeting: Date | null; name: string; hasAnnouncement: boolean } {
+    const hasAnnouncement = !!(club.announcement && club.announcement.trim())
+    const nextMeeting = getNextMeetingDate(club.meetingTime, club.meetingFrequency || '')
+    const today = new Date()
+    
+    // Announcements get highest priority (large boost)
+    const announcementBoost = hasAnnouncement ? 10000000 : 0
+    
+    // Days until meeting: fewer days = higher score
+    const daysUntil = nextMeeting ? daysDifference(nextMeeting, today) : 999
+    const meetingScore = Math.max(0, 10000 - daysUntil) // Sooner meetings score higher
+    
+    const score = announcementBoost + meetingScore
+    
+    return {
+      score,
+      nextMeeting,
+      name: club.name,
+      hasAnnouncement,
+    }
   }
 
   const sortedClubs = useMemo(() => {
@@ -427,8 +495,25 @@ export function ClubsList() {
         arr.sort(() => Math.random() - 0.5)
       }
     } else {
-      // Relevant
-      arr.sort((a, b) => relevanceScore(b) - relevanceScore(a))
+      // Relevant: by next meeting date, announcements first, then alphabetical tiebreaker
+      arr.sort((a, b) => {
+        const dataA = getRelevanceData(a)
+        const dataB = getRelevanceData(b)
+        
+        // First: higher score (announcements + sooner meetings)
+        if (dataA.score !== dataB.score) {
+          return dataB.score - dataA.score
+        }
+        
+        // Second: both have same score, sort by date
+        if (dataA.nextMeeting && dataB.nextMeeting) {
+          const dateCompare = dataA.nextMeeting.getTime() - dataB.nextMeeting.getTime()
+          if (dateCompare !== 0) return dateCompare
+        }
+        
+        // Third: same date, sort alphabetically
+        return dataA.name.localeCompare(dataB.name)
+      })
     }
     return arr
     // Include dependencies that affect sorting
