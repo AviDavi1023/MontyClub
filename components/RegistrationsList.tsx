@@ -1816,8 +1816,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         </div>
       )}
 
-      {/* Sticky Action Bar (Desktop & Mobile) */}
-      {selectedIds.size > 0 && visible.length > 5 && (
+      {/* Sticky Action Bar (Desktop & Mobile) - Shows whenever items are selected */}
+      {selectedIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-blue-600 dark:bg-blue-700 text-white shadow-2xl z-50 border-t-4 border-blue-500">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
