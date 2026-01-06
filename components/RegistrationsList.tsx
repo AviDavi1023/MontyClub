@@ -916,8 +916,30 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span>Showing <span className="font-semibold text-gray-900 dark:text-white">{visible.length}</span> of <span className="font-semibold text-gray-900 dark:text-white">{registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length}</span></span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <span>Showing <span className="font-semibold text-gray-900 dark:text-white">{visible.length}</span> of <span className="font-semibold text-gray-900 dark:text-white">{registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length}</span></span>
+          </div>
+          {visible.length > 0 && (
+            <button
+              onClick={() => {
+                if (selectedIds.size === visible.length) {
+                  setSelectedIds(new Set())
+                } else {
+                  setSelectedIds(new Set(visible.map(r => r.id)))
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.size === visible.length && visible.length > 0}
+                onChange={() => {}}
+                className="rounded border-gray-300 dark:border-gray-600 pointer-events-none"
+              />
+              {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Sort Dropdown */}
@@ -1233,7 +1255,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               </table>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               {visible.map((reg) => {
                 const isExpanded = expandedId === reg.id
                 return (
