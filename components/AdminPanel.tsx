@@ -13,12 +13,6 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
-import { 
-  retryFailedOperations, 
-  recordFailedOperation, 
-  getFailedOperationsCount,
-  clearFailedOperations 
-} from '@/lib/sync-reconciliation'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -147,15 +141,13 @@ export function AdminPanel() {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [importingExcel, setImportingExcel] = useState(false)
   const [creatingCollection, setCreatingCollection] = useState(false)
-  const [enableNewCollection, setEnableNewCollection] = useState(true)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string }
   const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
   const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
   const collectionsRefreshTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const lastCollectionsRefreshRef = useRef<number>(0)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -182,17 +174,10 @@ export function AdminPanel() {
     registrationCollections: false,
     registrations: false,
     analytics: false,
-    settings: false,
-    renewalSettings: false,
-    adminUsers: false,
   })
   const [clearingData, setClearingData] = useState(false)
-  
-  // Reconciliation state
-  const [failedOpsCount, setFailedOpsCount] = useState(0)
-  const [retryingFailedOps, setRetryingFailedOps] = useState(false)
 
-  // Load analytics settings and check failed operations count
+  // Load analytics settings from localStorage
   useEffect(() => {
     try {
       const enabled = localStorage.getItem('analytics:enabled')
@@ -201,9 +186,6 @@ export function AdminPanel() {
       if (period) setAnalyticsPeriod(period)
       const key = localStorage.getItem('analytics:adminKey')
       if (key) setAdminApiKey(key)
-      
-      // Check for failed operations
-      setFailedOpsCount(getFailedOperationsCount())
     } catch {}
     // Announcements enabled: load from localStorage first, then server
     try {
@@ -286,86 +268,63 @@ export function AdminPanel() {
   }, [localPendingCollectionChanges, collectionsStorageLoaded])
 
   // Auto-clear pending collection changes that now match database state
-  // ✅ IMPROVED: Added debounce to prevent rapid re-clears during data propagation
-  const autoClearTimerRef = useRef<NodeJS.Timeout | null>(null)
-  
   useEffect(() => {
     if (!collectionsStorageLoaded) return
     if (Object.keys(localPendingCollectionChanges).length === 0) return
 
-    // ✅ NEW: Add delay before auto-clearing to allow eventual consistency to propagate
-    // This prevents clearing pending state too early when data hasn't fully propagated yet
-    if (autoClearTimerRef.current) {
-      clearTimeout(autoClearTimerRef.current)
-    }
+    // Debug logging removed for cleaner console
 
-    autoClearTimerRef.current = setTimeout(() => {
-      const newPending = { ...localPendingCollectionChanges }
-      let hasChanges = false
+    const newPending = { ...localPendingCollectionChanges }
+    let hasChanges = false
 
-      for (const collectionId in newPending) {
-        const pending = newPending[collectionId]
-        const found = collections.find(c => c.id === collectionId)
-        
-        // If marked deleted locally but no longer exists in DB, clear it
-        if (pending.deleted && !found) {
+    for (const collectionId in newPending) {
+      const pending = newPending[collectionId]
+      const found = collections.find(c => c.id === collectionId)
+      // If marked deleted locally but no longer exists in DB, clear it
+      if (pending.deleted && !found) {
+        // Debug logging removed
+        delete newPending[collectionId]
+        hasChanges = true
+        continue
+      }
+      if (found) {
+        // If enabled matches DB, clear enabled flag
+        if (pending.enabled !== undefined && found.enabled === pending.enabled) {
+          // Debug logging removed
+          delete newPending[collectionId].enabled
+          hasChanges = true
+        } else if (pending.enabled !== undefined) {
+          // Debug logging removed
+        }
+        // If accepting matches DB, clear accepting flag
+        if (pending.accepting !== undefined && found.accepting === pending.accepting) {
+          delete newPending[collectionId].accepting
+          hasChanges = true
+        }
+        // If renewalEnabled matches DB, clear renewalEnabled flag
+        if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
+          delete newPending[collectionId].renewalEnabled
+          hasChanges = true
+        }
+        // If name matches DB, clear name flag
+        if (pending.name && found.name === pending.name) {
+          delete newPending[collectionId].name
+          hasChanges = true
+        }
+        // If no remaining flags, remove entry
+        const entry = newPending[collectionId]
+        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
           delete newPending[collectionId]
           hasChanges = true
-          continue
-        }
-        
-        if (found) {
-          // ✅ IMPROVED: Only clear if field has been stable for multiple reads
-          // This ensures eventual consistency has actually propagated
-          
-          // If enabled matches DB, clear enabled flag
-          if (pending.enabled !== undefined && found.enabled === pending.enabled) {
-            delete newPending[collectionId].enabled
-            hasChanges = true
-          }
-          
-          // If accepting matches DB, clear accepting flag
-          if (pending.accepting !== undefined && found.accepting === pending.accepting) {
-            delete newPending[collectionId].accepting
-            hasChanges = true
-          }
-          
-          // If renewalEnabled matches DB, clear renewalEnabled flag
-          if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
-            delete newPending[collectionId].renewalEnabled
-            hasChanges = true
-          }
-          
-          // If display matches DB, clear display flag
-          if (pending.display !== undefined && found.display === pending.display) {
-            delete newPending[collectionId].display
-            hasChanges = true
-          }
-          
-          // If name matches DB, clear name flag
-          if (pending.name && found.name === pending.name) {
-            delete newPending[collectionId].name
-            hasChanges = true
-          }
-          
-          // If no remaining flags, remove entry
-          const entry = newPending[collectionId]
-          if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && entry.display === undefined && !entry.name && !entry.created) {
-            delete newPending[collectionId]
-            hasChanges = true
-          }
         }
       }
+    }
 
-      if (hasChanges) {
-        setLocalPendingCollectionChanges(newPending)
-      }
-    }, 1000) // ✅ NEW: 1 second delay before auto-clearing to account for eventual consistency
-
-    return () => {
-      if (autoClearTimerRef.current) {
-        clearTimeout(autoClearTimerRef.current)
-      }
+    if (hasChanges) {
+      // Debug logging removed
+      setLocalPendingCollectionChanges(newPending)
+    } else {
+      // Debug logging removed
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
@@ -384,81 +343,20 @@ export function AdminPanel() {
 
   const loadCollections = async () => {
     if (!adminApiKey) return
-    
-    // ✅ DEBUG: Log collection refresh attempts
-    const now = Date.now()
-    const pendingCount = Object.keys(localPendingCollectionChanges).length
-    console.log(`[Collections] loadCollections called - pending: ${pendingCount}, last refresh: ${now - lastCollectionsRefreshRef.current}ms ago`)
-    
-    // ✅ THROTTLE: Prevent rapid successive refreshes (max once per 300ms)
-    // This prevents feedback loops when broadcast listener fires
-    if (now - lastCollectionsRefreshRef.current < 300) {
-      console.log(`[Collections] Skipping refresh - too recent (${now - lastCollectionsRefreshRef.current}ms ago)`)
-      return
-    }
-    
-    lastCollectionsRefreshRef.current = now
-    
+    // Debug logging removed
     try {
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      const serverCollections: RegistrationCollection[] = data.collections || []
-      console.log(`[Collections] Loaded ${serverCollections.length} collections from server`)
-      setCollections(serverCollections)
-      
-      // AUTO-SYNC: Clear pending temp IDs when real collections arrive
-      // When a collection with temp-col-* ID is created, it gets a real ID from server
-      // We need to clear the temp ID from pending once we see the real one
-      const hasTempPendings = Object.keys(localPendingCollectionChanges).some(id => id.startsWith('temp-col-'))
-      if (hasTempPendings) {
-        const createdTempIds = Object.entries(localPendingCollectionChanges)
-          .filter(([id, change]) => id.startsWith('temp-col-') && change.created)
-          .map(([id]) => id)
-        
-        if (createdTempIds.length > 0) {
-          // Try to match temp collections with real ones by name
-          const realizedIds: string[] = []
-          for (const tempId of createdTempIds) {
-            const tempChange = localPendingCollectionChanges[tempId]
-            if (tempChange?.name) {
-              const { slugifyName } = await import('@/lib/slug')
-              const tempSlug = slugifyName(tempChange.name)
-              const matchingReal = serverCollections.find(c => slugifyName(c.name) === tempSlug)
-              if (matchingReal) {
-                realizedIds.push(tempId)
-              }
-            }
-          }
-          
-          // Clear realized temp IDs and persist
-          if (realizedIds.length > 0) {
-            setLocalPendingCollectionChanges(prev => {
-              const next = { ...prev }
-              realizedIds.forEach(id => delete next[id])
-              try {
-                if (Object.keys(next).length === 0) {
-                  localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-                  localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-                } else {
-                  localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-                  localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-                }
-              } catch {}
-              return next
-            })
-            console.log(`[Collections] Cleared ${realizedIds.length} temp collection IDs after server sync`)
-          }
-        }
-      }
-      
+      // Debug logging removed
+      setCollections(data.collections || [])
       // Choose active collection using localStorage overlay precedence
       // Build an overlay that prioritizes locally pending created/enabled state
       try {
         const overlayMap = new Map<string, RegistrationCollection>()
-        for (const c of serverCollections) overlayMap.set(c.id, { ...c })
+        for (const c of (data.collections || [])) overlayMap.set(c.id, { ...c })
         for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
           if (change.deleted) {
             overlayMap.delete(id)
@@ -488,10 +386,8 @@ export function AdminPanel() {
           if (activeCollectionId && overlayMap.has(activeCollectionId)) {
             setActiveCollectionId(activeCollectionId)
           } else {
-            // Prefer displayed collection, then enabled, then first
-            const displayedFirst = overlayList.find(c => c.display)
             const enabledFirst = overlayList.find(c => c.enabled)
-            setActiveCollectionId((displayedFirst || enabledFirst || overlayList[0]).id)
+            setActiveCollectionId((enabledFirst || overlayList[0]).id)
           }
         } else {
           setActiveCollectionId(null)
@@ -499,9 +395,8 @@ export function AdminPanel() {
       } catch {
         // Fallback to server-only selection
         if (data.collections && data.collections.length > 0) {
-          const displayedCol = data.collections.find((c: RegistrationCollection) => c.display)
           const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-          setActiveCollectionId(displayedCol?.id || enabledCol?.id || data.collections[0].id)
+          setActiveCollectionId(enabledCol?.id || data.collections[0].id)
         } else {
           setActiveCollectionId(null)
         }
@@ -525,7 +420,7 @@ export function AdminPanel() {
     const tempId = `temp-col-${Date.now()}-${Math.random().toString(36).substring(2,7)}`
     // Add local pending created collection so it shows immediately
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [tempId]: { created: true, name, enabled: enableNewCollection, accepting: enableNewCollection } }
+      const next = { ...prev, [tempId]: { created: true, name, enabled: false } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -542,7 +437,7 @@ export function AdminPanel() {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify({ name, enabled: enableNewCollection })
+        body: JSON.stringify({ name, enabled: false })
       })
       if (!resp.ok) {
         const err = await resp.json()
@@ -617,22 +512,8 @@ export function AdminPanel() {
     const nextDisplay = !effectiveCurrentDisplay
 
     // Optimistically update display
-    // When enabling display on one collection, disable it on all others
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev }
-      
-      // If enabling display, mark all other collections as not displayed
-      if (nextDisplay) {
-        collections.forEach(c => {
-          if (c.id !== collectionId) {
-            next[c.id] = { ...(next[c.id] || {}), display: false, _timestamp: Date.now() }
-          }
-        })
-      }
-      
-      // Set the target collection's display state
-      next[collectionId] = { ...(next[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() }
-      
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -659,19 +540,24 @@ export function AdminPanel() {
       } catch {}
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
       await loadCollections()
-      // Server already auto-publishes snapshot and invalidates cache when display changes
-      // Broadcast to ClubsList to refresh UI
       try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
-      // Record failed operation for reconciliation
-      recordFailedOperation({
-        type: 'collection',
-        action: 'toggle',
-        data: { display: nextDisplay },
-        targetId: collectionId
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.display
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
       })
-      setFailedOpsCount(getFailedOperationsCount())
-      showToast('Failed to update display. Will retry automatically.', 'error')
+      showToast('Failed to update display', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -692,7 +578,7 @@ export function AdminPanel() {
     const nextAccepting = !effectiveCurrentAccepting
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting, _timestamp: Date.now() } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -720,15 +606,22 @@ export function AdminPanel() {
       showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
       await loadCollections()
     } catch (err) {
-      // Record failed operation for reconciliation
-      recordFailedOperation({
-        type: 'collection',
-        action: 'toggle',
-        data: { accepting: nextAccepting },
-        targetId: collectionId
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.accepting
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
       })
-      setFailedOpsCount(getFailedOperationsCount())
-      showToast('Failed to update accepting. Will retry automatically.', 'error')
+      showToast('Failed to update accepting', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -749,7 +642,7 @@ export function AdminPanel() {
     const nextRenewal = !effectiveCurrentRenewal
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal, _timestamp: Date.now() } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -777,15 +670,22 @@ export function AdminPanel() {
       showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
       await loadCollections()
     } catch (err) {
-      // Record failed operation for reconciliation
-      recordFailedOperation({
-        type: 'collection',
-        action: 'toggle',
-        data: { renewalEnabled: nextRenewal },
-        targetId: collectionId
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]?.renewalEnabled
+        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+        } catch {}
+        return revert
       })
-      setFailedOpsCount(getFailedOperationsCount())
-      showToast('Failed to update renewal. Will retry automatically.', 'error')
+      showToast('Failed to update renewal', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -799,7 +699,6 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    
     // If it's a temp ID or the collection hasn't been confirmed by server yet, toggle locally only
     const collection = collections.find(c => c.id === collectionId)
     const isTemp = collectionId.startsWith('temp-col-') || (!collection && localPendingCollectionChanges[collectionId]?.created)
@@ -819,14 +718,12 @@ export function AdminPanel() {
       showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
       return
     }
-    
     if (!collection) {
       console.log(JSON.stringify({ tag: 'collection-toggle', step: 'error', toggleId, message: 'collection-not-found', collectionId }))
       return
     }
 
     setTogglingCollection(collectionId)
-    
     // Determine effective current enabled state (prefer pending override over server snapshot)
     const effectiveCurrentEnabled = (localPendingCollectionChanges[collectionId]?.enabled !== undefined)
       ? !!localPendingCollectionChanges[collectionId]?.enabled
@@ -845,7 +742,7 @@ export function AdminPanel() {
 
     // Optimistically update localStorage immediately using functional updater to avoid stale closure
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled, _timestamp: Date.now() } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
       console.log(JSON.stringify({ 
         tag: 'collection-toggle', 
         step: 'local-save', 
@@ -890,7 +787,6 @@ export function AdminPanel() {
         try { const j = await resp.json(); if (j && j.error) errText = `${j.error}${j.detail ? ` (${j.detail})` : ''}` } catch {}
         throw new Error(errText)
       }
-      
       const data = await resp.json()
       console.log(JSON.stringify({ 
         tag: 'collection-toggle', 
@@ -898,41 +794,43 @@ export function AdminPanel() {
         toggleId, 
         collection: { id: data.collection.id, enabled: data.collection.enabled } 
       }))
-      
-      // ✅ IMPROVED: Don't immediately clear pending. Instead, reload and let auto-clear handle it
-      // This ensures we verify consistency before clearing the pending state
+      // Do NOT immediately update collections state to avoid premature auto-clear
+      // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
+      // This prevents showing stale DB state on reload due to eventual consistency
       try {
         broadcast('collections', 'update', { id: collectionId })
         localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
       } catch {}
-      
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
+      // Immediately refresh collections to ensure auto-clear runs with fresh DB state
+      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-now', toggleId }))
+      await loadCollections()
       
-      // ✅ IMPROVED: Add small delay before refresh to allow eventual consistency to propagate
-      // But don't wait too long or the user experience feels slow
-      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-scheduled', toggleId }))
-      setTimeout(() => {
-        loadCollections()
-        // Broadcast to ClubsList to refresh if in Collection mode
-        try {
-          broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
-        } catch {}
-      }, 300) // ✅ NEW: 300ms delay to allow eventual consistency
+      // Broadcast to ClubsList to refresh if in Collection mode
+      try {
+        broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
+      } catch {}
     } catch (err) {
       console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
-      
-      // ✅ IMPORTANT: Do NOT revert pending state on error!
-      // Keep it in localStorage so it persists across page reloads
-      // and can be retried automatically by the sync-reconciliation system
-      recordFailedOperation({
-        type: 'collection',
-        action: 'toggle',
-        data: { enabled: nextEnabled },
-        targetId: collectionId
+      // Revert on error using functional update to avoid clobbering subsequent rapid toggles
+      setLocalPendingCollectionChanges(prev => {
+        const revert = { ...prev }
+        delete revert[collectionId]
+        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-revert', toggleId }))
+        try {
+          if (Object.keys(revert).length === 0) {
+            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
+            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
+            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
+          }
+          broadcast('collections', 'update', { id: collectionId })
+          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+        } catch {}
+        return revert
       })
-      setFailedOpsCount(getFailedOperationsCount())
-      
-      showToast('Failed to update collection. Will retry automatically.', 'error')
+      showToast('Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)
       console.log(JSON.stringify({ tag: 'collection-toggle', step: 'complete', toggleId }))
@@ -944,31 +842,10 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-
-    // Check for registrations in this collection
-    let registrationCount = 0
-    try {
-      const collection = collections.find(c => c.id === collectionId)
-      if (collection) {
-        const slug = slugifyName(collection.name)
-        const resp = await fetch(`/api/club-registration?collection=${encodeURIComponent(slug)}`, {
-          headers: { 'x-admin-key': adminApiKey }
-        })
-        if (resp.ok) {
-          const data = await resp.json()
-          registrationCount = data.registrations?.length || 0
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch registration count', e)
-    }
-
     {
       const ok = await confirm({
         title: 'Delete Collection',
-        message: registrationCount > 0 
-          ? `This collection has ${registrationCount} registration(s). Delete anyway? This cannot be undone.`
-          : 'Are you sure you want to delete this collection? This cannot be undone.',
+        message: 'Are you sure you want to delete this collection? This cannot be undone.',
         confirmText: 'Delete',
         cancelText: 'Cancel',
         variant: 'danger',
@@ -1178,21 +1055,8 @@ export function AdminPanel() {
       if (message.domain === 'clubs') {
         refreshData()
       }
-      // ✅ FIXED: Handle collections domain messages with feedback loop prevention
-      // Only refresh if we don't have pending changes (those will eventually be applied)
+      // Handle collections domain messages
       if (message.domain === 'collections') {
-        const hasPending = Object.keys(localPendingCollectionChanges).length > 0
-        console.log(`[Collections Broadcast] Received collections:${message.action} - pending: ${Object.keys(localPendingCollectionChanges).length}`)
-        
-        // ✅ SKIP refresh if pending changes exist
-        // This prevents the broadcast listener from triggering constant refreshes
-        // while we're still applying changes to the database
-        if (hasPending) {
-          console.log(`[Collections Broadcast] Skipping refresh - ${Object.keys(localPendingCollectionChanges).length} pending changes`)
-          return
-        }
-        
-        // Only refresh if no pending changes
         loadCollections()
       }
     })
@@ -1203,66 +1067,7 @@ export function AdminPanel() {
         clearTimeout(collectionsRefreshTimerRef.current)
       }
     }
-  }, [localPendingCollectionChanges])
-
-  // ✅ NEW: Expose diagnostics functions for debugging
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    
-    // Get all pending collection changes
-    (window as any).getCollectionsPending = () => {
-      return {
-        pending: localPendingCollectionChanges,
-        pendingCount: Object.keys(localPendingCollectionChanges).length,
-        collections: collections.map(c => ({
-          id: c.id,
-          name: c.name,
-          enabled: c.enabled,
-          display: c.display,
-          accepting: c.accepting,
-          pending: localPendingCollectionChanges[c.id]
-        }))
-      }
-    }
-    
-    // Get comprehensive sync diagnostics
-    (window as any).syncDiagnostics = () => {
-      const pending = localPendingCollectionChanges
-      const localStorage_pending = globalThis.localStorage?.getItem('montyclub:pendingCollectionChanges')
-      const localStorage_backup = globalThis.localStorage?.getItem('montyclub:pendingCollectionChanges:backup')
-      
-      return {
-        collections: {
-          pending: pending,
-          pendingCount: Object.keys(pending).length,
-          memoryState: collections.length,
-          localStorage_has_pending: !!localStorage_pending,
-          localStorage_has_backup: !!localStorage_backup,
-          lastRefresh: lastCollectionsRefreshRef.current ? Date.now() - lastCollectionsRefreshRef.current : 'never',
-          togglingCollection: togglingCollection
-        },
-        timestamp: new Date().toISOString()
-      }
-    }
-    
-    // Get detailed collection state including database data
-    (window as any).debugCollections = () => {
-      return {
-        collections: collections,
-        pending: localPendingCollectionChanges,
-        active: activeCollectionId,
-        toggling: togglingCollection,
-        pendingCount: Object.keys(localPendingCollectionChanges).length,
-        localStorage: {
-          pending: localStorage.getItem('montyclub:pendingCollectionChanges'),
-          backup: localStorage.getItem('montyclub:pendingCollectionChanges:backup'),
-          updated: localStorage.getItem('montyclub:collectionsUpdated')
-        }
-      }
-    }
-    
-    console.log('[AdminPanel] Diagnostics functions ready: window.syncDiagnostics(), window.getCollectionsPending(), window.debugCollections()')
-  }, [localPendingCollectionChanges, collections, activeCollectionId, togglingCollection])
+  }, [])
 
   // Check if this is first-time setup
   useEffect(() => {
@@ -1314,39 +1119,6 @@ export function AdminPanel() {
         const savedKey = localStorage.getItem('analytics:adminKey')
         if (!savedKey || savedKey.trim() === '') {
           setShowApiKeyPrompt(true)
-        }
-        
-        // Auto-retry failed operations after successful login
-        const pendingCount = getFailedOperationsCount()
-        if (pendingCount > 0 && savedKey) {
-          console.log(`[Reconciliation] Found ${pendingCount} failed operations, retrying...`)
-          setRetryingFailedOps(true)
-          
-          // Run in background, don't block UI
-          setTimeout(async () => {
-            try {
-              const result = await retryFailedOperations(savedKey)
-              setFailedOpsCount(getFailedOperationsCount())
-              
-              if (result.succeeded > 0) {
-                showToast(`✅ Reconciled ${result.succeeded} pending operation(s)`, 'success')
-              }
-              if (result.failed > 0) {
-                showToast(`⚠️ ${result.failed} operation(s) still pending (will retry later)`, 'info')
-              }
-              
-              // Refresh data after reconciliation
-              if (result.succeeded > 0) {
-                refreshData()
-                fetchUpdates(true)
-                loadCollections()
-              }
-            } catch (error) {
-              console.error('[Reconciliation] Auto-retry failed:', error)
-            } finally {
-              setRetryingFailedOps(false)
-            }
-          }, 500)
         }
       } else {
         setError('Invalid credentials')
@@ -1441,9 +1213,6 @@ export function AdminPanel() {
         registrationCollections: false,
         registrations: false,
         analytics: false,
-        settings: false,
-        renewalSettings: false,
-        adminUsers: false,
       })
       setShowClearDataModal(false)
 
@@ -2564,18 +2333,20 @@ export function AdminPanel() {
       console.log(`Timestamp: ${new Date().toISOString()}`)
       console.groupEnd()
 
-      // Record failed operation for reconciliation (instead of losing it)
-      recordFailedOperation({
-        type: 'announcement',
-        action: 'update',
-        data: { [id]: text || '' },
-        targetId: id
-      })
-      setFailedOpsCount(getFailedOperationsCount())
-      
-      // Keep in pending (will be retried on next login)
-      // Don't revert - let reconciliation handle it
-      showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}. Will retry automatically.`, 'error')
+      // Clear from pending on error (revert)
+      const revertPending = { ...localPendingAnnouncements }
+      delete revertPending[id]
+      setLocalPendingAnnouncements(revertPending)
+      try {
+        if (Object.keys(revertPending).length === 0) {
+          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+        } else {
+          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(revertPending))
+          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+        }
+      } catch (e) {}
+      showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
       console.log(`[DONE] Saving announcement ${id} completed`)
@@ -2792,9 +2563,6 @@ export function AdminPanel() {
     try {
       setPublishingCatalog(true)
       
-      // OPTIMISTIC: Show success immediately while syncing in background
-      showToast('Publishing catalog...', 'info')
-      
       const resp = await fetch('/api/admin/snapshot-status', {
         method: 'POST',
         headers: {
@@ -2809,13 +2577,11 @@ export function AdminPanel() {
       }
       
       const data = await resp.json()
-      showToast(`✅ Published ${data.clubCount || 'clubs'} to catalog!`, 'success')
+      showToast(`✅ Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
       
-      // Refresh snapshot status and clear cache in background (non-blocking)
-      setTimeout(async () => {
-        await checkSnapshotStatus()
-        await refreshCache()
-      }, 500)
+      // Refresh snapshot status and clear cache
+      await checkSnapshotStatus()
+      await refreshCache()
     } catch (err) {
       console.error('Error publishing snapshot:', err)
       showToast(`Failed to publish snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
@@ -3036,11 +2802,8 @@ export function AdminPanel() {
             onClick={() => {
               // Ensure a collection is selected before opening registrations
               if (!activeCollectionId && collections.length > 0) {
-                // First try to find the collection that is currently displayed
-                const displayedCol = collections.find(c => c.display && !localPendingCollectionChanges[c.id]?.deleted)
-                // If no displayed collection, try enabled one
                 const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
-                setActiveCollectionId(displayedCol?.id || enabledCol?.id || collections[0].id)
+                setActiveCollectionId(enabledCol?.id || collections[0].id)
               }
               setShowRegistrations(true)
               setTimeout(() => registrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
@@ -3191,16 +2954,11 @@ export function AdminPanel() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
                       <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
-                      {(() => {
-                        const currentReviewed = localPendingChanges[String(u.id)]?.reviewed !== undefined
-                          ? localPendingChanges[String(u.id)].reviewed
-                          : u.reviewed
-                        return currentReviewed ? (
-                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
-                        ) : (
-                          <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
-                        )
-                      })()}
+                      {u.reviewed ? (
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
+                      )}
                       {singleProcessingId === String(u.id) && (
                         <span className="text-xs text-gray-500">Processing...</span>
                       )}
@@ -3217,12 +2975,7 @@ export function AdminPanel() {
                       disabled={updatingBatch || singleProcessingId === String(u.id)}
                       className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
                     >
-                      {(() => {
-                        const currentReviewed = localPendingChanges[String(u.id)]?.reviewed !== undefined
-                          ? localPendingChanges[String(u.id)].reviewed
-                          : u.reviewed
-                        return currentReviewed ? 'Mark Unreviewed' : 'Mark Reviewed'
-                      })()}
+                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
                     </button>
                     <button
                       onClick={() => handleDeleteSingle(u)}
@@ -3350,7 +3103,7 @@ export function AdminPanel() {
             {/* Create New Collection */}
             <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Create New Collection</h4>
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={newCollectionName}
@@ -3359,25 +3112,14 @@ export function AdminPanel() {
                   placeholder="e.g., 2026 Club Requests"
                   className="input-field text-sm flex-1"
                 />
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={enableNewCollection}
-                      onChange={(e) => setEnableNewCollection(e.target.checked)}
-                      className="w-3.5 h-3.5"
-                    />
-                    <span className="text-gray-700 dark:text-gray-300">Enable accepting</span>
-                  </label>
-                  <button
-                    onClick={createCollection}
-                    disabled={creatingCollection || !newCollectionName.trim()}
-                    className="btn-primary px-4 py-2 text-sm flex items-center gap-2 whitespace-nowrap"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {creatingCollection ? 'Creating...' : 'Create'}
-                  </button>
-                </div>
+                <button
+                  onClick={createCollection}
+                  disabled={creatingCollection || !newCollectionName.trim()}
+                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {creatingCollection ? 'Creating...' : 'Create'}
+                </button>
               </div>
             </div>
 
@@ -3492,11 +3234,10 @@ export function AdminPanel() {
                   }
                   return Array.from(map.values())
                 })()
-                
-                return overlayed.length === 0 ? (
+                return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
                 ) : (
-                  <>{overlayed.map((collection) => (
+                  <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
                     <div
                       key={collection.id}
                       onClick={() => setActiveCollectionId(collection.id)}
@@ -3528,7 +3269,7 @@ export function AdminPanel() {
                               </>
                             )
                           })()}
-                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.renewalEnabled !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
+                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
                           )}
                         </div>
@@ -3536,13 +3277,8 @@ export function AdminPanel() {
                           Created {new Date(collection.createdAt).toLocaleDateString()}
                         </p>
                         {(() => {
-                          const pending = localPendingCollectionChanges[collection.id]
-                          const isAccepting = pending?.accepting !== undefined 
-                            ? pending.accepting 
-                            : (collection.accepting ?? collection.enabled ?? false)
-                          const isRenewalEnabled = pending?.renewalEnabled !== undefined
-                            ? pending.renewalEnabled
-                            : (collection.renewalEnabled ?? false)
+                          const isAccepting = collection.accepting ?? collection.enabled ?? false
+                          const isRenewalEnabled = collection.renewalEnabled ?? false
                           return (
                             <>
                               {isAccepting && (
@@ -3579,8 +3315,8 @@ export function AdminPanel() {
                           )
                         })()}
                       </div>
-                      <div className="flex flex-col sm:flex-row lg:flex-col gap-3 flex-shrink-0 w-full lg:w-52" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
+                      <div className="flex flex-col gap-3 flex-shrink-0 w-48" onClick={(e) => e.stopPropagation()}>
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Public Catalog</div>
                           <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                             <input
@@ -3598,7 +3334,7 @@ export function AdminPanel() {
                             <span className="text-gray-700 dark:text-gray-300">Display?</span>
                           </label>
                         </div>
-                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Registration Form</div>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-700 dark:text-gray-300">Enable</span>
@@ -3613,7 +3349,7 @@ export function AdminPanel() {
                             />
                           </div>
                         </div>
-                        <div className="border-t lg:border-t border-gray-200 dark:border-gray-600 pt-3 flex-1 sm:flex-1 lg:flex-none">
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Renewal Form</div>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-gray-700 dark:text-gray-300">Enable</span>
@@ -4069,11 +3805,8 @@ export function AdminPanel() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span>{(() => {
-                    const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                    return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || 'Collection')
-                  })()}</span>
-                  <InfoTooltip text="Review and manage registration requests for the active collection. Links below open public registration and renewal." />
+                  <span>Club Registrations</span>
+                  <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." />
                 </h2>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
                     <div>
@@ -4113,12 +3846,7 @@ export function AdminPanel() {
                   return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
                 })() )}
                 collectionId={activeCollectionId || ''}
-                collections={collections.map(c => ({
-                  id: c.id,
-                  name: c.name,
-                  createdAt: c.createdAt,
-                  renewalEnabled: c.renewalEnabled
-                }))}
+                collections={collections}
               />
             </div>
           </div>
@@ -4269,45 +3997,6 @@ export function AdminPanel() {
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">Analytics Events</div>
                     <div className="text-xs text-gray-600 dark:text-gray-400">Clear all analytics tracking data</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.settings}
-                    onChange={(e) => setClearOptions({ ...clearOptions, settings: e.target.checked })}
-                    disabled={clearingData}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">General Settings</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">Reset all application settings to defaults</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.renewalSettings}
-                    onChange={(e) => setClearOptions({ ...clearOptions, renewalSettings: e.target.checked })}
-                    disabled={clearingData}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">Renewal Settings</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear renewal configuration</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.adminUsers}
-                    onChange={(e) => setClearOptions({ ...clearOptions, adminUsers: e.target.checked })}
-                    disabled={clearingData}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">⚠️ Admin Users</div>
-                    <div className="text-xs text-red-700 dark:text-red-300">Delete all admin user accounts (you will need to reinitialize)</div>
                   </div>
                 </label>
               </div>

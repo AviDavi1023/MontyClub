@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ClubRegistration } from '@/types/club'
-import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList } from 'lucide-react'
+import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList, Filter, Search, AlertCircle } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 
@@ -44,6 +44,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const [editFields, setEditFields] = useState<any>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'submitted' | 'name' | 'status' | 'category'>('submitted')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [renewalSettings, setRenewalSettings] = useState<Record<string, { sourceCollections: string[] }>>({})
   const [loadingRenewalSettings, setLoadingRenewalSettings] = useState(true)
   const [savingRenewalSettings, setSavingRenewalSettings] = useState(false)
@@ -449,7 +450,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     }
   })
 
-  const visible = sorted
+  // Apply status filter
+  const visible = sorted.filter(reg => {
+    if (statusFilter === 'all') return true
+    if (statusFilter === 'pending') return reg.status === 'pending'
+    if (statusFilter === 'approved') return reg.status === 'approved'
+    if (statusFilter === 'rejected') return reg.status === 'rejected'
+    return true
+  })
 
   const handleApprove = async (reg: ClubRegistration) => {
     const confirmed = await confirm({
@@ -817,79 +825,158 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       )}
 
       {/* Search and Controls */}
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3">
+      <div className="space-y-4">
+        {/* Stats Dashboard */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase tracking-wide">Total</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+              {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length}
+            </div>
+          </div>
+          <div className="p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
+            <div className="text-xs text-yellow-700 dark:text-yellow-400 font-medium uppercase tracking-wide">Pending</div>
+            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">
+              {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'pending').length}
+            </div>
+          </div>
+          <div className="p-3 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg border border-green-200 dark:border-green-700">
+            <div className="text-xs text-green-700 dark:text-green-400 font-medium uppercase tracking-wide">Approved</div>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">
+              {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'approved').length}
+            </div>
+          </div>
+          <div className="p-3 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-lg border border-red-200 dark:border-red-700">
+            <div className="text-xs text-red-700 dark:text-red-400 font-medium uppercase tracking-wide">Denied</div>
+            <div className="text-2xl font-bold text-red-700 dark:text-red-300 mt-1">
+              {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'rejected').length}
+            </div>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             placeholder="Search by club name, category, advisor, student..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Showing {visible.length} of {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length} registrations</h3>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Sort Dropdown */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="submitted">Sort: Newest First</option>
-              <option value="name">Sort: Club Name (A-Z)</option>
-              <option value="category">Sort: Category (A-Z)</option>
-              <option value="status">Sort: Status</option>
-            </select>
-            {/* View Toggle */}
-            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-              <button
-                className={`px-3 py-1.5 text-sm ${viewMode==='cards' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
-                onClick={() => setViewMode('cards')}
-                title="Cards View"
-              >
-                <LayoutList className="h-4 w-4"/> Cards
-              </button>
-              <button
-                className={`px-3 py-1.5 text-sm ${viewMode==='table' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-transparent'} text-gray-800 dark:text-gray-200 flex items-center gap-1`}
-                onClick={() => setViewMode('table')}
-                title="Table View"
-              >
-                <TableIcon className="h-4 w-4"/> Table
-              </button>
-            </div>
-            {/* Select All button for both views */}
-            {visible.length > 0 && (
-              <button
-                onClick={() => {
-                  if (selectedIds.size === visible.length) setSelectedIds(new Set())
-                  else setSelectedIds(new Set(visible.map(r=>r.id)))
-                }}
-                className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg whitespace-nowrap"
-              >
-                {selectedIds.size === visible.length ? 'Deselect All' : 'Select All'}
-              </button>
-            )}
-            {/* Refresh button */}
+
+        {/* Status Filter Buttons */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              statusFilter === 'all'
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            All ({registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              statusFilter === 'pending'
+                ? 'bg-yellow-600 dark:bg-yellow-500 text-white shadow-sm'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700'
+            }`}
+          >
+            <Clock className="h-4 w-4" />
+            Pending ({registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'pending').length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('approved')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              statusFilter === 'approved'
+                ? 'bg-green-600 dark:bg-green-500 text-white shadow-sm'
+                : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-700'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Approved ({registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'approved').length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('rejected')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              statusFilter === 'rejected'
+                ? 'bg-red-600 dark:bg-red-500 text-white shadow-sm'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-700'
+            }`}
+          >
+            <XCircle className="h-4 w-4" />
+            Denied ({registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'rejected').length})
+          </button>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <span>Showing <span className="font-semibold text-gray-900 dark:text-white">{visible.length}</span> of <span className="font-semibold text-gray-900 dark:text-white">{registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length}</span></span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sort Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <option value="submitted">Newest First</option>
+            <option value="name">Club Name (A-Z)</option>
+            <option value="category">Category (A-Z)</option>
+            <option value="status">Status</option>
+          </select>
+          
+          {/* View Toggle */}
+          <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-700">
             <button
-              onClick={loadRegistrations}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              title="Refresh"
+              className={`px-3 py-1.5 text-sm font-medium transition-colors flex items-center gap-1 ${
+                viewMode === 'cards'
+                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                  : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+              onClick={() => setViewMode('cards')}
+              title="Cards View"
             >
-              <RefreshCw className="h-5 w-5" />
+              <LayoutList className="h-4 w-4" /> Cards
             </button>
-            {/* Export CSV button */}
+            <div className="w-px bg-gray-300 dark:bg-gray-600"></div>
             <button
-              onClick={exportToCSV}
-              disabled={visible.length === 0}
-              className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+              className={`px-3 py-1.5 text-sm font-medium transition-colors flex items-center gap-1 ${
+                viewMode === 'table'
+                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                  : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+              onClick={() => setViewMode('table')}
+              title="Table View"
             >
-              <Download className="h-4 w-4" />
-              Export CSV
+              <TableIcon className="h-4 w-4" /> Table
             </button>
           </div>
+
+          {/* Refresh button */}
+          <button
+            onClick={loadRegistrations}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className="h-5 w-5" />
+          </button>
+
+          {/* Export CSV button */}
+          <button
+            onClick={exportToCSV}
+            disabled={visible.length === 0}
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </button>
         </div>
       </div>
 
@@ -1034,91 +1121,110 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       )}
 
       {visible.length === 0 ? (
-        <div className="text-center py-12 px-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <FileSpreadsheet className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-gray-400">No registrations yet</p>
+        <div className="text-center py-16 px-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 mb-4">
+            <FileSpreadsheet className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">No registrations found</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+            {statusFilter === 'all' && searchTerm ? 'Try adjusting your search' : 'Change your filter or check back later'}
+          </p>
         </div>
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-800">
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    <th className="px-3 py-2"><input type="checkbox" aria-label="Select all" onChange={(e)=>{
-                      if (e.target.checked) setSelectedIds(new Set(visible.map(r=>r.id)))
-                      else setSelectedIds(new Set())
-                    }} checked={visible.length>0 && selectedIds.size===visible.length} /></th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Submitted</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Club Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advisor</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Advisor Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Contact</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Meeting Day</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Frequency</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Social Media</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Purpose</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left">
+                      <input 
+                        type="checkbox" 
+                        aria-label="Select all" 
+                        onChange={(e)=>{
+                          if (e.target.checked) setSelectedIds(new Set(visible.map(r=>r.id)))
+                          else setSelectedIds(new Set())
+                        }} 
+                        checked={visible.length>0 && selectedIds.size===visible.length}
+                        className="rounded border-gray-300 dark:border-gray-600"
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Submitted</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Club</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {visible.map(reg => (
-                    <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(reg.id)} onChange={(e)=>{
-                        const copy = new Set(selectedIds)
-                        if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
-                        setSelectedIds(copy)
-                      }}/></td>
+                    <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.has(reg.id)} 
+                          onChange={(e)=>{
+                            const copy = new Set(selectedIds)
+                            if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
+                            setSelectedIds(copy)
+                          }}
+                          className="rounded border-gray-300 dark:border-gray-600"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className={getStatusBadge(reg.status)}>{getStatusIcon(reg.status)}{reg.status}</span>
+                          <span className={getStatusBadge(reg.status)}>
+                            {getStatusIcon(reg.status)}
+                            <span className="capitalize">{reg.status}</span>
+                          </span>
                           {localPendingRegistrationChanges[reg.id] && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
+                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">⟳</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{new Date(reg.submittedAt).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.clubName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="whitespace-nowrap">{new Date(reg.submittedAt).toLocaleDateString()}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString()}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 dark:text-white max-w-xs truncate">{reg.clubName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{reg.email}</div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.category || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.advisorName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.email}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.studentContactName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.studentContactEmail}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.meetingDay}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.meetingFrequency}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.location}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.socialMedia || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.statementOfPurpose}>{reg.statementOfPurpose || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={reg.notes}>{reg.notes || '—'}</td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap sticky right-0 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
-                        <div className="flex gap-2 items-center">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white max-w-xs truncate">{reg.advisorName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.studentContactName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                        {reg.meetingDay} • {reg.meetingFrequency}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex gap-2 items-center justify-end flex-nowrap">
+                          {reg.status === 'pending' && (
+                            <button 
+                              onClick={() => handleApprove(reg)} 
+                              disabled={processingId === reg.id}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Approve
+                            </button>
+                          )}
                           <button 
                             onClick={() => openEditModal(reg)} 
-                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                            disabled={processingId === reg.id}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
                           >
                             Edit
                           </button>
                           <button 
-                            onClick={() => {setCurrentReg(reg); setShowDenyModal(true);}} 
-                            className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                            onClick={() => handleDeny(reg)} 
+                            disabled={processingId === reg.id}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
                           >
                             Deny
                           </button>
-                          {reg.status === 'pending' && (
-                            <>
-                              <button 
-                                onClick={() => handleApprove(reg)} 
-                                className="text-green-600 dark:text-green-400 hover:underline text-xs"
-                              >
-                                Approve
-                              </button>
-                            </>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -1127,237 +1233,138 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               </table>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {visible.map((reg) => {
                 const isExpanded = expandedId === reg.id
-                const isProcessing = processingId === reg.id
                 return (
-                  <div key={reg.id} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
-                    <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <label className="flex items-start gap-3 select-none">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(reg.id)}
-                            onChange={(e) => {
-                              const copy = new Set(selectedIds)
-                              if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
-                              setSelectedIds(copy)
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="mt-1"
-                          />
-                        </label>
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : reg.id)}>
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className={getStatusBadge(reg.status)}>
-                              {getStatusIcon(reg.status)}
-                              {reg.status.charAt(0).toUpperCase() + reg.status.slice(1)}
-                            </span>
-                            {localPendingRegistrationChanges[reg.id] && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
-                            )}
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {new Date(reg.submittedAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <h4 className="font-semibold text-gray-900 dark:text-white">{reg.clubName}</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            <span className="font-medium">{reg.category}</span> • {reg.advisorName}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {reg.location} • {reg.meetingDay}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {reg.email} • {reg.studentContactName}
-                          </p>
-                          {reg.socialMedia && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {reg.socialMedia}
-                            </p>
-                          )}
-                          {reg.statementOfPurpose && (
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-3">
-                              {reg.statementOfPurpose}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-2 items-start">
-                          <button 
-                            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                            onClick={(e) => { e.stopPropagation(); openEditModal(reg); }}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" 
-                            onClick={() => setExpandedId(isExpanded ? null : reg.id)}
-                          >
-                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                          </button>
-                        </div>
-                            {showEditModal && editReg && (
-                              <>
-                                <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowEditModal(false)} />
-                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-                                  <div className="min-h-full flex items-center justify-center py-8">
-                                    <form className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full pointer-events-auto my-auto" onSubmit={e => { e.preventDefault(); saveEdit(); }}>
-                                      <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10 rounded-t-lg">
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Club Registration</h3>
-                                        <button type="button" onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
-                                      </div>
-                                      <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Name</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.clubName || ''} onChange={e => handleEditField('clubName', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</span>
-                                            <select className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.category || ''} onChange={e => handleEditField('category', e.target.value)}>
-                                              <option value="">Select a category</option>
-                                              {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                            </select>
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Name</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.advisorName || ''} onChange={e => handleEditField('advisorName', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Email</span>
-                                            <input type="email" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.email || ''} onChange={e => handleEditField('email', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Contact Name</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.studentContactName || ''} onChange={e => handleEditField('studentContactName', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Contact Email</span>
-                                            <input type="email" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.studentContactEmail || ''} onChange={e => handleEditField('studentContactEmail', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Location</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.location || ''} onChange={e => handleEditField('location', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Meeting Day</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.meetingDay || ''} onChange={e => handleEditField('meetingDay', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Meeting Frequency</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.meetingFrequency || ''} onChange={e => handleEditField('meetingFrequency', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Social Media</span>
-                                            <input type="text" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.socialMedia || ''} onChange={e => handleEditField('socialMedia', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Agreement Date</span>
-                                            <input type="date" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.advisorAgreementDate || ''} onChange={e => handleEditField('advisorAgreementDate', e.target.value)} />
-                                          </label>
-                                          <label className="block">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Agreement Date</span>
-                                            <input type="date" className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" value={editFields.clubAgreementDate || ''} onChange={e => handleEditField('clubAgreementDate', e.target.value)} />
-                                          </label>
-                                          <label className="block md:col-span-2">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Statement of Purpose</span>
-                                            <textarea className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" rows={3} value={editFields.statementOfPurpose || ''} onChange={e => handleEditField('statementOfPurpose', e.target.value)} />
-                                          </label>
-                                          <label className="block md:col-span-2">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</span>
-                                            <textarea className="mt-1 w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm" rows={2} value={editFields.notes || ''} onChange={e => handleEditField('notes', e.target.value)} />
-                                          </label>
-                                        </div>
-                                      </div>
-                                      <div className="flex gap-3 justify-end p-6 border-t border-gray-200 dark:border-gray-700 sticky bottom-0 bg-white dark:bg-gray-800 rounded-b-lg">
-                                        <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors">Cancel</button>
-                                        <button type="submit" disabled={processingId === editReg.id} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors">
-                                          {processingId === editReg.id ? 'Saving...' : 'Save Changes'}
-                                        </button>
-                                      </div>
-                                    </form>
-                                  </div>
-                                </div>
-                              </>
-                            )}
+                  <div 
+                    key={reg.id} 
+                    className={`border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden shadow-sm hover:shadow-md transition-all ${
+                      selectedIds.has(reg.id) ? 'ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-gray-900' : ''
+                    }`}
+                  >
+                    {/* Header with status and checkbox */}
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(reg.id)}
+                        onChange={(e) => {
+                          const copy = new Set(selectedIds)
+                          if (e.target.checked) copy.add(reg.id); else copy.delete(reg.id)
+                          setSelectedIds(copy)
+                        }}
+                        className="rounded border-gray-300 dark:border-gray-600"
+                      />
+                      <div className="flex-1">
+                        <span className={getStatusBadge(reg.status)}>
+                          {getStatusIcon(reg.status)}
+                          <span className="capitalize font-semibold">{reg.status}</span>
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {new Date(reg.submittedAt).toLocaleDateString()}
                       </div>
                     </div>
-                    {isExpanded && (
-                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Name</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.clubName}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.advisorName}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Email</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.email}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Location</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.location}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Meeting Day</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.meetingDay}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Frequency</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.meetingFrequency}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Contact</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.studentContactName}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student Email</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.studentContactEmail}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advisor Agreement</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.advisorAgreementDate}</p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Club Agreement</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.clubAgreementDate}</p>
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Statement of Purpose</label>
-                            <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.statementOfPurpose}</p>
-                          </div>
-                          {reg.denialReason && (
-                            <div className="md:col-span-2">
-                              <label className="text-xs font-medium text-red-600 dark:text-red-400 uppercase">Denial Reason</label>
-                              <p className="text-sm text-gray-900 dark:text-white mt-1">{reg.denialReason}</p>
-                            </div>
-                          )}
+
+                    {/* Main content */}
+                    <div 
+                      className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      onClick={() => setExpandedId(isExpanded ? null : reg.id)}
+                    >
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2">
+                        {reg.clubName}
+                      </h4>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Category:</span>
+                          <span className="text-gray-900 dark:text-white font-medium">{reg.category || '—'}</span>
                         </div>
-                        {reg.status === 'pending' && (
-                          <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <button
-                              onClick={() => handleApprove(reg)}
-                              disabled={isProcessing}
-                              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              {isProcessing ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              onClick={() => handleDeny(reg)}
-                              disabled={isProcessing}
-                              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              {isProcessing ? 'Processing...' : 'Deny'}
-                            </button>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor:</span>
+                          <span className="text-gray-900 dark:text-white">{reg.advisorName}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Leader:</span>
+                          <span className="text-gray-900 dark:text-white">{reg.studentContactName}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Meeting:</span>
+                          <span className="text-gray-900 dark:text-white">{reg.meetingDay} ({reg.meetingFrequency})</span>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Email:</span>
+                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.email}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Contact:</span>
+                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.studentContactEmail}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Location:</span>
+                              <span className="text-gray-900 dark:text-white">{reg.location}</span>
+                            </div>
+                            {reg.socialMedia && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Social:</span>
+                                <span className="text-gray-900 dark:text-white break-all">{reg.socialMedia}</span>
+                              </div>
+                            )}
+                            {reg.statementOfPurpose && (
+                              <div className="flex items-start gap-2 mt-3">
+                                <span className="text-gray-600 dark:text-gray-400 font-medium">Purpose:</span>
+                                <p className="text-gray-700 dark:text-gray-300 text-xs">{reg.statementOfPurpose}</p>
+                              </div>
+                            )}
+                            {reg.denialReason && (
+                              <div className="flex items-start gap-2 mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
+                                <span className="text-red-700 dark:text-red-400 font-medium min-w-fit">Denial Reason:</span>
+                                <p className="text-red-700 dark:text-red-400 text-xs">{reg.denialReason}</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
+                    </div>
+
+                    {/* Footer with actions */}
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : reg.id)}
+                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium"
+                      >
+                        {isExpanded ? '▼ Less' : '▶ More'}
+                      </button>
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {reg.status === 'pending' && (
+                          <button
+                            onClick={() => handleApprove(reg)}
+                            disabled={processingId === reg.id}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Approve
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEditModal(reg)}
+                          disabled={processingId === reg.id}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeny(reg)}
+                          disabled={processingId === reg.id}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                        >
+                          Deny
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )
               })}
