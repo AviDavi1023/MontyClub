@@ -38,16 +38,29 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const [denyReason, setDenyReason] = useState('')
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('montyclub:regViewMode') as 'cards' | 'table') || 'table'
+    }
+    return 'table'
+  })
   const [showEditModal, setShowEditModal] = useState(false)
   const [editReg, setEditReg] = useState<ClubRegistration | null>(null)
   const [editFields, setEditFields] = useState<any>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'submitted' | 'name' | 'status' | 'category'>('submitted')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [advisorFilter, setAdvisorFilter] = useState<string>('')
+  const [meetingDayFilter, setMeetingDayFilter] = useState<string>('')
   const [renewalSettings, setRenewalSettings] = useState<Record<string, { sourceCollections: string[] }>>({})
   const [loadingRenewalSettings, setLoadingRenewalSettings] = useState(true)
   const [savingRenewalSettings, setSavingRenewalSettings] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const [undoAction, setUndoAction] = useState<{ type: string; data: any; timestamp: number } | null>(null)
+  const [quickEditId, setQuickEditId] = useState<string | null>(null)
+  const [quickEditFields, setQuickEditFields] = useState<{ clubName?: string; category?: string }>({})
     const openEditModal = (reg: ClubRegistration) => {
       setEditReg(reg)
       setEditFields({ ...reg })
@@ -56,6 +69,41 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
     const handleEditField = (field: string, value: any) => {
       setEditFields((prev: any) => ({ ...prev, [field]: value }))
+    }
+
+    const saveQuickEdit = async (reg: ClubRegistration) => {
+      if (!quickEditId) return
+      setProcessingId(reg.id)
+      try {
+        const response = await fetch('/api/registration-update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': adminApiKey
+          },
+          body: JSON.stringify({ 
+            registrationId: reg.id, 
+            collection: reg.collectionId, 
+            updates: quickEditFields 
+          })
+        })
+        if (!response.ok) throw new Error('Failed to update')
+        setQuickEditId(null)
+        setQuickEditFields({})
+        await loadRegistrations()
+        // Broadcast reload
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const bc = new window.BroadcastChannel('clubDataSource')
+            bc.postMessage('reload')
+            bc.close()
+          } catch {}
+        }
+      } catch (err) {
+        alert('Failed to save changes')
+      } finally {
+        setProcessingId(null)
+      }
     }
 
     const saveEdit = async () => {
@@ -411,6 +459,22 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     }
   }, [registrations, localPendingRegistrationChanges, registrationStorageLoaded])
 
+  // Save view mode preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('montyclub:regViewMode', viewMode)
+    }
+  }, [viewMode])
+
+  // Scroll to top button visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   // Merge server registrations with local pending changes
   const registrationsOverlayed = registrations.map(reg => {
     const pending = localPendingRegistrationChanges[reg.id]
@@ -423,31 +487,72 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     return overlayed
   }).filter(reg => !localPendingRegistrationChanges[reg.id]?.deleted)
 
-  // Filter and sort registrations
-  const filtered = registrationsOverlayed.filter(reg => {
-    const search = searchTerm.toLowerCase()
-    return (
-      reg.clubName.toLowerCase().includes(search) ||
-      reg.category?.toLowerCase().includes(search) ||
-      reg.advisorName?.toLowerCase().includes(search) ||
-      reg.studentContactName?.toLowerCase().includes(search) ||
-      reg.studentContactEmail?.toLowerCase().includes(search) ||
-      reg.statementOfPurpose?.toLowerCase().includes(search)
+  // Get unique values for filters
+  const uniqueCategories = Array.from(new Set(registrationsOverlayed.map(r => r.category).filter(Boolean))).sort()
+  const uniqueAdvisors = Array.from(new Set(registrationsOverlayed.map(r => r.advisorName).filter(Boolean))).sort()
+  const uniqueMeetingDays = Array.from(new Set(registrationsOverlayed.map(r => r.meetingDay).filter(Boolean))).sort()
+
+  // Duplicate detection: Find registrations with similar club names
+  const detectDuplicates = (clubName: string, currentId: string) => {
+    const normalized = clubName.toLowerCase().trim()
+    const duplicates = registrationsOverlayed.filter(r => 
+      r.id !== currentId && 
+      r.clubName.toLowerCase().trim().includes(normalized) || 
+      normalized.includes(r.clubName.toLowerCase().trim())
     )
+    return duplicates.length > 0 ? duplicates : null
+  }
+
+  // Filter and sort registrations with enhanced search (matching main page algorithm)
+  const filtered = registrationsOverlayed.filter(reg => {
+    // Enhanced search filter (matches main page algorithm)
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase().trim()
+      const fields = [
+        reg.clubName,
+        reg.category,
+        reg.advisorName,
+        reg.studentContactName,
+        reg.studentContactEmail,
+        reg.email,
+        reg.statementOfPurpose,
+        reg.location,
+        reg.meetingDay,
+        reg.meetingFrequency,
+      ]
+      const haystack = fields.map(f => (f || '').toLowerCase()).join(' ').replace(/\s+/g, ' ').trim()
+      if (!haystack.includes(searchLower)) return false
+    }
+
+    // Category filter
+    if (categoryFilter && reg.category !== categoryFilter) return false
+
+    // Advisor filter
+    if (advisorFilter && reg.advisorName !== advisorFilter) return false
+
+    // Meeting day filter
+    if (meetingDayFilter && reg.meetingDay !== meetingDayFilter) return false
+
+    return true
   })
 
   const sorted = [...filtered].sort((a, b) => {
+    let comparison = 0
     switch (sortBy) {
       case 'name':
-        return a.clubName.localeCompare(b.clubName)
+        comparison = a.clubName.localeCompare(b.clubName)
+        break
       case 'category':
-        return (a.category || '').localeCompare(b.category || '')
+        comparison = (a.category || '').localeCompare(b.category || '')
+        break
       case 'status':
-        return a.status.localeCompare(b.status)
+        comparison = a.status.localeCompare(b.status)
+        break
       case 'submitted':
       default:
-        return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+        comparison = new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     }
+    return sortDirection === 'asc' ? comparison : -comparison
   })
 
   // Apply status filter
@@ -543,8 +648,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         registrationId: reg.id 
       }))
 
-      // Success: fetch fresh data to trigger auto-clear
-      alert('Registration approved successfully!')
+      // Success: show undo toast
+      setUndoAction({ type: 'approve', data: reg, timestamp: Date.now() })
+      setTimeout(() => setUndoAction(null), 5000)
+      
       console.log(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'load-registrations-start', 
@@ -654,8 +761,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         throw new Error('Failed to deny registration')
       }
 
-      // Success: fetch fresh data to trigger auto-clear
-      alert('Registration denied.')
+      // Success: show undo toast
+      setUndoAction({ type: 'deny', data: currentReg, timestamp: Date.now() })
+      setTimeout(() => setUndoAction(null), 5000)
+      
       await loadRegistrations()
     } catch (err: any) {
       // Revert on error using functional update
@@ -733,12 +842,22 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    const filename = `club-registrations-${collectionName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`
+    const filterSuffix = statusFilter !== 'all' ? `-${statusFilter}` : ''
+    const filename = `club-registrations-${collectionName.toLowerCase().replace(/\s+/g, '-')}${filterSuffix}-${new Date().toISOString().split('T')[0]}.csv`
     link.setAttribute('download', filename)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const handleColumnSort = (column: 'submitted' | 'name' | 'status' | 'category') => {
+    if (sortBy === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortDirection('desc')
+    }
   }
 
   const getStatusIcon = (status: string) => {
@@ -766,8 +885,33 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-600 border-t-transparent"></div>
+      <div className="space-y-4">
+        {/* Skeleton for stats dashboard */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 animate-pulse">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 mb-2"></div>
+              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-12"></div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Skeleton for search bar */}
+        <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+        
+        {/* Skeleton for filter buttons */}
+        <div className="flex gap-2">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-10 w-24 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+        
+        {/* Skeleton for table/cards */}
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-24 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-pulse"></div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -911,6 +1055,54 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             <XCircle className="h-4 w-4" />
             Denied ({registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'rejected').length})
           </button>
+        </div>
+
+        {/* Quick Filters */}
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <option value="">All Categories</option>
+            {uniqueCategories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <select
+            value={advisorFilter}
+            onChange={(e) => setAdvisorFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <option value="">All Advisors</option>
+            {uniqueAdvisors.map(adv => (
+              <option key={adv} value={adv}>{adv}</option>
+            ))}
+          </select>
+          <select
+            value={meetingDayFilter}
+            onChange={(e) => setMeetingDayFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <option value="">All Meeting Days</option>
+            {uniqueMeetingDays.map(day => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+          {(categoryFilter || advisorFilter || meetingDayFilter) && (
+            <button
+              onClick={() => {
+                setCategoryFilter('')
+                setAdvisorFilter('')
+                setMeetingDayFilter('')
+              }}
+              className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1"
+              title="Clear all filters"
+            >
+              <X className="h-4 w-4" />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -1171,10 +1363,50 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         className="rounded border-gray-300 dark:border-gray-600"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Submitted</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Club</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Category</th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleColumnSort('status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Status
+                        {sortBy === 'status' && (
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleColumnSort('submitted')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Submitted
+                        {sortBy === 'submitted' && (
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleColumnSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Club
+                        {sortBy === 'name' && (
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleColumnSort('category')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Category
+                        {sortBy === 'category' && (
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
@@ -1212,10 +1444,78 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString()}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white max-w-xs truncate">{reg.clubName}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{reg.email}</div>
+                        {quickEditId === reg.id ? (
+                          <div className="space-y-1">
+                            <input
+                              type="text"
+                              value={quickEditFields.clubName ?? reg.clubName}
+                              onChange={(e) => setQuickEditFields(prev => ({ ...prev, clubName: e.target.value }))}
+                              className="w-full px-2 py-1 text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
+                              placeholder="Club name"
+                              autoFocus
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => saveQuickEdit(reg)}
+                                disabled={processingId === reg.id}
+                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setQuickEditId(null)
+                                  setQuickEditFields({})
+                                }}
+                                className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onDoubleClick={() => {
+                              setQuickEditId(reg.id)
+                              setQuickEditFields({ clubName: reg.clubName, category: reg.category })
+                            }}
+                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1"
+                            title="Double-click to edit"
+                          >
+                            <div className="font-medium text-gray-900 dark:text-white max-w-xs truncate">{reg.clubName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{reg.email}</div>
+                          </div>
+                        )}
+                        {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-orange-600 dark:text-orange-400">
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Possible duplicate</span>
+                          </div>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{reg.category || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                        {quickEditId === reg.id ? (
+                          <select
+                            value={quickEditFields.category ?? reg.category}
+                            onChange={(e) => setQuickEditFields(prev => ({ ...prev, category: e.target.value }))}
+                            className="w-full px-2 py-1 text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
+                          >
+                            <option value="">Select category</option>
+                            {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        ) : (
+                          <span 
+                            onDoubleClick={() => {
+                              setQuickEditId(reg.id)
+                              setQuickEditFields({ clubName: reg.clubName, category: reg.category })
+                            }}
+                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 inline-block"
+                            title="Double-click to edit"
+                          >
+                            {reg.category || '—'}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white max-w-xs truncate">{reg.advisorName}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.studentContactName}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
@@ -1296,6 +1596,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2">
                         {reg.clubName}
                       </h4>
+                      {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
+                        <div className="flex items-center gap-1 mb-2 px-2 py-1 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded text-xs text-orange-700 dark:text-orange-400">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <span className="font-medium">Possible duplicate club name detected</span>
+                        </div>
+                      )}
 
                       <div className="space-y-2 text-sm">
                         <div className="flex items-start gap-2">
@@ -1457,6 +1763,165 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
+      )}
+
+      {/* Quick Jump to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg transition-all hover:scale-110 z-40"
+          title="Scroll to top"
+        >
+          <ChevronUp className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Undo Toast */}
+      {undoAction && Date.now() - undoAction.timestamp < 5000 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-6 py-3 rounded-lg shadow-2xl z-50 flex items-center gap-4">
+          <span className="font-medium">
+            {undoAction.type === 'approve' && `Approved "${undoAction.data.clubName}"`}
+            {undoAction.type === 'deny' && `Denied "${undoAction.data.clubName}"`}
+          </span>
+          <button
+            onClick={() => {
+              // Undo the action by removing from pending changes
+              setLocalPendingRegistrationChanges(prev => {
+                const newPending = { ...prev }
+                delete newPending[undoAction.data.id]
+                try {
+                  if (Object.keys(newPending).length === 0) {
+                    localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+                    localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+                  } else {
+                    localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                    localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                  }
+                } catch (e) {}
+                return newPending
+              })
+              setUndoAction(null)
+              loadRegistrations()
+            }}
+            className="px-3 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Undo
+          </button>
+          <button
+            onClick={() => setUndoAction(null)}
+            className="text-gray-400 hover:text-white dark:hover:text-gray-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
+      {/* Sticky Action Bar (Desktop & Mobile) */}
+      {selectedIds.size > 0 && visible.length > 5 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-blue-600 dark:bg-blue-700 text-white shadow-2xl z-50 border-t-4 border-blue-500">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="font-semibold text-lg">{selectedIds.size} selected</div>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-sm text-blue-100 hover:text-white underline"
+                >
+                  Deselect all
+                </button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: 'Approve Registrations',
+                      message: `Approve ${selectedIds.size} selected registrations?`,
+                      confirmText: 'Approve All',
+                      variant: 'primary'
+                    })
+                    if (!confirmed) return
+                    const idsArray = Array.from(selectedIds)
+                    setLocalPendingRegistrationChanges(prev => {
+                      const newPending = { ...prev }
+                      for (const id of idsArray) {
+                        newPending[id] = { status: 'approved' }
+                      }
+                      try {
+                        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                      } catch (e) {}
+                      return newPending
+                    })
+                    
+                    for (const id of idsArray) {
+                      const reg = registrations.find(r => r.id === id)
+                      if (!reg) continue
+                      try {
+                        await fetch('/api/registration-approve', {
+                          method: 'POST',
+                          headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                          body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
+                        })
+                      } catch (err) {
+                        console.error('Failed to approve', id, err)
+                      }
+                    }
+                    setSelectedIds(new Set())
+                    await loadRegistrations()
+                  }}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <CheckCircle2 className="h-5 w-5" />
+                  Approve Selected
+                </button>
+                <button
+                  onClick={async () => {
+                    const reason = prompt('Optional denial reason (applies to all selected):') || ''
+                    const confirmed = await confirm({
+                      title: 'Deny Registrations',
+                      message: `Deny ${selectedIds.size} selected registrations?`,
+                      confirmText: 'Deny All',
+                      variant: 'danger'
+                    })
+                    if (!confirmed) return
+                    const idsArray = Array.from(selectedIds)
+                    setLocalPendingRegistrationChanges(prev => {
+                      const newPending = { ...prev }
+                      for (const id of idsArray) {
+                        newPending[id] = { status: 'rejected', denialReason: reason }
+                      }
+                      try {
+                        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                      } catch (e) {}
+                      return newPending
+                    })
+
+                    for (const id of idsArray) {
+                      const reg = registrations.find(r => r.id === id)
+                      if (!reg) continue
+                      try {
+                        await fetch('/api/registration-deny', {
+                          method: 'POST',
+                          headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                          body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
+                        })
+                      } catch (err) {
+                        console.error('Failed to deny', id, err)
+                      }
+                    }
+                    setSelectedIds(new Set())
+                    await loadRegistrations()
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <XCircle className="h-5 w-5" />
+                  Deny Selected
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

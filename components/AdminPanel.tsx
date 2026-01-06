@@ -2863,141 +2863,6 @@ export function AdminPanel() {
         </div>
       </div>
 
-      {/* Update Requests */}
-      <div ref={updatesRef} className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <span>Update Requests {updates.length > 0 && `(${updates.length})`}</span>
-            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." />
-          </h2>
-          <button
-            onClick={() => fetchUpdates()}
-            className="btn-secondary p-2"
-            title="Refresh requests"
-            disabled={refreshingUpdates}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {updates.length === 0 ? (
-          <p className="text-gray-600 dark:text-gray-400">No update requests yet.</p>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (updatingBatch) return
-                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
-                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
-                  }}
-                  disabled={updatingBatch}
-                  className="btn-secondary text-xs"
-                >
-                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
-                </button>
-                {selectedUpdateIds.size > 0 && (
-                  <>
-                    <button
-                      onClick={() => performBatch('review')}
-                      disabled={updatingBatch}
-                      className="btn-secondary text-xs"
-                    >Mark Reviewed</button>
-                    <button
-                      onClick={() => performBatch('unreview')}
-                      disabled={updatingBatch}
-                      className="btn-secondary text-xs"
-                    >Mark Unreviewed</button>
-                    <button
-                      onClick={() => performBatch('delete')}
-                      disabled={updatingBatch}
-                      className="text-red-600 dark:text-red-400 text-xs"
-                    >Delete</button>
-                  </>
-                )}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
-              </div>
-            </div>
-
-            {updates
-              .map((u) => {
-                const pending = localPendingChanges[String(u.id)]
-                // If marked as deleted locally, hide it
-                if (pending?.deleted) return null
-                // Apply pending reviewed state if it exists
-                const displayItem = pending?.reviewed !== undefined ? { ...u, reviewed: pending.reviewed } : u
-                return { ...displayItem, _originalId: u.id }
-              })
-              .filter(item => item !== null)
-              .map((u: any) => (
-              <div key={u._originalId} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
-                  <div className="flex items-start gap-3 flex-1">
-                    <label className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        disabled={updatingBatch || singleProcessingId === String(u.id)}
-                        checked={selectedUpdateIds.has(String(u.id))}
-                        onChange={() => {
-                          const id = String(u.id)
-                          const next = new Set(selectedUpdateIds)
-                          if (next.has(id)) next.delete(id); else next.add(id)
-                          setSelectedUpdateIds(next)
-                        }}
-                        className="mt-1"
-                      />
-                    </label>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
-                      <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
-                      {u.reviewed ? (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
-                      )}
-                      {singleProcessingId === String(u.id) && (
-                        <span className="text-xs text-gray-500">Processing...</span>
-                      )}
-                      {localPendingChanges[String(u.id)] && (
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">Syncing...</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
-                  </div>
-                  </div>
-                  <div className="flex items-center gap-2 md:flex-shrink-0 mt-2 md:mt-0">
-                    <button
-                      onClick={() => handleToggleSingle(u)}
-                      disabled={updatingBatch || singleProcessingId === String(u.id)}
-                      className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
-                    >
-                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSingle(u)}
-                      disabled={updatingBatch || singleProcessingId === String(u.id)}
-                      className="text-red-600 dark:text-red-400 text-xs flex-1 md:flex-initial"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                  <p><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
-                  <p className="mt-1"><strong>Contact:</strong> {u.contactEmail || '—'}</p>
-                  {u.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {u.additionalNotes}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Quick Actions */}
       <div ref={announcementsRef} className="card">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -3405,7 +3270,151 @@ export function AdminPanel() {
                 })()}
               </button>
           </div>
+        </div>
+      </div>
 
+      {/* Update Requests */}
+      <div ref={updatesRef} className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>Update Requests {updates.length > 0 && `(${updates.length})`}</span>
+            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." />
+          </h2>
+          <button
+            onClick={() => fetchUpdates()}
+            className="btn-secondary p-2"
+            title="Refresh requests"
+            disabled={refreshingUpdates}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {updates.length === 0 ? (
+          <p className="text-gray-600 dark:text-gray-400">No update requests yet.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (updatingBatch) return
+                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
+                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
+                  }}
+                  disabled={updatingBatch}
+                  className="btn-secondary text-xs"
+                >
+                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedUpdateIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={() => performBatch('review')}
+                      disabled={updatingBatch}
+                      className="btn-secondary text-xs"
+                    >Mark Reviewed</button>
+                    <button
+                      onClick={() => performBatch('unreview')}
+                      disabled={updatingBatch}
+                      className="btn-secondary text-xs"
+                    >Mark Unreviewed</button>
+                    <button
+                      onClick={() => performBatch('delete')}
+                      disabled={updatingBatch}
+                      className="text-red-600 dark:text-red-400 text-xs"
+                    >Delete</button>
+                  </>
+                )}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
+              </div>
+            </div>
+
+            {updates
+              .map((u) => {
+                const pending = localPendingChanges[String(u.id)]
+                // If marked as deleted locally, hide it
+                if (pending?.deleted) return null
+                // Apply pending reviewed state if it exists
+                const displayItem = pending?.reviewed !== undefined ? { ...u, reviewed: pending.reviewed } : u
+                return { ...displayItem, _originalId: u.id }
+              })
+              .filter(item => item !== null)
+              .map((u: any) => (
+              <div key={u._originalId} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+                  <div className="flex items-start gap-3 flex-1">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        disabled={updatingBatch || singleProcessingId === String(u.id)}
+                        checked={selectedUpdateIds.has(String(u.id))}
+                        onChange={() => {
+                          const id = String(u.id)
+                          const next = new Set(selectedUpdateIds)
+                          if (next.has(id)) next.delete(id); else next.add(id)
+                          setSelectedUpdateIds(next)
+                        }}
+                        className="mt-1"
+                      />
+                    </label>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
+                      <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
+                      {u.reviewed ? (
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
+                      )}
+                      {singleProcessingId === String(u.id) && (
+                        <span className="text-xs text-gray-500">Processing...</span>
+                      )}
+                      {localPendingChanges[String(u.id)] && (
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">Syncing...</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
+                  </div>
+                  </div>
+                  <div className="flex items-center gap-2 md:flex-shrink-0 mt-2 md:mt-0">
+                    <button
+                      onClick={() => handleToggleSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
+                    >
+                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSingle(u)}
+                      disabled={updatingBatch || singleProcessingId === String(u.id)}
+                      className="text-red-600 dark:text-red-400 text-xs flex-1 md:flex-initial"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+                  <p><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
+                  <p className="mt-1"><strong>Contact:</strong> {u.contactEmail || '—'}</p>
+                  {u.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {u.additionalNotes}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions - Pilot Analytics */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <span>Quick Actions</span>
+          <InfoTooltip text="Toggle announcements visibility, manage analytics, and open statistics. These actions affect site-wide behavior." />
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Pilot Analytics */}
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">Pilot Analytics</h3>
