@@ -428,16 +428,29 @@ export function ClubsList() {
       'thursday': 4, 'friday': 5, 'saturday': 6
     }
     
-    const targetDayOfWeek = dayMap[meetingDayLower]
-    if (targetDayOfWeek === undefined) return null
+    // Parse meeting days - handle multiple days separated by comma, slash, "and", or "&"
+    const targetDays = new Set<number>()
+    const dayPatterns = meetingDayLower.split(/[,/&]|and/).map(d => d.trim()).filter(Boolean)
     
-    // Search up to 6 weeks ahead
+    for (const pattern of dayPatterns) {
+      // Try to match day names (remove "s" for plural variants like "Mondays" -> "Monday")
+      const singularPattern = pattern.replace(/s$/, '')
+      const dayNum = dayMap[pattern] ?? dayMap[singularPattern]
+      if (dayNum !== undefined) {
+        targetDays.add(dayNum)
+      }
+    }
+    
+    // If no days were parsed, return null
+    if (targetDays.size === 0) return null
+    
+    // Search up to 6 weeks ahead for first matching day
     let searchDate = new Date(currentDate)
     searchDate.setHours(0, 0, 0, 0)
     
     for (let i = 0; i < 42; i++) {
       const week = getWeekOfMonth(searchDate)
-      if (searchDate.getDay() === targetDayOfWeek && allowedWeeks.has(week)) {
+      if (targetDays.has(searchDate.getDay()) && allowedWeeks.has(week)) {
         return new Date(searchDate)
       }
       searchDate.setDate(searchDate.getDate() + 1)
