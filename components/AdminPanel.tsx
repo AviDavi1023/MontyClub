@@ -13,6 +13,11 @@ import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { slugifyName } from '@/lib/slug'
 import { createBroadcastListener, broadcast } from '@/lib/broadcast'
+import { AdminSidebar } from '@/components/AdminSidebar'
+import { ActivityLog, logActivity } from '@/components/ActivityLog'
+import { SettingsPanel } from '@/components/SettingsPanel'
+import { AnnouncementsBoard } from '@/components/AnnouncementsBoard'
+import { DashboardOverview } from '@/components/DashboardOverview'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -97,6 +102,7 @@ export function AdminPanel() {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [activeSection, setActiveSection] = useState('dashboard')
   const [showUserManagement, setShowUserManagement] = useState(false)
   const [clubs, setClubs] = useState<Club[]>([])
   const [updates, setUpdates] = useState<any[]>([])
@@ -2776,8 +2782,198 @@ export function AdminPanel() {
     )
   }
 
+  // Calculate registration stats for dashboard
+  const pendingRegistrationsCount = 0 // Would calculate from actual data
+  const approvedRegistrationsCount = 0
+  const rejectedRegistrationsCount = 0
+  
+  // Handle section navigation
+  const handleSectionChange = (section: string) => {
+    setActiveSection(section)
+    if (section === 'registrations' && !activeCollectionId && collections.length > 0) {
+      const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
+      setActiveCollectionId(enabledCol?.id || collections[0].id)
+    }
+  }
+
+  // Helper to handle Excel import
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !activeCollectionId) return
+    
+    if (activeCollectionId.startsWith('temp-col-')) {
+      showToast('Please wait for the collection to be created before importing', 'error')
+      return
+    }
+    
+    const file = e.target.files[0]
+    if (!file.name.endsWith('.xlsx')) {
+      showToast('Please upload an Excel (.xlsx) file', 'error')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('collectionId', activeCollectionId)
+
+    try {
+      setImportingExcel(true)
+      logActivity({
+        type: 'import',
+        action: 'Excel Import Started',
+        details: `Importing from ${file.name} into collection`,
+        status: 'info',
+        user: currentUser || undefined,
+      })
+      
+      const response = await fetch('/api/upload-excel', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      showToast(result.message || 'Import successful!', 'success')
+      logActivity({
+        type: 'import',
+        action: 'Excel Import Completed',
+        details: result.message || 'Import successful',
+        status: 'success',
+        user: currentUser || undefined,
+      })
+      
+      e.target.value = ''
+      
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        try {
+          const bc = new window.BroadcastChannel('clubData')
+          bc.postMessage('changed')
+          bc.close()
+        } catch {}
+      }
+    } catch (error) {
+      console.error('Excel import error:', error)
+      showToast(String(error), 'error')
+      logActivity({
+        type: 'import',
+        action: 'Excel Import Failed',
+        details: String(error),
+        status: 'error',
+        user: currentUser || undefined,
+      })
+    } finally {
+      setImportingExcel(false)
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-[calc(100vh-4rem)]">
+      {/* Sidebar Navigation */}
+      <AdminSidebar 
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        pendingRegistrationsCount={pendingRegistrationsCount}
+      />
+      
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-auto">
+        <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-6 max-w-7xl">
+          {/* Route to different sections based on activeSection */}
+          {activeSection === 'dashboard' && (
+            <DashboardOverview
+              clubs={clubs}
+              collections={collections}
+              catalogStatus={catalogStatus}
+              onNavigate={handleSectionChange}
+              pendingRegistrationsCount={pendingRegistrationsCount}
+              approvedRegistrationsCount={approvedRegistrationsCount}
+              rejectedRegistrationsCount={rejectedRegistrationsCount}
+            />
+          )}
+          
+          {activeSection === 'settings' && (
+            <SettingsPanel
+              adminApiKey={adminApiKey}
+              setAdminApiKey={setAdminApiKey}
+              saveAdminApiKey={saveAdminApiKey}
+              announcementsEnabled={announcementsEnabled}
+              toggleAnnouncements={toggleAnnouncements}
+              savingSettings={savingSettings}
+              refreshCache={refreshCache}
+              refreshingCache={refreshingCache}
+              publishSnapshotNow={publishSnapshotNow}
+              publishingCatalog={publishingCatalog}
+              catalogStatus={catalogStatus}
+              collections={collections}
+              localPendingCollectionChanges={localPendingCollectionChanges}
+              toggleCollectionDisplay={toggleCollectionDisplay}
+              toggleCollectionAccepting={toggleCollectionAccepting}
+              toggleCollectionRenewal={toggleCollectionRenewal}
+              deleteCollection={deleteCollection}
+              togglingCollection={togglingCollection}
+              newCollectionName={newCollectionName}
+              setNewCollectionName={setNewCollectionName}
+              createCollection={createCollection}
+              creatingCollection={creatingCollection}
+              setActiveCollectionId={setActiveCollectionId}
+              activeCollectionId={activeCollectionId}
+              importingExcel={importingExcel}
+              handleExcelImport={handleExcelImport}
+              showToast={showToast}
+            />
+          )}
+          
+          {activeSection === 'announcements' && (
+            <AnnouncementsBoard
+              clubs={clubs}
+              announcements={{ ...announcements, ...localPendingAnnouncements }}
+              saveAnnouncement={saveAnnouncement}
+              clearAnnouncement={clearAnnouncement}
+              savingAnnouncements={savingAnnouncements}
+              showToast={showToast}
+            />
+          )}
+          
+          {activeSection === 'activity' && (
+            <ActivityLog />
+          )}
+          
+          {activeSection === 'users' && (
+            <div className="card">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Admin Users</h1>
+              <UserManagement currentUser={currentUser || ''} showToast={showToast} />
+            </div>
+          )}
+          
+          {activeSection === 'registrations' && activeCollectionId && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
+                <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests</p>
+              </div>
+              <RegistrationsList
+                collectionId={activeCollectionId}
+                collections={collections}
+                adminApiKey={adminApiKey}
+                collectionSlug={(() => {
+                  const pending = localPendingCollectionChanges[activeCollectionId]
+                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  return slugifyName(baseName)
+                })()}
+                collectionName={(() => {
+                  const pending = localPendingCollectionChanges[activeCollectionId]
+                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                })()}
+              />
+            </div>
+          )}
+          
+          {/* Keep legacy sections below for backward compatibility */}
+          {(activeSection === 'updates' || activeSection === 'analytics') && (
+            <>
       {/* Section Navigation */}
       <div className="sticky top-0 z-30 -mt-2 pt-2 pb-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 dark:supports-[backdrop-filter]:bg-gray-900/60">
         <div className="flex flex-wrap gap-2">
@@ -4046,6 +4242,11 @@ export function AdminPanel() {
         </div>
       )}
 
+            </>
+          )}
+        </div>
+      </div>
+      
       {/* Global Confirm Dialog */}
       {isOpen && options && (
         <ConfirmDialog
