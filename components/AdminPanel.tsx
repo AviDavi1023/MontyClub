@@ -2880,7 +2880,7 @@ export function AdminPanel() {
       
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto">
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-8 max-w-full">
+        <div className="w-full py-8">
           {/* Route to different sections based on activeSection */}
           {activeSection === 'dashboard' && (
             <DashboardOverview

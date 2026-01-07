@@ -18,8 +18,10 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Admin panel content: keep current full-width spacing and alignment */}
-        <AdminPanel />
+        {/* Admin panel content: distinct full-width side spacing */}
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <AdminPanel />
+        </div>
       </main>
     </div>
   )
