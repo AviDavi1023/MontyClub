@@ -45,14 +45,14 @@ export function DashboardOverview({
       </div>
 
       {/* Health Status */}
-      <div className={`card border-l-4 ${
+      <div className={`card border-l-4 p-6 ${
         health.color === 'green' ? 'border-l-green-500 bg-green-50 dark:bg-green-900/10' :
         health.color === 'yellow' ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/10' :
         health.color === 'orange' ? 'border-l-orange-500 bg-orange-50 dark:bg-orange-900/10' :
         'border-l-blue-500 bg-blue-50 dark:bg-blue-900/10'
       }`}>
-        <div className="flex items-center gap-3">
-          <AlertCircle className={`h-6 w-6 ${
+        <div className="flex items-center gap-4">
+          <AlertCircle className={`h-8 w-8 flex-shrink-0 ${
             health.color === 'green' ? 'text-green-600' :
             health.color === 'yellow' ? 'text-yellow-600' :
             health.color === 'orange' ? 'text-orange-600' :
@@ -66,20 +66,20 @@ export function DashboardOverview({
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <button
           onClick={() => onNavigate('registrations')}
-          className="card hover:shadow-lg transition-shadow text-left group"
+          className="card p-6 hover:shadow-lg transition-shadow text-left group"
         >
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
-              <ClipboardList className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <ClipboardList className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white">
                 {pendingRegistrationsCount}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Pending</div>
+              <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending</div>
             </div>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -87,16 +87,16 @@ export function DashboardOverview({
           </div>
         </button>
 
-        <div className="card">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="card p-6">
+          <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white">
                 {approvedRegistrationsCount}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Approved</div>
+              <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Approved</div>
             </div>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -104,16 +104,16 @@ export function DashboardOverview({
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="card p-6">
+          <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white">
                 {activeClubs}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Active Clubs</div>
+              <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Clubs</div>
             </div>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -121,16 +121,16 @@ export function DashboardOverview({
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="card p-6">
+          <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <Clock className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              <Clock className="h-8 w-8 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white">
                 {collections.length}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Collections</div>
+              <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Collections</div>
             </div>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -142,7 +142,7 @@ export function DashboardOverview({
       {/* Quick Info */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Current Catalog */}
-        <div className="card">
+        <div className="card p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Current Catalog</h3>
           {catalogStatus?.exists ? (
             <div className="space-y-2">
@@ -177,7 +177,7 @@ export function DashboardOverview({
         </div>
 
         {/* Recent Activity Preview */}
-        <div className="card">
+        <div className="card p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Collections Status</h3>
           {collections.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No collections yet</p>
@@ -216,8 +216,8 @@ export function DashboardOverview({
       </div>
 
       {/* Quick Actions */}
-      <div className="card">
-        <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             onClick={() => onNavigate('registrations')}

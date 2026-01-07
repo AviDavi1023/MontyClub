@@ -74,7 +74,7 @@ export function SettingsPanel({
       </div>
 
       {/* System Settings */}
-      <div className="card">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           System Settings
           <InfoTooltip text="Core system configuration including API access and data management" />
@@ -148,7 +148,7 @@ export function SettingsPanel({
       </div>
 
       {/* Feature Toggles */}
-      <div className="card">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           Feature Toggles
           <InfoTooltip text="Enable or disable site-wide features" />
@@ -177,7 +177,7 @@ export function SettingsPanel({
       </div>
 
       {/* Collections Management */}
-      <div className="card">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           Registration Collections
           <InfoTooltip text="Manage multiple registration form collections (e.g., different years). Public Catalog selects which collection appears in the club directory. Registration Form controls which collections accept submissions." />

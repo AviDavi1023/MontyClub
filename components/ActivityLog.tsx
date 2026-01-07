@@ -119,8 +119,8 @@ export function ActivityLog() {
   }
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
+    <div className="card p-6">
+      <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Activity Log</h2>
         <div className="flex gap-2">
           <button
@@ -147,7 +147,7 @@ export function ActivityLog() {
       </div>
 
       {/* Filter */}
-      <div className="mb-4 flex gap-2 flex-wrap">
+      <div className="mb-6 flex gap-2 flex-wrap">
         {['all', 'registration', 'announcement', 'collection', 'user', 'settings', 'import', 'system'].map((filterType) => (
           <button
             key={filterType}

@@ -101,8 +101,8 @@ export function AnnouncementsBoard({
       </div>
 
       {/* Active Announcements Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="card p-6">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Megaphone className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -147,7 +147,7 @@ export function AnnouncementsBoard({
 
       {/* Active Announcements Section */}
       {clubsWithAnnouncements.length > 0 && (
-        <div className="card">
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Active Announcements ({clubsWithAnnouncements.length})
@@ -177,7 +177,7 @@ export function AnnouncementsBoard({
             </div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {clubsWithAnnouncements.map(club => (
               <div
                 key={club.id}
@@ -257,7 +257,7 @@ export function AnnouncementsBoard({
       )}
 
       {/* Search and Add Section */}
-      <div className="card">
+      <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Search Clubs & Add Announcements
         </h2>
