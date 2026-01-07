@@ -5,9 +5,9 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <Header />
-      <main className="flex-1 w-full">
-        {/* Page header area: keep the previous centered max-width and padding */}
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <main className="flex-1 w-full flex flex-col">
+        {/* Header Section with Original Styling */}
+        <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
           <div className="mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
               Admin Panel
@@ -17,9 +17,9 @@ export default function AdminPage() {
             </p>
           </div>
         </div>
-
-        {/* Admin panel content: distinct full-width side spacing */}
-        <div className="w-full px-4 sm:px-6 lg:px-8">
+        
+        {/* Admin Panel - Full Width */}
+        <div className="flex-1 w-full">
           <AdminPanel />
         </div>
       </main>
