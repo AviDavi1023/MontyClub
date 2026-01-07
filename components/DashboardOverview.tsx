@@ -37,11 +37,11 @@ export function DashboardOverview({
   const health = getHealthStatus()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-full">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400">Welcome to the admin panel. Here's your overview.</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
+        <p className="text-lg text-gray-600 dark:text-gray-400">Welcome to the admin panel. Here's your overview.</p>
       </div>
 
       {/* Health Status */}
@@ -66,7 +66,7 @@ export function DashboardOverview({
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <button
           onClick={() => onNavigate('registrations')}
           className="card p-6 hover:shadow-lg transition-shadow text-left group"
@@ -140,7 +140,7 @@ export function DashboardOverview({
       </div>
 
       {/* Quick Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Current Catalog */}
         <div className="card p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Current Catalog</h3>
