@@ -3,10 +3,10 @@ import { AdminPanel } from '@/components/AdminPanel'
 
 export default function AdminPage() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <Header />
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        <div className="max-w-4xl mx-auto">
+      <main className="flex-1 w-full">
+        <div className="w-full px-3 sm:px-4 py-4 sm:py-8">
           <div className="mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
               Admin Panel
