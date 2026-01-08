@@ -1095,6 +1095,29 @@ export function AdminPanel() {
     checkFirstTime()
   }, [])
 
+  // Load snapshot status on mount and periodically
+  useEffect(() => {
+    if (!isAuthenticated || !adminApiKey) return
+    
+    checkSnapshotStatus()
+    
+    // Check every 30 seconds
+    const interval = setInterval(() => {
+      checkSnapshotStatus()
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [isAuthenticated, adminApiKey])
+
+  // Handle collection change events from RegistrationsList
+  useEffect(() => {
+    const handleCollectionChange = (e: CustomEvent) => {
+      setActiveCollectionId(e.detail)
+    }
+    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
+    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -2612,20 +2635,6 @@ export function AdminPanel() {
     }
   }
 
-  // Load snapshot status on mount and periodically
-  useEffect(() => {
-    if (!isAuthenticated || !adminApiKey) return
-    
-    checkSnapshotStatus()
-    
-    // Check every 30 seconds
-    const interval = setInterval(() => {
-      checkSnapshotStatus()
-    }, 30000)
-    
-    return () => clearInterval(interval)
-  }, [isAuthenticated, adminApiKey])
-
   const publishCatalog = async () => {
     try {
       setPublishingCatalog(true)
@@ -2887,15 +2896,6 @@ export function AdminPanel() {
     }
   }
 
-  // Handle collection change events from RegistrationsList
-  useEffect(() => {
-    const handleCollectionChange = (e: CustomEvent) => {
-      setActiveCollectionId(e.detail)
-    }
-    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
-    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
-  }, [])
-
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* Sidebar Navigation */}
@@ -2908,8 +2908,8 @@ export function AdminPanel() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto">
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-8 max-w-full">
-          {/* Always render all sections - conditional display via visibility */}
-          <div style={{ display: activeSection === 'dashboard' ? 'block' : 'none' }}>
+          {/* Route to different sections based on activeSection */}
+          {activeSection === 'dashboard' && (
             <DashboardOverview
               clubs={clubs}
               collections={collections}
@@ -2919,9 +2919,9 @@ export function AdminPanel() {
               approvedRegistrationsCount={approvedRegistrationsCount}
               rejectedRegistrationsCount={rejectedRegistrationsCount}
             />
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'settings' ? 'block' : 'none' }}>
+          {activeSection === 'settings' && (
             <SettingsPanel
               adminApiKey={adminApiKey}
               setAdminApiKey={setAdminApiKey}
@@ -2951,9 +2951,9 @@ export function AdminPanel() {
               handleExcelImport={handleExcelImport}
               showToast={showToast}
             />
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'announcements' ? 'block' : 'none' }}>
+          {activeSection === 'announcements' && (
             <AnnouncementsBoard
               clubs={clubs}
               announcements={{ ...announcements, ...localPendingAnnouncements }}
@@ -2962,58 +2962,56 @@ export function AdminPanel() {
               savingAnnouncements={savingAnnouncements}
               showToast={showToast}
             />
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'activity' ? 'block' : 'none' }}>
+          {activeSection === 'activity' && (
             <ActivityLog />
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}>
+          {activeSection === 'users' && (
             <div className="card">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Admin Users</h1>
               <UserManagement currentUser={currentUser || ''} showToast={showToast} />
             </div>
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'registrations' && activeCollectionId ? 'block' : 'none' }}>
+          {activeSection === 'registrations' && activeCollectionId && (
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
                 <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests</p>
               </div>
-              {activeCollectionId && (
-                <RegistrationsList
-                  collectionId={activeCollectionId}
-                  collections={collections}
-                  adminApiKey={adminApiKey}
-                  collectionSlug={(() => {
-                    const pending = localPendingCollectionChanges[activeCollectionId]
-                    const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                    return slugifyName(baseName)
-                  })()}
-                  collectionName={(() => {
-                    const pending = localPendingCollectionChanges[activeCollectionId]
-                    return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                  })()}
-                />
-              )}
+              <RegistrationsList
+                collectionId={activeCollectionId}
+                collections={collections}
+                adminApiKey={adminApiKey}
+                collectionSlug={(() => {
+                  const pending = localPendingCollectionChanges[activeCollectionId]
+                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  return slugifyName(baseName)
+                })()}
+                collectionName={(() => {
+                  const pending = localPendingCollectionChanges[activeCollectionId]
+                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                })()}
+              />
             </div>
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'updates' ? 'block' : 'none' }}>
+          {activeSection === 'updates' && (
             <UpdateRequestsPanel
               clubs={clubs}
               adminApiKey={adminApiKey}
             />
-          </div>
+          )}
           
-          <div style={{ display: activeSection === 'analytics' ? 'block' : 'none' }}>
+          {activeSection === 'analytics' && (
             <AnalyticsPanel
               clubs={clubs}
               collections={collections}
               adminApiKey={adminApiKey}
             />
-          </div>
+          )}
           
           {/* Keep legacy sections below for backward compatibility */}
           {false && (
@@ -3777,7 +3775,7 @@ export function AdminPanel() {
         </div>
       </div>
 
-      {/* User Management Modal - Always render component, conditionally display modal */}
+      {/* User Management Modal */}
       {showUserManagement && (
         <>
           {/* Backdrop */}
@@ -3807,7 +3805,7 @@ export function AdminPanel() {
                   </svg>
                 </button>
               </div>
-              <UserManagement key="user-mgmt-modal" currentUser={currentUser!} showToast={showToast} />
+              <UserManagement currentUser={currentUser!} showToast={showToast} />
             </div>
           </div>
         </>
@@ -3841,69 +3839,79 @@ export function AdminPanel() {
               </div>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Search a club, edit its announcement, and save.</p>
 
+              {(() => {
+                const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+                return (
               <AnnounceEditor
-                clubs={clubs}
-                announcements={{ ...announcements, ...localPendingAnnouncements }}
-                setAnnouncements={setAnnouncements}
-                saveAnnouncement={async (id: string, text: string) => {
-                  await saveAnnouncement(id, text)
-                  // refresh clubs so the gallery reflects updated announcement values
-                  await refreshData()
-                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
-                  // Also dispatch a custom event for same-tab updates
-                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-                }}
-                clearAnnouncement={async (id: string) => {
-                  await clearAnnouncement(id)
-                  await refreshData()
-                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
-                  // Also dispatch a custom event for same-tab updates
-                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-                }}
-                savingAnnouncements={savingAnnouncements}
-                showToast={showToast}
-                onRequestClear={(id: string) => setConfirmClearId(id)}
-              />
+            clubs={clubs}
+            announcements={mergedAnnouncements}
+            setAnnouncements={setAnnouncements}
+            saveAnnouncement={async (id: string, text: string) => {
+              await saveAnnouncement(id, text)
+              // refresh clubs so the gallery reflects updated announcement values
+              await refreshData()
+              try { broadcast('announcements', 'update', { id }) } catch (e) {}
+              // Also dispatch a custom event for same-tab updates
+              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+            }}
+            clearAnnouncement={async (id: string) => {
+              await clearAnnouncement(id)
+              await refreshData()
+              try { broadcast('announcements', 'update', { id }) } catch (e) {}
+              // Also dispatch a custom event for same-tab updates
+              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+            }}
+            savingAnnouncements={savingAnnouncements}
+            showToast={showToast}
+            onRequestClear={(id: string) => setConfirmClearId(id)}
+          />
+                )
+              })()}
           
-              {/* Bulk Delete Section */}
-              <BulkDeleteAnnouncements
-                clubs={clubs}
-                announcements={{ ...announcements, ...localPendingAnnouncements }}
-                onDelete={async (ids: string[]) => {
-                  // Call new bulk delete API for atomic removal
-                  if (ids.length === 0) return
-                  try {
-                    const resp = await fetch('/api/announcements', {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ids }),
-                    })
-                    if (!resp.ok) throw new Error('Bulk delete failed')
-                    const result = await resp.json()
-                    const deletedIds: string[] = result.deleted || []
+          {/* Bulk Delete Section */}
+          {(() => {
+            const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+            return (
+          <BulkDeleteAnnouncements
+            clubs={clubs}
+            announcements={mergedAnnouncements}
+            onDelete={async (ids: string[]) => {
+              // Call new bulk delete API for atomic removal
+              if (ids.length === 0) return
+              try {
+                const resp = await fetch('/api/announcements', {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids }),
+                })
+                if (!resp.ok) throw new Error('Bulk delete failed')
+                const result = await resp.json()
+                const deletedIds: string[] = result.deleted || []
 
-                    // Update local state
-                    setAnnouncements(prev => {
-                      const copy = { ...prev }
-                      deletedIds.forEach(id => { delete copy[id] })
-                      return copy
-                    })
+                // Update local state
+                setAnnouncements(prev => {
+                  const copy = { ...prev }
+                  deletedIds.forEach(id => { delete copy[id] })
+                  return copy
+                })
 
-                    // Notify other tabs and same tab
-                    deletedIds.forEach(id => {
-                      try { broadcast('announcements', 'update', { id }) } catch (e) {}
-                      window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-                      try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
-                    })
+                // Notify other tabs and same tab
+                deletedIds.forEach(id => {
+                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
+                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                  try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
+                })
 
-                    await refreshData()
-                    showToast(`Deleted ${deletedIds.length} announcement${deletedIds.length !== 1 ? 's' : ''}`)
-                  } catch (e) {
-                    console.error('Bulk deletion failed:', e)
-                    showToast('Failed to delete announcements', 'error')
-                  }
-                }}
-              />
+                await refreshData()
+                showToast(`Deleted ${deletedIds.length} announcement${deletedIds.length !== 1 ? 's' : ''}`)
+              } catch (e) {
+                console.error('Bulk deletion failed:', e)
+                showToast('Failed to delete announcements', 'error')
+              }
+            }}
+          />
+            )
+          })()}
             </div>
           </div>
         </>
@@ -4075,7 +4083,6 @@ export function AdminPanel() {
                 </button>
               </div>
               <RegistrationsList 
-                key={`registrations-${activeCollectionId}`}
                 adminApiKey={adminApiKey} 
                 collectionSlug={( (() => {
                   const colId = activeCollectionId!
