@@ -3839,79 +3839,69 @@ export function AdminPanel() {
               </div>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Search a club, edit its announcement, and save.</p>
 
-              {(() => {
-                const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
-                return (
               <AnnounceEditor
-            clubs={clubs}
-            announcements={mergedAnnouncements}
-            setAnnouncements={setAnnouncements}
-            saveAnnouncement={async (id: string, text: string) => {
-              await saveAnnouncement(id, text)
-              // refresh clubs so the gallery reflects updated announcement values
-              await refreshData()
-              try { broadcast('announcements', 'update', { id }) } catch (e) {}
-              // Also dispatch a custom event for same-tab updates
-              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-            }}
-            clearAnnouncement={async (id: string) => {
-              await clearAnnouncement(id)
-              await refreshData()
-              try { broadcast('announcements', 'update', { id }) } catch (e) {}
-              // Also dispatch a custom event for same-tab updates
-              window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-            }}
-            savingAnnouncements={savingAnnouncements}
-            showToast={showToast}
-            onRequestClear={(id: string) => setConfirmClearId(id)}
-          />
-                )
-              })()}
-          
-          {/* Bulk Delete Section */}
-          {(() => {
-            const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
-            return (
-          <BulkDeleteAnnouncements
-            clubs={clubs}
-            announcements={mergedAnnouncements}
-            onDelete={async (ids: string[]) => {
-              // Call new bulk delete API for atomic removal
-              if (ids.length === 0) return
-              try {
-                const resp = await fetch('/api/announcements', {
-                  method: 'DELETE',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ids }),
-                })
-                if (!resp.ok) throw new Error('Bulk delete failed')
-                const result = await resp.json()
-                const deletedIds: string[] = result.deleted || []
-
-                // Update local state
-                setAnnouncements(prev => {
-                  const copy = { ...prev }
-                  deletedIds.forEach(id => { delete copy[id] })
-                  return copy
-                })
-
-                // Notify other tabs and same tab
-                deletedIds.forEach(id => {
+                clubs={clubs}
+                announcements={{ ...announcements, ...localPendingAnnouncements }}
+                setAnnouncements={setAnnouncements}
+                saveAnnouncement={async (id: string, text: string) => {
+                  await saveAnnouncement(id, text)
+                  // refresh clubs so the gallery reflects updated announcement values
+                  await refreshData()
                   try { broadcast('announcements', 'update', { id }) } catch (e) {}
+                  // Also dispatch a custom event for same-tab updates
                   window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
-                  try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
-                })
+                }}
+                clearAnnouncement={async (id: string) => {
+                  await clearAnnouncement(id)
+                  await refreshData()
+                  try { broadcast('announcements', 'update', { id }) } catch (e) {}
+                  // Also dispatch a custom event for same-tab updates
+                  window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                }}
+                savingAnnouncements={savingAnnouncements}
+                showToast={showToast}
+                onRequestClear={(id: string) => setConfirmClearId(id)}
+              />
+          
+              {/* Bulk Delete Section */}
+              <BulkDeleteAnnouncements
+                clubs={clubs}
+                announcements={{ ...announcements, ...localPendingAnnouncements }}
+                onDelete={async (ids: string[]) => {
+                  // Call new bulk delete API for atomic removal
+                  if (ids.length === 0) return
+                  try {
+                    const resp = await fetch('/api/announcements', {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ids }),
+                    })
+                    if (!resp.ok) throw new Error('Bulk delete failed')
+                    const result = await resp.json()
+                    const deletedIds: string[] = result.deleted || []
 
-                await refreshData()
-                showToast(`Deleted ${deletedIds.length} announcement${deletedIds.length !== 1 ? 's' : ''}`)
-              } catch (e) {
-                console.error('Bulk deletion failed:', e)
-                showToast('Failed to delete announcements', 'error')
-              }
-            }}
-          />
-            )
-          })()}
+                    // Update local state
+                    setAnnouncements(prev => {
+                      const copy = { ...prev }
+                      deletedIds.forEach(id => { delete copy[id] })
+                      return copy
+                    })
+
+                    // Notify other tabs and same tab
+                    deletedIds.forEach(id => {
+                      try { broadcast('announcements', 'update', { id }) } catch (e) {}
+                      window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
+                      try { localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() })) } catch (e) {}
+                    })
+
+                    await refreshData()
+                    showToast(`Deleted ${deletedIds.length} announcement${deletedIds.length !== 1 ? 's' : ''}`)
+                  } catch (e) {
+                    console.error('Bulk deletion failed:', e)
+                    showToast('Failed to delete announcements', 'error')
+                  }
+                }}
+              />
             </div>
           </div>
         </>
