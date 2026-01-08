@@ -3122,7 +3122,7 @@ export function AdminPanel() {
                 </div>
                 {announcementsEnabled !== null && (
                   <Toggle
-                    checked={announcementsEnabled}
+                    checked={announcementsEnabled ?? false}
                     onChange={() => { if (!savingSettings) toggleAnnouncements() }}
                     disabled={savingSettings}
                   />
@@ -3178,13 +3178,13 @@ export function AdminPanel() {
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Snapshot Status</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {!catalogStatus ? 'Loading...' : catalogStatus.exists 
-                ? `✅ Published: ${catalogStatus.clubCount} clubs` 
+              {!catalogStatus ? 'Loading...' : catalogStatus?.exists 
+                ? `✅ Published: ${catalogStatus?.clubCount ?? 0} clubs` 
                 : '⚠️ Not published'}
             </p>
-            {catalogStatus?.exists && catalogStatus.generatedAt && (
+            {(catalogStatus?.exists && catalogStatus?.generatedAt) && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Last updated: {new Date(catalogStatus.generatedAt).toLocaleString()}
+                Last updated: {new Date(catalogStatus!.generatedAt!).toLocaleString()}
               </p>
             )}
             <button
@@ -3236,7 +3236,7 @@ export function AdminPanel() {
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   Upload an Excel file to import clubs into the selected collection
                 </p>
-                {activeCollectionId.startsWith('temp-col-') && (
+                {activeCollectionId?.startsWith('temp-col-') && (
                   <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2 font-medium">
                     ⏳ Collection is being created... Please wait a moment before importing.
                   </p>
@@ -3244,7 +3244,7 @@ export function AdminPanel() {
                 <input
                   type="file"
                   accept=".xlsx"
-                  disabled={importingExcel || activeCollectionId.startsWith('temp-col-')}
+                  disabled={importingExcel || activeCollectionId?.startsWith('temp-col-') || false}
                   onChange={async (e) => {
                     if (!e.target.files?.[0] || !activeCollectionId) return
                     
@@ -3327,13 +3327,11 @@ export function AdminPanel() {
                         })
                       }
                     }
-                    const obj = map.get(id)
-                    if (obj) {
-                      if (change.enabled !== undefined) obj.enabled = change.enabled
-                      if (change.display !== undefined) obj.display = change.display
-                      if (change.accepting !== undefined) obj.accepting = change.accepting
-                      if (change.name) obj.name = change.name
-                    }
+                    const obj = map.get(id)!
+                    if (obj && change.enabled !== undefined) obj.enabled = Boolean(change.enabled)
+                    if (obj && change.display !== undefined) obj.display = Boolean(change.display)
+                    if (obj && change.accepting !== undefined) obj.accepting = Boolean(change.accepting)
+                    if (obj && change.name) obj.name = String(change.name)
                   }
                   return Array.from(map.values())
                 })()
@@ -3499,9 +3497,10 @@ export function AdminPanel() {
                 {activeCollectionId && (() => {
                   const overlayedName = (() => {
                     // prefer overlay name if present
-                    const pending = localPendingCollectionChanges[activeCollectionId]
+                    const colId = activeCollectionId!
+                    const pending = localPendingCollectionChanges[colId]
                     if (pending?.name) return pending.name
-                    const found = collections.find(c => c.id === activeCollectionId)
+                    const found = collections.find(c => c.id === colId)
                     return found?.name || ''
                   })()
                   return ` (${overlayedName})`
@@ -3939,7 +3938,7 @@ export function AdminPanel() {
                 onClick={async () => {
                   const id = confirmClearId
                   setConfirmClearId(null)
-                  await clearAnnouncement(id)
+                  if (id) await clearAnnouncement(id)
                   await refreshData()
                   try { broadcast('announcements', 'update', { id }) } catch (e) {}
                   window.dispatchEvent(new CustomEvent('announcements-updated', { detail: { id } }))
@@ -4034,7 +4033,7 @@ export function AdminPanel() {
       )}
 
       {/* Registrations Modal */}
-      {showRegistrations && (
+      {showRegistrations && activeCollectionId && (
         <>
           {/* Backdrop */}
           <div 
@@ -4058,12 +4057,14 @@ export function AdminPanel() {
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
                     <div>
                       <span className="text-gray-500 dark:text-gray-500">Registration:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
-                        const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                        const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                        const colId = activeCollectionId!
+                        const pending = localPendingCollectionChanges[colId]
+                        const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
                         return slugifyName(baseName)
                       })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
-                        const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                        const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                        const colId = activeCollectionId!
+                        const pending = localPendingCollectionChanges[colId]
+                        const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
                         return slugifyName(baseName)
                       })()}</a>
                     </div>
@@ -4084,13 +4085,15 @@ export function AdminPanel() {
               <RegistrationsList 
                 adminApiKey={adminApiKey} 
                 collectionSlug={( (() => {
-                  const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  const colId = activeCollectionId!
+                  const pending = localPendingCollectionChanges[colId]
+                  const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
                   return slugifyName(baseName)
                 })() )}
                 collectionName={( (() => {
-                  const pending = activeCollectionId ? localPendingCollectionChanges[activeCollectionId] : undefined
-                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  const colId = activeCollectionId!
+                  const pending = localPendingCollectionChanges[colId]
+                  return pending?.name || (collections.find(c => c.id === colId)?.name || '')
                 })() )}
                 collectionId={activeCollectionId || ''}
                 collections={collections}
