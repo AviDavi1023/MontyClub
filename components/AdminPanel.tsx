@@ -2691,6 +2691,17 @@ export function AdminPanel() {
   if (!isAuthenticated) {
     return (
       <>
+        {/* In-panel page header (keeps login view consistent) */}
+        <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
+              Admin Panel
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Manage club information and settings.
+            </p>
+          </div>
+        </div>
         {showApiKeyPrompt && (
           <>
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={skipApiKeyPrompt} />
@@ -2906,8 +2917,20 @@ export function AdminPanel() {
       />
       
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto">
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-8 max-w-full">
+      <div className="flex-1">
+        {/* In-panel page header (dashboard and all sections) */}
+        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
+              Admin Panel
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Manage club information and settings.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-8 max-w-full">
           {/* Route to different sections based on activeSection */}
           {activeSection === 'dashboard' && (
             <DashboardOverview

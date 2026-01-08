@@ -75,7 +75,7 @@ export function AdminSidebar({
   ]
 
   return (
-    <aside className="hidden xl:flex xl:flex-col xl:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] sticky top-16 overflow-y-auto z-10">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] sticky top-16 overflow-y-auto z-10">
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <div className="space-y-1">
           {menuItems.map((item) => {
@@ -113,8 +113,8 @@ export function AdminSidebar({
       
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
         <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-          <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">💡 Pro Tip</p>
-          <p className="line-clamp-2">All changes sync across tabs and devices automatically.</p>
+          <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Navigation</p>
+          <p className="line-clamp-2">Quick access to admin tools.</p>
         </div>
       </div>
     </aside>
