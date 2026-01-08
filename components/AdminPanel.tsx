@@ -166,6 +166,7 @@ export function AdminPanel() {
   const PENDING_BACKUP_KEY = 'montyclub:pendingUpdateChanges:backup'
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
   const [announcementsStorageLoaded, setAnnouncementsStorageLoaded] = useState(false)
+  const announcementsAutoClearcheckRef = useRef<string>('') // Track last processed state
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   
@@ -2123,12 +2124,16 @@ export function AdminPanel() {
 
   // Auto-clear pending announcements that now match database state
   useEffect(() => {
-    if (!announcementsStorageLoaded) {
-      try { console.log(JSON.stringify({ tag: 'ann-autoclear', step: 'skip-not-loaded' })) } catch {}
-      return
-    }
+    if (!announcementsStorageLoaded) return
     const pendingCount = Object.keys(localPendingAnnouncements).length
     if (pendingCount === 0) return
+
+    // Create a hash of current state to detect actual changes
+    const stateHash = JSON.stringify({ announcements, localPendingAnnouncements })
+    if (announcementsAutoClearcheckRef.current === stateHash) {
+      // No change since last check - skip processing
+      return
+    }
 
     console.log('🔍 ANNOUNCEMENTS AUTO-CLEAR CHECK - Pending:', localPendingAnnouncements)
     console.log('🔍 Current announcements from DB:', announcements)
@@ -2174,6 +2179,9 @@ export function AdminPanel() {
     } else {
       console.log('ℹ️ No announcements to clear')
     }
+    
+    // Update hash after processing
+    announcementsAutoClearcheckRef.current = stateHash
   }, [announcements, localPendingAnnouncements, announcementsStorageLoaded])
 
   // When the announcements panel opens, scroll it into view and keep a fixed height
