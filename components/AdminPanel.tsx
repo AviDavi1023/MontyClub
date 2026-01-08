@@ -2127,7 +2127,8 @@ export function AdminPanel() {
       try { console.log(JSON.stringify({ tag: 'ann-autoclear', step: 'skip-not-loaded' })) } catch {}
       return
     }
-    if (Object.keys(localPendingAnnouncements).length === 0) return
+    const pendingCount = Object.keys(localPendingAnnouncements).length
+    if (pendingCount === 0) return
 
     console.log('🔍 ANNOUNCEMENTS AUTO-CLEAR CHECK - Pending:', localPendingAnnouncements)
     console.log('🔍 Current announcements from DB:', announcements)
@@ -2149,21 +2150,26 @@ export function AdminPanel() {
       }
     })
 
+    // Only update state if something actually changed
     if (hasCleared) {
-      console.log('📝 Updating announcements localStorage with remaining pending:', stillPending)
-      setLocalPendingAnnouncements(stillPending)
-      try {
-        if (Object.keys(stillPending).length === 0) {
-          localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
-          localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
-          console.log('🗑️ All pending announcements synced - localStorage cleared')
-        } else {
-          localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(stillPending))
-          localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          console.log('💾 Announcements localStorage updated with remaining pending')
+      const newPendingCount = Object.keys(stillPending).length
+      // Ensure we're actually removing something (prevents state thrashing)
+      if (newPendingCount < pendingCount) {
+        console.log('📝 Updating announcements localStorage with remaining pending:', stillPending)
+        setLocalPendingAnnouncements(stillPending)
+        try {
+          if (newPendingCount === 0) {
+            localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
+            localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
+            console.log('🗑️ All pending announcements synced - localStorage cleared')
+          } else {
+            localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(stillPending))
+            localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
+            console.log('💾 Announcements localStorage updated with remaining pending')
+          }
+        } catch (e) {
+          console.error('❌ Failed to update announcements localStorage', e)
         }
-      } catch (e) {
-        console.error('❌ Failed to update announcements localStorage', e)
       }
     } else {
       console.log('ℹ️ No announcements to clear')
