@@ -2624,6 +2624,15 @@ export function AdminPanel() {
     return () => clearInterval(interval)
   }, [isAuthenticated, adminApiKey])
 
+  // Handle collection change events from RegistrationsList
+  useEffect(() => {
+    const handleCollectionChange = (e: CustomEvent) => {
+      setActiveCollectionId(e.detail)
+    }
+    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
+    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
+  }, [])
+
   const publishCatalog = async () => {
     try {
       setPublishingCatalog(true)
@@ -2884,15 +2893,6 @@ export function AdminPanel() {
       setImportingExcel(false)
     }
   }
-
-  // Handle collection change events from RegistrationsList
-  useEffect(() => {
-    const handleCollectionChange = (e: CustomEvent) => {
-      setActiveCollectionId(e.detail)
-    }
-    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
-    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
-  }, [])
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
