@@ -120,6 +120,45 @@ export async function POST(request: NextRequest) {
       keywords: [],
     }))
 
+    // Merge admin-managed announcements (if enabled) from runtime-store
+    try {
+      const settings = await readData('settings', { announcementsEnabled: true })
+      
+      if (settings.announcementsEnabled !== false) {
+        const mapRaw = await readData('announcements', {})
+        const map: Record<string, string> = {}
+        // Normalize keys to strings and trim values
+        if (mapRaw && typeof mapRaw === 'object') {
+          Object.keys(mapRaw).forEach((k) => {
+            try {
+              const v = (mapRaw as any)[k]
+              if (typeof v === 'string' && v.trim() !== '') map[String(k).trim()] = v.trim()
+              else if (v !== null && typeof v !== 'undefined') map[String(k).trim()] = String(v)
+            } catch (e) {
+              // ignore malformed entries
+            }
+          })
+        }
+
+        console.log(`[Snapshot] Merging ${Object.keys(map).length} announcements into snapshot`)
+        
+        // Merge announcements where club id matches (try numeric/string variants)
+        clubs.forEach((c) => {
+          const idStr = String(c.id).trim()
+          const idNum = String(Number(c.id))
+          if (map[idStr] && map[idStr].trim() !== '') {
+            c.announcement = map[idStr].trim()
+            console.log(`[Snapshot] Added announcement to club ${c.name} (${c.id})`)
+          } else if (map[idNum] && map[idNum].trim() !== '') {
+            c.announcement = map[idNum].trim()
+            console.log(`[Snapshot] Added announcement to club ${c.name} (${c.id})`)
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('[Snapshot] Could not merge announcements:', err)
+    }
+
     // Create snapshot
     const snapshot = {
       clubs,

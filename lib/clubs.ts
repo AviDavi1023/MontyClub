@@ -59,7 +59,7 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
 
   // 4. Map ClubRegistration to Club using the registration ID directly (unique and stable)
   // Prevents ID changes and avoids collisions entirely
-  return registrations.map((r) => ({
+  const clubs = registrations.map((r) => ({
     id: r.id,
     name: r.clubName,
     category: r.category || '',
@@ -76,6 +76,47 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
     announcement: '',
     keywords: [],
   }))
+
+  // 5. Merge admin-managed announcements (if enabled) from runtime-store
+  try {
+    const settings = await readData('settings', { announcementsEnabled: true })
+    
+    if (settings.announcementsEnabled !== false) {
+      const mapRaw = await readData('announcements', {})
+      const map: Record<string, string> = {}
+      // Normalize keys to strings and trim values
+      if (mapRaw && typeof mapRaw === 'object') {
+        Object.keys(mapRaw).forEach((k) => {
+          try {
+            const v = (mapRaw as any)[k]
+            if (typeof v === 'string' && v.trim() !== '') map[String(k).trim()] = v.trim()
+            else if (v !== null && typeof v !== 'undefined') map[String(k).trim()] = String(v)
+          } catch (e) {
+            // ignore malformed entries
+          }
+        })
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG] Announcements map (Collection mode):', map)
+      }
+      
+      // Merge announcements where club id matches (try numeric/string variants)
+      clubs.forEach((c) => {
+        const idStr = String(c.id).trim()
+        const idNum = String(Number(c.id))
+        if (map[idStr] && map[idStr].trim() !== '') {
+          c.announcement = map[idStr].trim()
+        } else if (map[idNum] && map[idNum].trim() !== '') {
+          c.announcement = map[idNum].trim()
+        }
+      })
+    }
+  } catch (err) {
+    console.warn('Could not merge announcements (Collection mode):', err)
+  }
+
+  return clubs
 }
 
 import { Club } from '@/types/club'
