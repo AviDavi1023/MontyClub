@@ -2676,6 +2676,7 @@ export function AdminPanel() {
     }
   }
 
+  // Early return replacement: render login form or authenticated content
   if (!isAuthenticated) {
     return (
       <>
@@ -2795,6 +2796,7 @@ export function AdminPanel() {
       </>
     )
   }
+  // End of conditional authentication check - all hooks are called above regardless of auth state
 
   // Calculate registration stats for dashboard
   const pendingRegistrationsCount = 0 // Would calculate from actual data
@@ -4424,8 +4426,10 @@ function BulkDeleteAnnouncements({
   announcements: Record<string, string>
   onDelete: (ids: string[]) => Promise<void>
 }) {
+  // All hooks must be called unconditionally at the top, before any returns
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const clubsWithAnnouncements = clubs.filter(club => announcements[club.id])
 
@@ -4446,8 +4450,6 @@ function BulkDeleteAnnouncements({
       setSelectedIds(new Set(clubsWithAnnouncements.map(c => c.id)))
     }
   }
-
-  const [showConfirm, setShowConfirm] = useState(false)
 
   const handleDelete = async () => {
     if (selectedIds.size === 0) return
