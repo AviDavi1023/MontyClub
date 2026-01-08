@@ -2908,8 +2908,8 @@ export function AdminPanel() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto">
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-8 max-w-full">
-          {/* Route to different sections based on activeSection */}
-          {activeSection === 'dashboard' && (
+          {/* Always render all sections - conditional display via visibility */}
+          <div style={{ display: activeSection === 'dashboard' ? 'block' : 'none' }}>
             <DashboardOverview
               clubs={clubs}
               collections={collections}
@@ -2919,9 +2919,9 @@ export function AdminPanel() {
               approvedRegistrationsCount={approvedRegistrationsCount}
               rejectedRegistrationsCount={rejectedRegistrationsCount}
             />
-          )}
+          </div>
           
-          {activeSection === 'settings' && (
+          <div style={{ display: activeSection === 'settings' ? 'block' : 'none' }}>
             <SettingsPanel
               adminApiKey={adminApiKey}
               setAdminApiKey={setAdminApiKey}
@@ -2951,9 +2951,9 @@ export function AdminPanel() {
               handleExcelImport={handleExcelImport}
               showToast={showToast}
             />
-          )}
+          </div>
           
-          {activeSection === 'announcements' && (
+          <div style={{ display: activeSection === 'announcements' ? 'block' : 'none' }}>
             <AnnouncementsBoard
               clubs={clubs}
               announcements={{ ...announcements, ...localPendingAnnouncements }}
@@ -2962,56 +2962,58 @@ export function AdminPanel() {
               savingAnnouncements={savingAnnouncements}
               showToast={showToast}
             />
-          )}
+          </div>
           
-          {activeSection === 'activity' && (
+          <div style={{ display: activeSection === 'activity' ? 'block' : 'none' }}>
             <ActivityLog />
-          )}
+          </div>
           
-          {activeSection === 'users' && (
+          <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}>
             <div className="card">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Admin Users</h1>
               <UserManagement currentUser={currentUser || ''} showToast={showToast} />
             </div>
-          )}
+          </div>
           
-          {activeSection === 'registrations' && activeCollectionId && (
+          <div style={{ display: activeSection === 'registrations' && activeCollectionId ? 'block' : 'none' }}>
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
                 <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests</p>
               </div>
-              <RegistrationsList
-                collectionId={activeCollectionId}
-                collections={collections}
-                adminApiKey={adminApiKey}
-                collectionSlug={(() => {
-                  const pending = localPendingCollectionChanges[activeCollectionId]
-                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                  return slugifyName(baseName)
-                })()}
-                collectionName={(() => {
-                  const pending = localPendingCollectionChanges[activeCollectionId]
-                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                })()}
-              />
+              {activeCollectionId && (
+                <RegistrationsList
+                  collectionId={activeCollectionId}
+                  collections={collections}
+                  adminApiKey={adminApiKey}
+                  collectionSlug={(() => {
+                    const pending = localPendingCollectionChanges[activeCollectionId]
+                    const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                    return slugifyName(baseName)
+                  })()}
+                  collectionName={(() => {
+                    const pending = localPendingCollectionChanges[activeCollectionId]
+                    return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                  })()}
+                />
+              )}
             </div>
-          )}
+          </div>
           
-          {activeSection === 'updates' && (
+          <div style={{ display: activeSection === 'updates' ? 'block' : 'none' }}>
             <UpdateRequestsPanel
               clubs={clubs}
               adminApiKey={adminApiKey}
             />
-          )}
+          </div>
           
-          {activeSection === 'analytics' && (
+          <div style={{ display: activeSection === 'analytics' ? 'block' : 'none' }}>
             <AnalyticsPanel
               clubs={clubs}
               collections={collections}
               adminApiKey={adminApiKey}
             />
-          )}
+          </div>
           
           {/* Keep legacy sections below for backward compatibility */}
           {false && (
@@ -3775,7 +3777,7 @@ export function AdminPanel() {
         </div>
       </div>
 
-      {/* User Management Modal */}
+      {/* User Management Modal - Always render component, conditionally display modal */}
       {showUserManagement && (
         <>
           {/* Backdrop */}
@@ -3805,7 +3807,7 @@ export function AdminPanel() {
                   </svg>
                 </button>
               </div>
-              <UserManagement currentUser={currentUser!} showToast={showToast} />
+              <UserManagement key="user-mgmt-modal" currentUser={currentUser!} showToast={showToast} />
             </div>
           </div>
         </>
@@ -4073,6 +4075,7 @@ export function AdminPanel() {
                 </button>
               </div>
               <RegistrationsList 
+                key={`registrations-${activeCollectionId}`}
                 adminApiKey={adminApiKey} 
                 collectionSlug={( (() => {
                   const colId = activeCollectionId!
