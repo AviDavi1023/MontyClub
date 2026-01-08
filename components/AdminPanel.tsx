@@ -18,6 +18,8 @@ import { ActivityLog, logActivity } from '@/components/ActivityLog'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { AnnouncementsBoard } from '@/components/AnnouncementsBoard'
 import { DashboardOverview } from '@/components/DashboardOverview'
+import { UpdateRequestsPanel } from '@/components/UpdateRequestsPanel'
+import { AnalyticsPanel } from '@/components/AnalyticsPanel'
 
 /**
  * DEBUGGING: Paste these commands in the browser console to collect logs
@@ -2624,15 +2626,6 @@ export function AdminPanel() {
     return () => clearInterval(interval)
   }, [isAuthenticated, adminApiKey])
 
-  // Handle collection change events from RegistrationsList
-  useEffect(() => {
-    const handleCollectionChange = (e: CustomEvent) => {
-      setActiveCollectionId(e.detail)
-    }
-    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
-    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
-  }, [])
-
   const publishCatalog = async () => {
     try {
       setPublishingCatalog(true)
@@ -2894,6 +2887,15 @@ export function AdminPanel() {
     }
   }
 
+  // Handle collection change events from RegistrationsList
+  useEffect(() => {
+    const handleCollectionChange = (e: CustomEvent) => {
+      setActiveCollectionId(e.detail)
+    }
+    window.addEventListener('changeCollection' as any, handleCollectionChange as any)
+    return () => window.removeEventListener('changeCollection' as any, handleCollectionChange as any)
+  }, [])
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* Sidebar Navigation */}
@@ -2996,8 +2998,23 @@ export function AdminPanel() {
             </div>
           )}
           
+          {activeSection === 'updates' && (
+            <UpdateRequestsPanel
+              clubs={clubs}
+              adminApiKey={adminApiKey}
+            />
+          )}
+          
+          {activeSection === 'analytics' && (
+            <AnalyticsPanel
+              clubs={clubs}
+              collections={collections}
+              adminApiKey={adminApiKey}
+            />
+          )}
+          
           {/* Keep legacy sections below for backward compatibility */}
-          {(activeSection === 'updates' || activeSection === 'analytics') && (
+          {false && (
             <>
       {/* Section Navigation */}
       <div className="sticky top-0 z-30 -mt-2 pt-2 pb-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 dark:supports-[backdrop-filter]:bg-gray-900/60">
