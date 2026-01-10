@@ -230,20 +230,9 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       showToast(`User ${username} deleted`)
       
-      // Clear from pending since deletion succeeded
-      const cleared = { ...pendingUserChanges }
-      delete cleared[username]
-      setPendingUserChanges(cleared)
-      try {
-        if (Object.keys(cleared).length === 0) {
-          localStorage.removeItem(USERS_PENDING_KEY)
-          localStorage.removeItem(USERS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(cleared))
-          localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
-        }
-      } catch {}
-      // User is already removed from display optimistically - keep it that way
+      // DON'T clear from pending yet - keep it so that on reload, user stays filtered out
+      // fetchUsers() will auto-clear when it confirms the user is actually gone from server
+      // The pending state in localStorage persists through page reload for this reason
     } catch (err) {
       console.error('Error deleting user:', err)
       // Revert on error - add user back to display
