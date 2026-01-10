@@ -136,8 +136,9 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       setGeneratedPassword(data.password)
       setCreatedUsername(data.user.username)
       showToast(`User ${data.user.username} created successfully`)
-      setNewUsername('')
-      setNewPassword('')
+      
+      // OPTIMISTIC: Add newly created user to display immediately
+      setUsers(prevUsers => [...prevUsers, data.user])
       
       // Clear temp ID from pending
       const cleared = { ...pendingUserChanges }
@@ -153,7 +154,8 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
         }
       } catch {}
       
-      await fetchUsers()
+      setNewUsername('')
+      setNewPassword('')
       setShowCreateForm(false)
     } catch (err) {
       console.error('Error creating user:', err)
@@ -241,8 +243,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
           localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: cleared }))
         }
       } catch {}
-      
-      await fetchUsers()
+      // User is already removed from display optimistically - keep it that way
     } catch (err) {
       console.error('Error deleting user:', err)
       // Revert on error - add user back to display
