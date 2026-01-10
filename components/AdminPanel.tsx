@@ -395,8 +395,10 @@ export function AdminPanel() {
           if (activeCollectionId && overlayMap.has(activeCollectionId)) {
             setActiveCollectionId(activeCollectionId)
           } else {
+            // Prioritize display collection, then enabled, then first
+            const displayFirst = overlayList.find(c => c.display)
             const enabledFirst = overlayList.find(c => c.enabled)
-            setActiveCollectionId((enabledFirst || overlayList[0]).id)
+            setActiveCollectionId((displayFirst || enabledFirst || overlayList[0]).id)
           }
         } else {
           setActiveCollectionId(null)
@@ -404,8 +406,10 @@ export function AdminPanel() {
       } catch {
         // Fallback to server-only selection
         if (data.collections && data.collections.length > 0) {
+          // Prioritize display collection, then enabled, then first
+          const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
           const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-          setActiveCollectionId(enabledCol?.id || data.collections[0].id)
+          setActiveCollectionId(displayCol?.id || enabledCol?.id || data.collections[0].id)
         } else {
           setActiveCollectionId(null)
         }
@@ -2829,8 +2833,10 @@ export function AdminPanel() {
   const handleSectionChange = (section: string) => {
     setActiveSection(section)
     if (section === 'registrations' && !activeCollectionId && collections.length > 0) {
+      // Prioritize display collection when navigating to registrations
+      const displayCol = collections.find(c => c.display && !localPendingCollectionChanges[c.id]?.deleted)
       const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
-      setActiveCollectionId(enabledCol?.id || collections[0].id)
+      setActiveCollectionId(displayCol?.id || enabledCol?.id || collections[0].id)
     }
   }
 
@@ -2916,8 +2922,8 @@ export function AdminPanel() {
         pendingRegistrationsCount={pendingRegistrationsCount}
       />
       
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Main Content Area - margin for fixed sidebar */}
+      <div className="flex-1 lg:ml-64">
         {/* In-panel page header (dashboard and all sections) */}
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
           <div className="mb-4 sm:mb-6">

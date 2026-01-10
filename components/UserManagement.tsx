@@ -16,6 +16,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+  const [createdUsername, setCreatedUsername] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [pendingUserChanges, setPendingUserChanges] = useState<Record<string, { deleted?: boolean; created?: boolean; username?: string }>>({})
   
@@ -133,6 +134,7 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       const data = await resp.json()
       setGeneratedPassword(data.password)
+      setCreatedUsername(data.user.username)
       showToast(`User ${data.user.username} created successfully`)
       setNewUsername('')
       setNewPassword('')
@@ -182,12 +184,16 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
     if (!confirm(`Delete user ${username}? This cannot be undone.`)) return
 
-    // OPTIMISTIC: Mark as deleted immediately
+    // OPTIMISTIC: Mark as deleted immediately and remove from display
     const newPending = {
       ...pendingUserChanges,
       [username]: { deleted: true }
     }
     setPendingUserChanges(newPending)
+    
+    // Remove from display immediately (optimistic UI)
+    setUsers(prevUsers => prevUsers.filter(u => u.username !== username))
+    
     try {
       localStorage.setItem(USERS_PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(USERS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
@@ -202,7 +208,8 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       if (!resp.ok) {
         const data = await resp.json()
-        // Revert optimistic deletion
+        // Revert optimistic deletion - add user back to display
+        await fetchUsers()
         const reverted = { ...pendingUserChanges }
         delete reverted[username]
         setPendingUserChanges(reverted)
@@ -238,7 +245,8 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       await fetchUsers()
     } catch (err) {
       console.error('Error deleting user:', err)
-      // Revert on error
+      // Revert on error - add user back to display
+      await fetchUsers()
       const reverted = { ...pendingUserChanges }
       delete reverted[username]
       setPendingUserChanges(reverted)
@@ -342,14 +350,17 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
           </p>
           <div className="space-y-1">
             <p className="text-sm text-green-800 dark:text-green-200">
-              <strong>Username:</strong> <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded">{newUsername || users[users.length - 1]?.username}</code>
+              <strong>Username:</strong> <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded">{createdUsername}</code>
             </p>
             <p className="text-sm text-green-800 dark:text-green-200">
               <strong>Password:</strong> <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded">{generatedPassword}</code>
             </p>
           </div>
           <button
-            onClick={() => setGeneratedPassword(null)}
+            onClick={() => {
+              setGeneratedPassword(null)
+              setCreatedUsername(null)
+            }}
             className="mt-3 text-xs text-green-700 dark:text-green-300 underline"
           >
             Dismiss

@@ -75,7 +75,7 @@ export function AdminSidebar({
   ]
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] sticky top-16 overflow-y-auto z-10">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] fixed top-16 left-0 overflow-y-auto z-10">
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <div className="space-y-1">
           {menuItems.map((item) => {
