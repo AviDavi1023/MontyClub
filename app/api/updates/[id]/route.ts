@@ -8,6 +8,17 @@ export const revalidate = 0
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return updatesCache.withLock(async () => {
     try {
+      // Validate admin API key
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
+      
+      if (!adminKey || adminKey !== expectedKey) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
       const { id } = await params
       const body = await request.json()
       const current = updatesCache.get() ?? await readData('updates', [])
@@ -46,6 +57,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return updatesCache.withLock(async () => {
     try {
+      // Validate admin API key
+      const adminKey = _request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
+      
+      if (!adminKey || adminKey !== expectedKey) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
       const { id } = await params
       const current = updatesCache.get() ?? await readData('updates', [])
       const arr: any[] = Array.isArray(current) ? [...current] : []

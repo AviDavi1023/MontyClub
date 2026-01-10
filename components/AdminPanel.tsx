@@ -1407,7 +1407,10 @@ export function AdminPanel() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
       
-      const resp = await fetch(url, { signal: controller.signal })
+      const resp = await fetch(url, { 
+        signal: controller.signal,
+        headers: { 'x-admin-key': adminApiKey }
+      })
       clearTimeout(timeoutId)
       
       const fetchDuration = Date.now() - fetchStartTime
@@ -1559,7 +1562,10 @@ export function AdminPanel() {
       const apiStartTime = Date.now()
       const resp = await fetch(`/api/updates/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
         body: JSON.stringify({ reviewed: nextReviewed }),
       })
       const apiDuration = Date.now() - apiStartTime
@@ -1712,7 +1718,10 @@ export function AdminPanel() {
     })
 
     try {
-      const resp = await fetch(`/api/updates/${id}`, { method: 'DELETE' })
+      const resp = await fetch(`/api/updates/${id}`, { 
+        method: 'DELETE',
+        headers: { 'x-admin-key': adminApiKey }
+      })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       await resp.json()
       
@@ -1811,7 +1820,10 @@ export function AdminPanel() {
     try {
       const resp = await fetch('/api/updates/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
         body: JSON.stringify({ ids, action })
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -3107,7 +3119,7 @@ export function AdminPanel() {
           {activeSection === 'users' && (
             <div className="card">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Admin Users</h1>
-              <UserManagement currentUser={currentUser || ''} showToast={showToast} />
+              <UserManagement currentUser={currentUser || ''} adminApiKey={adminApiKey} showToast={showToast} />
             </div>
           )}
           
@@ -3953,7 +3965,7 @@ export function AdminPanel() {
                   </svg>
                 </button>
               </div>
-              <UserManagement currentUser={currentUser!} showToast={showToast} />
+              <UserManagement currentUser={currentUser!} adminApiKey={adminApiKey} showToast={showToast} />
             </div>
           </div>
         </>

@@ -13,6 +13,17 @@ interface BatchBody {
 export async function POST(request: NextRequest) {
   return updatesCache.withLock(async () => {
     try {
+      // Validate admin API key
+      const adminKey = request.headers.get('x-admin-key')
+      const expectedKey = process.env.ADMIN_API_KEY
+      
+      if (!adminKey || adminKey !== expectedKey) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
       const body: BatchBody = await request.json()
       if (!body || !Array.isArray(body.ids) || body.ids.length === 0) {
         return NextResponse.json({ error: 'ids required' }, { status: 400 })

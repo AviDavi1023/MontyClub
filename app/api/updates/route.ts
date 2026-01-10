@@ -9,7 +9,15 @@ export const revalidate = 0
 // Cache-backed GET: serves cached data if < maxAge, otherwise refreshes storage
 export const GET = createCachedGET<any[]>(
   updatesCache,
-  async (_request: NextRequest) => {
+  async (request: NextRequest) => {
+    // Validate admin API key
+    const adminKey = request.headers.get('x-admin-key')
+    const expectedKey = process.env.ADMIN_API_KEY
+    
+    if (!adminKey || adminKey !== expectedKey) {
+      throw new Error('Unauthorized')
+    }
+
     const data = await readData('updates', [])
     // Ensure array
     return Array.isArray(data) ? data : []

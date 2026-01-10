@@ -44,7 +44,8 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
       })
       if (!response.ok) throw new Error('Failed to load update requests')
       const data = await response.json()
-      setUpdateRequests(data.updates || [])
+      // API returns array directly, not wrapped in { updates: [...] }
+      setUpdateRequests(Array.isArray(data) ? data : [])
       setError('')
     } catch (err) {
       setError(String(err))

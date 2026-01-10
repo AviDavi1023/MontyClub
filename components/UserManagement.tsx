@@ -7,10 +7,11 @@ import { getUserFriendlyError } from '@/lib/error-messages'
 
 interface UserManagementProps {
   currentUser: string
+  adminApiKey: string
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void
 }
 
-export function UserManagement({ currentUser, showToast }: UserManagementProps) {
+export function UserManagement({ currentUser, adminApiKey, showToast }: UserManagementProps) {
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [newUsername, setNewUsername] = useState('')
@@ -129,7 +130,10 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
     try {
       const resp = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
         body: JSON.stringify({
           username: newUsername,
           password: newPassword || undefined,
@@ -232,7 +236,10 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
     try {
       const resp = await fetch('/api/admin/users', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
         body: JSON.stringify({ username }),
       })
 
