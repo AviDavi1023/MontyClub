@@ -2908,7 +2908,7 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
+    <div className="flex min-h-screen">
       {/* Sidebar Navigation */}
       <AdminSidebar 
         activeSection={activeSection}
@@ -2917,7 +2917,7 @@ export function AdminPanel() {
       />
       
       {/* Main Content Area */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         {/* In-panel page header (dashboard and all sections) */}
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
           <div className="mb-4 sm:mb-6">

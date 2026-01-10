@@ -205,30 +205,92 @@ export function AnalyticsPanel({ clubs, collections, adminApiKey }: AnalyticsPan
           {/* Category Breakdown */}
           <div className="card p-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Top Categories</h2>
-            <div className="space-y-3">
-              {categoryBreakdown.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No clubs with categories</p>
-              ) : (
-                categoryBreakdown.map(cat => (
-                  <div key={cat.name} className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">{cat.name}</div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            {categoryBreakdown.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No clubs with categories</p>
+            ) : (
+              <div className="flex flex-col lg:flex-row gap-8 items-center">
+                {/* Pie Chart */}
+                <div className="relative w-64 h-64 flex-shrink-0">
+                  <svg viewBox="0 0 200 200" className="w-full h-full">
+                    {(() => {
+                      const total = categoryBreakdown.reduce((sum, cat) => sum + cat.count, 0)
+                      let currentAngle = -90 // Start at top
+                      const colors = [
+                        'rgb(59, 130, 246)',   // blue
+                        'rgb(16, 185, 129)',   // green
+                        'rgb(249, 115, 22)',   // orange
+                        'rgb(168, 85, 247)',   // purple
+                        'rgb(236, 72, 153)',   // pink
+                        'rgb(251, 191, 36)',   // amber
+                        'rgb(14, 165, 233)',   // sky
+                        'rgb(239, 68, 68)',    // red
+                      ]
+                      return categoryBreakdown.map((cat, idx) => {
+                        const percentage = cat.count / total
+                        const angle = percentage * 360
+                        const startAngle = currentAngle
+                        const endAngle = currentAngle + angle
+                        currentAngle = endAngle
+
+                        // Convert angles to radians
+                        const startRad = (startAngle * Math.PI) / 180
+                        const endRad = (endAngle * Math.PI) / 180
+
+                        // Calculate arc path
+                        const x1 = 100 + 90 * Math.cos(startRad)
+                        const y1 = 100 + 90 * Math.sin(startRad)
+                        const x2 = 100 + 90 * Math.cos(endRad)
+                        const y2 = 100 + 90 * Math.sin(endRad)
+                        const largeArc = angle > 180 ? 1 : 0
+
+                        return (
+                          <path
+                            key={cat.name}
+                            d={`M 100 100 L ${x1} ${y1} A 90 90 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                            fill={colors[idx % colors.length]}
+                            className="hover:opacity-80 transition-opacity cursor-pointer"
+                          >
+                            <title>{cat.name}: {cat.count} ({(percentage * 100).toFixed(1)}%)</title>
+                          </path>
+                        )
+                      })
+                    })()}
+                  </svg>
+                </div>
+
+                {/* Legend */}
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(() => {
+                    const colors = [
+                      'rgb(59, 130, 246)',
+                      'rgb(16, 185, 129)',
+                      'rgb(249, 115, 22)',
+                      'rgb(168, 85, 247)',
+                      'rgb(236, 72, 153)',
+                      'rgb(251, 191, 36)',
+                      'rgb(14, 165, 233)',
+                      'rgb(239, 68, 68)',
+                    ]
+                    return categoryBreakdown.map((cat, idx) => (
+                      <div key={cat.name} className="flex items-center gap-2">
                         <div
-                          className="bg-primary-600 dark:bg-primary-500 h-2 rounded-full transition-all"
-                          style={{
-                            width: `${(cat.count / stats.totalClubs) * 100}%`
-                          }}
-                        ></div>
+                          className="w-4 h-4 rounded-sm flex-shrink-0"
+                          style={{ backgroundColor: colors[idx % colors.length] }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {cat.name}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            {cat.count} ({((cat.count / stats.totalClubs) * 100).toFixed(1)}%)
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="ml-3 text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                      {cat.count} ({((cat.count / stats.totalClubs) * 100).toFixed(1)}%)
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    ))
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Meeting Frequency Distribution */}
