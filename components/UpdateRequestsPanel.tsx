@@ -45,7 +45,16 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
       if (!response.ok) throw new Error('Failed to load update requests')
       const data = await response.json()
       // API returns array directly, not wrapped in { updates: [...] }
-      setUpdateRequests(Array.isArray(data) ? data : [])
+      // Map the actual data structure to our interface
+      const mappedData = Array.isArray(data) ? data.map((item: any) => ({
+        ...item,
+        // Map 'reviewed' field to 'status' for backwards compatibility
+        status: item.status || (item.reviewed === true ? 'approved' : item.reviewed === false ? 'pending' : 'pending'),
+        clubName: item.clubName || item.name || 'Unknown Club',
+        requestedBy: item.requestedBy || item.createdBy || 'Unknown',
+        requestedAt: item.requestedAt || item.createdAt || new Date().toISOString(),
+      })) : []
+      setUpdateRequests(mappedData)
       setError('')
     } catch (err) {
       setError(String(err))
@@ -281,7 +290,9 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
                         req.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
                         'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                       }`}>
-                        {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                        {req.status && typeof req.status === 'string' 
+                          ? req.status.charAt(0).toUpperCase() + req.status.slice(1)
+                          : 'Unknown'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
