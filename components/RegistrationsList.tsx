@@ -1018,6 +1018,20 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
       {/* Search and Controls */}
       <div className="space-y-4">
+        {/* Header with Refresh Button */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrations</h3>
+          <button
+            onClick={() => loadRegistrations()}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 text-sm font-medium"
+            title="Refresh registrations"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
         {/* Stats Dashboard */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -1588,13 +1602,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           >
                             Edit
                           </button>
-                          <button 
-                            onClick={() => handleDeny(reg)} 
-                            disabled={processingId === reg.id}
-                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
-                          >
-                            Deny
-                          </button>
+                          {reg.status === 'rejected' ? (
+                            <button
+                              onClick={() => handleApprove(reg)}
+                              disabled={processingId === reg.id}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Approve
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleDeny(reg)} 
+                              disabled={processingId === reg.id}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                            >
+                              Deny
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1732,13 +1757,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         >
                           Edit
                         </button>
-                        <button
-                          onClick={() => handleDeny(reg)}
-                          disabled={processingId === reg.id}
-                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
-                        >
-                          Deny
-                        </button>
+                        {reg.status === 'rejected' ? (
+                          <button
+                            onClick={() => handleApprove(reg)}
+                            disabled={processingId === reg.id}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Approve
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDeny(reg)}
+                            disabled={processingId === reg.id}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                          >
+                            Deny
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1746,6 +1782,120 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               })}
             </div>
           )}
+        </>
+      )}
+
+      {/* Edit Registration Modal */}
+      {showEditModal && editReg && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            onClick={() => setShowEditModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6 pointer-events-auto my-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Edit Registration: {editReg.clubName}
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Edit Fields */}
+              <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Club Name</label>
+                  <input
+                    type="text"
+                    value={editFields.clubName || ''}
+                    onChange={(e) => handleEditField('clubName', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                  <select
+                    value={editFields.category || ''}
+                    onChange={(e) => handleEditField('category', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select a category</option>
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Advisor Name</label>
+                  <input
+                    type="text"
+                    value={editFields.advisorName || ''}
+                    onChange={(e) => handleEditField('advisorName', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student Contact Name</label>
+                  <input
+                    type="text"
+                    value={editFields.studentContactName || ''}
+                    onChange={(e) => handleEditField('studentContactName', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Day</label>
+                  <input
+                    type="text"
+                    value={editFields.meetingDay || ''}
+                    onChange={(e) => handleEditField('meetingDay', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Frequency</label>
+                  <input
+                    type="text"
+                    value={editFields.meetingFrequency || ''}
+                    onChange={(e) => handleEditField('meetingFrequency', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={processingId === editReg.id}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={processingId === editReg.id}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {processingId === editReg.id ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       )}
 

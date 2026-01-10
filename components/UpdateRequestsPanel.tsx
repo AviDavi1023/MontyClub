@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { Club } from '@/types/club'
 
 interface UpdateRequest {
@@ -114,9 +114,20 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
 
   return (
     <div className="space-y-6 max-w-full">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Update Requests</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">Review and manage club information update requests</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Update Requests</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">Review and manage club information update requests</p>
+        </div>
+        <button
+          onClick={() => loadUpdateRequests()}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 font-medium whitespace-nowrap"
+          title="Refresh update requests"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Stats Dashboard */}
