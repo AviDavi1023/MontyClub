@@ -185,6 +185,9 @@ export function AdminPanel() {
     analytics: false,
   })
   const [clearingData, setClearingData] = useState(false)
+  
+  // Pending registrations count across ALL collections
+  const [pendingRegistrationsCount, setPendingRegistrationsCount] = useState(0)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -336,6 +339,47 @@ export function AdminPanel() {
       // Debug logging removed
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
+
+  // Calculate pending registrations count across ALL collections
+  useEffect(() => {
+    if (!adminApiKey || collections.length === 0) {
+      setPendingRegistrationsCount(0)
+      return
+    }
+    
+    const fetchPendingCount = async () => {
+      try {
+        let totalPending = 0
+        
+        // Fetch registrations for each collection and count pending ones
+        for (const collection of collections) {
+          // Skip deleted collections
+          if (localPendingCollectionChanges[collection.id]?.deleted) continue
+          
+          try {
+            const resp = await fetch(`/api/registrations/${collection.id}`, {
+              headers: { 'x-admin-key': adminApiKey }
+            })
+            
+            if (resp.ok) {
+              const data = await resp.json()
+              const pending = (data.registrations || []).filter((r: any) => r.status === 'pending').length
+              totalPending += pending
+            }
+          } catch (err) {
+            // Skip collections that fail to load
+            console.error(`Failed to load registrations for ${collection.name}:`, err)
+          }
+        }
+        
+        setPendingRegistrationsCount(totalPending)
+      } catch (err) {
+        console.error('Failed to calculate pending registrations:', err)
+      }
+    }
+    
+    fetchPendingCount()
+  }, [collections, localPendingCollectionChanges, adminApiKey])
 
   // Debounced refresh function to batch multiple rapid toggles
   const scheduleCollectionsRefresh = () => {
@@ -2824,8 +2868,7 @@ export function AdminPanel() {
   }
   // End of conditional authentication check - all hooks are called above regardless of auth state
 
-  // Calculate registration stats for dashboard
-  const pendingRegistrationsCount = 0 // Would calculate from actual data
+  // Calculate registration stats for dashboard (pendingRegistrationsCount calculated in useEffect above)
   const approvedRegistrationsCount = 0
   const rejectedRegistrationsCount = 0
   

@@ -104,8 +104,18 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
     e.preventDefault()
     setLoading(true)
     
-    // OPTIMISTIC: Create temp ID and add to pending immediately
+    // OPTIMISTIC: Create temp user object and add to display immediately
     const tempId = `temp-user-${Date.now()}`
+    const tempUser = {
+      username: newUsername,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser,
+      _isTemp: true // Mark as temporary
+    }
+    
+    // Add to display immediately (optimistic UI)
+    setUsers(prevUsers => [...prevUsers, tempUser])
+    
     const newPending = {
       ...pendingUserChanges,
       [tempId]: { created: true, username: newUsername }
@@ -129,7 +139,8 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
       if (!resp.ok) {
         const data = await resp.json()
-        // Revert optimistic update
+        // Revert optimistic update - remove temp user from display
+        setUsers(prevUsers => prevUsers.filter(u => u.username !== newUsername || !u._isTemp))
         const reverted = { ...pendingUserChanges }
         delete reverted[tempId]
         setPendingUserChanges(reverted)
@@ -152,8 +163,10 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
       setCreatedUsername(data.user.username)
       showToast(`User ${data.user.username} created successfully`)
       
-      // OPTIMISTIC: Add newly created user to display immediately
-      setUsers(prevUsers => [...prevUsers, data.user])
+      // Replace temp user with real user from server
+      setUsers(prevUsers => prevUsers.map(u => 
+        (u.username === newUsername && u._isTemp) ? data.user : u
+      ))
       
       // Clear temp ID from pending
       const cleared = { ...pendingUserChanges }

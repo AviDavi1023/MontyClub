@@ -71,6 +71,13 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
     resolveParams()
   }, [params])
 
+  // Auto-scroll to top when error appears
+  useEffect(() => {
+    if (error) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [error])
+
   const loadCollectionAndClubs = async (collectionSlug: string) => {
     try {
       setLoading(true)
