@@ -370,10 +370,15 @@ export function AdminPanel() {
               const data = await resp.json()
               const pending = (data.registrations || []).filter((r: any) => r.status === 'pending').length
               totalPending += pending
+            } else if (resp.status === 404) {
+              // Collection exists in metadata but registrations file deleted - this is normal
+              console.log(`Collection ${collection.id} has no registrations file`)
             }
           } catch (err) {
-            // Skip collections that fail to load
-            console.error(`Failed to load registrations for ${collection.name}:`, err)
+            // Skip collections that fail to load - don't spam console for 404s
+            if (err instanceof Error && !err.message.includes('404')) {
+              console.error(`Failed to load registrations for ${collection.name}:`, err)
+            }
           }
         }
         

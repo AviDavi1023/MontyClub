@@ -68,13 +68,13 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
   const handleApprove = async (requestId: string) => {
     setProcessingId(requestId)
     try {
-      const response = await fetch('/api/registration-update', {
-        method: 'POST',
+      const response = await fetch(`/api/updates/${requestId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
         },
-        body: JSON.stringify({ updateRequestId: requestId, action: 'approve' })
+        body: JSON.stringify({ reviewed: true })
       })
       if (!response.ok) throw new Error('Failed to approve')
       setUpdateRequests(prev =>
@@ -90,18 +90,14 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
   const handleReject = async (requestId: string) => {
     setProcessingId(requestId)
     try {
-      const response = await fetch('/api/registration-update', {
-        method: 'POST',
+      const response = await fetch(`/api/updates/${requestId}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'x-admin-key': adminApiKey
-        },
-        body: JSON.stringify({ updateRequestId: requestId, action: 'reject' })
+        }
       })
       if (!response.ok) throw new Error('Failed to reject')
-      setUpdateRequests(prev =>
-        prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r)
-      )
+      setUpdateRequests(prev => prev.filter(r => r.id !== requestId))
     } catch (err) {
       setError(String(err))
     } finally {
