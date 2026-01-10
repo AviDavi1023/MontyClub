@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3 } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -188,6 +188,11 @@ export function AdminPanel() {
   
   // Pending registrations count across ALL collections
   const [pendingRegistrationsCount, setPendingRegistrationsCount] = useState(0)
+
+  // Collection edit modal state
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null)
+  const [editingCollectionName, setEditingCollectionName] = useState('')
+  const [savingCollectionEdit, setSavingCollectionEdit] = useState(false)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -986,6 +991,65 @@ export function AdminPanel() {
         }
       } catch {}
       showToast(err.message || 'Failed to delete collection', 'error')
+    }
+  }
+
+  const renameCollection = async (collectionId: string, newName: string) => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+
+    if (!newName.trim()) {
+      showToast('Collection name cannot be empty', 'error')
+      return
+    }
+
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) return
+
+    if (newName.trim().toLowerCase() === collection.name.toLowerCase()) {
+      // No change needed
+      setEditingCollectionId(null)
+      setEditingCollectionName('')
+      return
+    }
+
+    setSavingCollectionEdit(true)
+    try {
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, name: newName.trim() })
+      })
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: 'Failed to rename collection' }))
+        throw new Error(err.error || err.detail || 'Failed to rename collection')
+      }
+
+      const data = await resp.json()
+      showToast(`Collection renamed to "${data.collection.name}"`)
+      
+      // Optimistically update pending changes
+      setLocalPendingCollectionChanges(prev => {
+        const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), name: data.collection.name } }
+        try {
+          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
+          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
+        } catch {}
+        return next
+      })
+
+      setEditingCollectionId(null)
+      setEditingCollectionName('')
+      
+      // Refresh collections to get updated data
+      await loadCollections()
+    } catch (err) {
+      showToast(String(err).replace('Error: ', ''), 'error')
+    } finally {
+      setSavingCollectionEdit(false)
     }
   }
 
@@ -3537,6 +3601,18 @@ export function AdminPanel() {
                             />
                           </div>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingCollectionId(collection.id)
+                            setEditingCollectionName(collection.name)
+                          }}
+                          className="mt-2 p-1.5 w-full text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded transition-colors text-xs font-medium"
+                          title="Edit collection name"
+                        >
+                          <Edit3 className="h-4 w-4 inline mr-1" />
+                          Edit Collection
+                        </button>
                         {collections.length > 1 && (
                           <button
                             onClick={(e) => {
@@ -4351,6 +4427,71 @@ export function AdminPanel() {
                   <>
                     <Trash2 className="h-4 w-4" />
                     Clear Selected Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Collection Modal */}
+      {editingCollectionId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Edit3 className="h-5 w-5" />
+              Edit Collection Name
+            </h3>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Collection Name
+              </label>
+              <input
+                type="text"
+                value={editingCollectionName}
+                onChange={(e) => setEditingCollectionName(e.target.value)}
+                placeholder="Enter collection name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    renameCollection(editingCollectionId, editingCollectionName)
+                  } else if (e.key === 'Escape') {
+                    setEditingCollectionId(null)
+                    setEditingCollectionName('')
+                  }
+                }}
+                autoFocus
+                disabled={savingCollectionEdit}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setEditingCollectionId(null)
+                  setEditingCollectionName('')
+                }}
+                disabled={savingCollectionEdit}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => renameCollection(editingCollectionId, editingCollectionName)}
+                disabled={savingCollectionEdit || !editingCollectionName.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {savingCollectionEdit ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Edit3 className="h-4 w-4" />
+                    Save Changes
                   </>
                 )}
               </button>
