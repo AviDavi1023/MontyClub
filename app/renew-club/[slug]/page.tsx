@@ -225,7 +225,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          collectionId: slug,
+          collectionId: collection?.id, // Use the actual collection ID, not the URL slug
           originalClubId: selectedClub.id,
           clubName,
           category: finalCategory,
