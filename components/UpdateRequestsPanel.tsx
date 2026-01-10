@@ -53,6 +53,7 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
         clubName: item.clubName || item.name || 'Unknown Club',
         requestedBy: item.requestedBy || item.createdBy || 'Unknown',
         requestedAt: item.requestedAt || item.createdAt || new Date().toISOString(),
+        updates: Array.isArray(item.updates) ? item.updates : [],
       })) : []
       setUpdateRequests(mappedData)
       setError('')
