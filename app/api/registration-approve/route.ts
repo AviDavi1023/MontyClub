@@ -4,7 +4,6 @@ import { ClubRegistration, RegistrationCollection, Club } from '@/types/club'
 import { withRegistrationLock } from '@/lib/registration-lock'
 import { withSnapshotLock } from '@/lib/snapshot-lock'
 import { invalidateClubsCache } from '@/lib/cache-utils'
-import { readData } from '@/lib/runtime-store'
 import { withIdempotency } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
@@ -63,8 +62,9 @@ async function handler(request: NextRequest, body: any) {
         try {
           console.log('[Snapshot] Auto-publishing catalog after registration approval...')
           
-          // Get the display collection
-          const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+          // Get the display collection - read directly from Supabase for consistency
+          const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
+          const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
           const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
           
           if (!displayCollection) {

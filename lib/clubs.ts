@@ -101,14 +101,13 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
         console.log('[DEBUG] Announcements map (Collection mode):', map)
       }
       
-      // Merge announcements where club id matches (try numeric/string variants)
+      // Merge announcements where club id matches
+      // IMPORTANT: Only try exact string match, not numeric conversion
+      // Club IDs are always strings, and converting "ABC123" to Number yields NaN
       clubs.forEach((c) => {
         const idStr = String(c.id).trim()
-        const idNum = String(Number(c.id))
         if (map[idStr] && map[idStr].trim() !== '') {
           c.announcement = map[idStr].trim()
-        } else if (map[idNum] && map[idNum].trim() !== '') {
-          c.announcement = map[idNum].trim()
         }
       })
     }
@@ -219,14 +218,13 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
           console.log('[DEBUG] Announcements map:', map)
         }
         
-        // Merge announcements where club id matches (try numeric/string variants)
+        // Merge announcements where club id matches
+        // IMPORTANT: Only try exact string match, not numeric conversion
+        // Club IDs are always strings, and converting "ABC123" to Number yields NaN
         clubs.forEach((c) => {
           const idStr = String(c.id).trim()
-          const idNum = String(Number(c.id))
           if (map[idStr] && map[idStr].trim() !== '') {
             c.announcement = map[idStr].trim()
-          } else if (map[idNum] && map[idNum].trim() !== '') {
-            c.announcement = map[idNum].trim()
           }
         })
       }
