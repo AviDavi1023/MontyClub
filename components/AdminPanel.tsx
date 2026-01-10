@@ -4454,7 +4454,7 @@ export function AdminPanel() {
                 onChange={(e) => setEditingCollectionName(e.target.value)}
                 placeholder="Enter collection name"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && editingCollectionId) {
                     renameCollection(editingCollectionId, editingCollectionName)
                   } else if (e.key === 'Escape') {
                     setEditingCollectionId(null)
@@ -4479,7 +4479,11 @@ export function AdminPanel() {
                 Cancel
               </button>
               <button
-                onClick={() => renameCollection(editingCollectionId, editingCollectionName)}
+                onClick={() => {
+                  if (editingCollectionId) {
+                    renameCollection(editingCollectionId, editingCollectionName)
+                  }
+                }}
                 disabled={savingCollectionEdit || !editingCollectionName.trim()}
                 className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
               >
