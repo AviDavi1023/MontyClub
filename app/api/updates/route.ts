@@ -6,24 +6,32 @@ import { updatesCache } from '@/lib/caches'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Cache-backed GET: serves cached data if < maxAge, otherwise refreshes storage
-export const GET = createCachedGET<any[]>(
-  updatesCache,
-  async (request: NextRequest) => {
-    // Validate admin API key
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-    
-    if (!adminKey || adminKey !== expectedKey) {
-      throw new Error('Unauthorized')
-    }
+// Manual GET handler with auth check before using cached pattern
+export async function GET(request: NextRequest) {
+  // Validate admin API key BEFORE attempting to fetch
+  const adminKey = request.headers.get('x-admin-key')
+  const expectedKey = process.env.ADMIN_API_KEY
+  
+  if (!adminKey || adminKey !== expectedKey) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    )
+  }
 
-    const data = await readData('updates', [])
-    // Ensure array
-    return Array.isArray(data) ? data : []
-  },
-  { maxAge: 10000 }
-)
+  // Use cached GET pattern for authorized requests
+  const cachedGET = createCachedGET<any[]>(
+    updatesCache,
+    async (_request: NextRequest) => {
+      const data = await readData('updates', [])
+      // Ensure array
+      return Array.isArray(data) ? data : []
+    },
+    { maxAge: 10000 }
+  )
+
+  return cachedGET(request)
+}
 
 // Locked POST prevents races when many updates are submitted rapidly
 export const POST = createLockedPOST<any>(
