@@ -25,19 +25,34 @@ export function UserManagement({ currentUser, showToast }: UserManagementProps) 
 
   const fetchUsers = async () => {
     try {
+      // CRITICAL: Read pending changes from localStorage directly to avoid stale closure issues
+      let currentPending: Record<string, any> = {}
+      try {
+        const primary = localStorage.getItem(USERS_PENDING_KEY)
+        if (primary) {
+          currentPending = JSON.parse(primary)
+        } else {
+          const backup = localStorage.getItem(USERS_BACKUP_KEY)
+          if (backup) {
+            const bp = JSON.parse(backup)
+            if (bp && bp.data) currentPending = bp.data
+          }
+        }
+      } catch {}
+      
       const resp = await fetch('/api/admin/users')
       if (!resp.ok) throw new Error('Failed to fetch users')
       const data = await resp.json()
       
-      // OPTIMISTIC: Merge server users with pending changes
+      // OPTIMISTIC: Merge server users with pending changes from localStorage
       const serverUsers: any[] = data.users || []
-      const displayUsers = serverUsers.filter((u: any) => !pendingUserChanges[u.username]?.deleted)
+      const displayUsers = serverUsers.filter((u: any) => !currentPending[u.username]?.deleted)
       setUsers(displayUsers)
       
       // Auto-clear pending deletions that are confirmed on server
       const stillPending: Record<string, any> = {}
       let hasCleared = false
-      for (const [key, change] of Object.entries(pendingUserChanges)) {
+      for (const [key, change] of Object.entries(currentPending)) {
         if (change.deleted && !serverUsers.some((u: any) => u.username === key)) {
           // This user was deleted on server, remove from pending
           hasCleared = true
