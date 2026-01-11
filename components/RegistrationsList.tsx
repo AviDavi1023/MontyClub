@@ -1410,10 +1410,25 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         <>
           {viewMode === 'table' ? (
             <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 table-fixed">
+                <colgroup>
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '180px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '140px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '120px' }} />
+                </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left">
+                    <th className="px-2 py-3 text-left">
                       <input 
                         type="checkbox" 
                         aria-label="Select all" 
@@ -1426,7 +1441,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       />
                     </th>
                     <th 
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('status')}
                     >
                       <div className="flex items-center gap-1">
@@ -1436,8 +1451,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                     <th 
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('submitted')}
                     >
                       <div className="flex items-center gap-1">
@@ -1448,7 +1464,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       </div>
                     </th>
                     <th 
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('name')}
                     >
                       <div className="flex items-center gap-1">
@@ -1458,8 +1474,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
                     <th 
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('category')}
                     >
                       <div className="flex items-center gap-1">
@@ -1469,16 +1486,18 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Location</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Social Media</th>
+                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {visible.map(reg => (
                     <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-3">
                         <input 
                           type="checkbox" 
                           checked={selectedIds.has(reg.id)} 
@@ -1490,22 +1509,61 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           className="rounded border-gray-300 dark:border-gray-600"
                         />
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                      <td className="px-2 py-3">
+                        <div className="flex items-center gap-1">
                           <span className={getStatusBadge(reg.status)}>
                             {getStatusIcon(reg.status)}
-                            <span className="capitalize">{reg.status}</span>
+                            <span className="capitalize text-xs">{reg.status}</span>
                           </span>
                           {localPendingRegistrationChanges[reg.id] && (
                             <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">⟳</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="whitespace-nowrap">{new Date(reg.submittedAt).toLocaleDateString()}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString()}</div>
+                      <td className="px-2 py-2">
+                        <div className="flex gap-1 items-center flex-wrap">
+                          {reg.status === 'pending' && (
+                            <button 
+                              onClick={() => handleApprove(reg)} 
+                              disabled={processingId === reg.id}
+                              className="px-1.5 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span className="hidden xl:inline">Approve</span>
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => openEditModal(reg)} 
+                            disabled={processingId === reg.id}
+                            className="px-1.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                          >
+                            Edit
+                          </button>
+                          {reg.status === 'rejected' ? (
+                            <button
+                              onClick={() => handleApprove(reg)}
+                              disabled={processingId === reg.id}
+                              className="px-1.5 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span className="hidden xl:inline">Approve</span>
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleDeny(reg)} 
+                              disabled={processingId === reg.id}
+                              className="px-1.5 py-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                            >
+                              Deny
+                            </button>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-3 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="whitespace-nowrap text-xs">{new Date(reg.submittedAt).toLocaleDateString()}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      </td>
+                      <td className="px-2 py-3">
                         {quickEditId === reg.id ? (
                           <div className="space-y-1">
                             <input
@@ -1544,23 +1602,28 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1"
                             title="Double-click to edit"
                           >
-                            <div className="font-medium text-gray-900 dark:text-white max-w-xs truncate">{reg.clubName}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{reg.email}</div>
+                            <div className="font-medium text-gray-900 dark:text-white text-sm truncate">{reg.clubName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{reg.email}</div>
                           </div>
                         )}
                         {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
                           <div className="flex items-center gap-1 mt-1 text-xs text-orange-600 dark:text-orange-400">
                             <AlertCircle className="h-3 w-3" />
-                            <span>Possible duplicate</span>
+                            <span>Duplicate?</span>
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="truncate" title={reg.statementOfPurpose}>
+                          {reg.statementOfPurpose || '—'}
+                        </div>
+                      </td>
+                      <td className="px-2 py-3 text-sm text-gray-900 dark:text-white">
                         {quickEditId === reg.id ? (
                           <select
                             value={quickEditFields.category ?? reg.category}
                             onChange={(e) => setQuickEditFields(prev => ({ ...prev, category: e.target.value }))}
-                            className="w-full px-2 py-1 text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
+                            className="w-full px-2 py-1 text-xs border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
                           >
                             <option value="">Select category</option>
                             {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -1571,55 +1634,33 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               setQuickEditId(reg.id)
                               setQuickEditFields({ clubName: reg.clubName, category: reg.category })
                             }}
-                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 inline-block"
+                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 inline-block text-xs"
                             title="Double-click to edit"
                           >
                             {reg.category || '—'}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white max-w-xs truncate">{reg.advisorName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{reg.studentContactName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                        {reg.meetingDay} • {reg.meetingFrequency}
+                      <td className="px-2 py-3 text-xs text-gray-900 dark:text-white truncate">{reg.advisorName}</td>
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="truncate">{reg.studentContactName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.studentContactEmail}</div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex gap-2 items-center justify-end flex-nowrap">
-                          {reg.status === 'pending' && (
-                            <button 
-                              onClick={() => handleApprove(reg)} 
-                              disabled={processingId === reg.id}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1 whitespace-nowrap"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Approve
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => openEditModal(reg)} 
-                            disabled={processingId === reg.id}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
-                          >
-                            Edit
-                          </button>
-                          {reg.status === 'rejected' ? (
-                            <button
-                              onClick={() => handleApprove(reg)}
-                              disabled={processingId === reg.id}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1 whitespace-nowrap"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Approve
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={() => handleDeny(reg)} 
-                              disabled={processingId === reg.id}
-                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
-                            >
-                              Deny
-                            </button>
-                          )}
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '—'}</td>
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="truncate">{reg.meetingDay}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.meetingFrequency}</div>
+                      </td>
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        {reg.socialMedia ? (
+                          <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate block">
+                            {reg.socialMedia.length > 15 ? reg.socialMedia.substring(0, 15) + '...' : reg.socialMedia}
+                          </a>
+                        ) : '—'}
+                      </td>
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="truncate" title={reg.notes}>
+                          {reg.notes || '—'}
                         </div>
                       </td>
                     </tr>
@@ -1718,6 +1759,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               <div className="flex items-start gap-2 mt-3">
                                 <span className="text-gray-600 dark:text-gray-400 font-medium">Purpose:</span>
                                 <p className="text-gray-700 dark:text-gray-300 text-xs">{reg.statementOfPurpose}</p>
+                              </div>
+                            )}
+                            {reg.notes && (
+                              <div className="flex items-start gap-2 mt-3">
+                                <span className="text-gray-600 dark:text-gray-400 font-medium">Notes:</span>
+                                <p className="text-gray-700 dark:text-gray-300 text-xs">{reg.notes}</p>
                               </div>
                             )}
                             {reg.denialReason && (
@@ -1821,6 +1868,15 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Statement of Purpose / Description</label>
+                  <textarea
+                    value={editFields.statementOfPurpose || ''}
+                    onChange={(e) => handleEditField('statementOfPurpose', e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                   <select
                     value={editFields.category || ''}
@@ -1852,21 +1908,71 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Day</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student Contact Email</label>
                   <input
-                    type="text"
-                    value={editFields.meetingDay || ''}
-                    onChange={(e) => handleEditField('meetingDay', e.target.value)}
+                    type="email"
+                    value={editFields.studentContactEmail || ''}
+                    onChange={(e) => handleEditField('studentContactEmail', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Day</label>
+                  <select
+                    value={editFields.meetingDay || ''}
+                    onChange={(e) => handleEditField('meetingDay', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select a day</option>
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Frequency</label>
-                  <input
-                    type="text"
+                  <select
                     value={editFields.meetingFrequency || ''}
                     onChange={(e) => handleEditField('meetingFrequency', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select frequency</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="1st and 3rd weeks of the month">1st and 3rd weeks of the month</option>
+                    <option value="2nd and 4th weeks of the month">2nd and 4th weeks of the month</option>
+                    <option value="1st week only">1st week only</option>
+                    <option value="2nd week only">2nd week only</option>
+                    <option value="3rd week only">3rd week only</option>
+                    <option value="4th week only">4th week only</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={editFields.location || ''}
+                    onChange={(e) => handleEditField('location', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Social Media (optional)</label>
+                  <input
+                    type="text"
+                    value={editFields.socialMedia || ''}
+                    onChange={(e) => handleEditField('socialMedia', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    placeholder="@handle or URL"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={editFields.notes || ''}
+                    onChange={(e) => handleEditField('notes', e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    placeholder="Additional information for the public"
                   />
                 </div>
               </div>
