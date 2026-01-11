@@ -4220,22 +4220,36 @@ export function AdminPanel() {
                   <InfoTooltip text="Review and manage registration requests for the active collection. Links above open public registration and renewal." />
                 </h2>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 space-y-1">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-500">Registration:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${(() => {
-                        const colId = activeCollectionId!
-                        const pending = localPendingCollectionChanges[colId]
-                        const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
-                        return slugifyName(baseName)
-                      })()}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection={(() => {
-                        const colId = activeCollectionId!
-                        const pending = localPendingCollectionChanges[colId]
-                        const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
-                        return slugifyName(baseName)
-                      })()}</a>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-500">Renewal:</span> <a href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${activeCollectionId}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/{activeCollectionId}</a>
-                    </div>
+                    {(() => {
+                      const colId = activeCollectionId!
+                      const collection = collections.find(c => c.id === colId)
+                      const pending = localPendingCollectionChanges[colId]
+                      const isAccepting = pending?.accepting !== undefined ? pending.accepting : (collection?.accepting ?? collection?.enabled ?? false)
+                      const isRenewalEnabled = collection?.renewalEnabled ?? false
+                      const baseName = pending?.name || (collection?.name || '')
+                      const slug = slugifyName(baseName)
+                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                      
+                      return (
+                        <>
+                          {isAccepting && (
+                            <div>
+                              <span className="text-gray-500 dark:text-gray-500">Registration:</span> <a href={`${origin}/register-club?collection=${slug}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{origin}/register-club?collection={slug}</a>
+                            </div>
+                          )}
+                          {isRenewalEnabled && (
+                            <div>
+                              <span className="text-gray-500 dark:text-gray-500">Renewal:</span> <a href={`${origin}/renew-club/${colId}`} target="_blank" className="text-primary-600 dark:text-primary-400 hover:underline">{origin}/renew-club/{colId}</a>
+                            </div>
+                          )}
+                          {!isAccepting && !isRenewalEnabled && (
+                            <div className="text-gray-500 dark:text-gray-500 italic">
+                              No forms currently enabled for this collection
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
                 <button

@@ -1409,12 +1409,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 table-fixed">
+            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 min-w-max">
                 <colgroup>
                   <col style={{ width: '40px' }} />
-                  <col style={{ width: '110px' }} />
-                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '180px' }} />
                   <col style={{ width: '100px' }} />
                   <col style={{ width: '180px' }} />
                   <col style={{ width: '200px' }} />
