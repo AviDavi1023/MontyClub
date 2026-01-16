@@ -298,7 +298,7 @@ export function AdminPanel() {
 
     for (const collectionId in newPending) {
       const pending = newPending[collectionId]
-      const pendingTimestamp = (pending as any)._timestamp || 0
+      const pendingTimestamp = pending._timestamp || 0
       const age = now - pendingTimestamp
       
       // Skip if too recent - still propagating to Supabase
@@ -1989,7 +1989,7 @@ export function AdminPanel() {
     Object.keys(cleaned).forEach(id => {
       const pending = cleaned[id]
       // Check if pending has a timestamp and if it's stale
-      const pendingTimestamp = (pending as any)._timestamp
+      const pendingTimestamp = pending._timestamp
       if (pendingTimestamp && (now - pendingTimestamp) > staleThreshold) {
         console.log(JSON.stringify({ 
           tag: 'updates-pending', 
@@ -2093,7 +2093,7 @@ export function AdminPanel() {
       const confirmed = confirmedOperationsRef.current.get(id)
       
       // SAFETY: Only auto-clear if confirmed by API OR older than 5 seconds
-      const pendingTimestamp = (pending as any)._timestamp || 0
+      const pendingTimestamp = pending._timestamp || 0
       const age = pendingTimestamp > 0 ? Date.now() - pendingTimestamp : Infinity
       const MIN_AGE_MS = 5000 // 5 seconds minimum before auto-clear
       
@@ -2335,7 +2335,8 @@ export function AdminPanel() {
       if (id.endsWith('_timestamp')) return
       
       const pendingText = stillPending[id]
-      const pendingTimestamp = stillPending[`${id}_timestamp`] || 0
+      const pendingTimestampRaw = stillPending[`${id}_timestamp`]
+      const pendingTimestamp = typeof pendingTimestampRaw === 'number' ? pendingTimestampRaw : 0
       const age = pendingTimestamp > 0 ? now - pendingTimestamp : Infinity
       const dbText = announcements[id] || ''
 
@@ -3154,16 +3155,28 @@ export function AdminPanel() {
             />
           )}
           
-          {activeSection === 'announcements' && (
-            <AnnouncementsBoard
-              clubs={clubs}
-              announcements={{ ...announcements, ...localPendingAnnouncements }}
-              saveAnnouncement={saveAnnouncement}
-              clearAnnouncement={clearAnnouncement}
-              savingAnnouncements={savingAnnouncements}
-              showToast={showToast}
-            />
-          )}
+          {activeSection === 'announcements' && (() => {
+            // Merge announcements but filter out timestamp keys
+            const merged: Record<string, string> = { ...announcements }
+            Object.keys(localPendingAnnouncements).forEach(key => {
+              if (!key.endsWith('_timestamp')) {
+                const value = localPendingAnnouncements[key]
+                if (typeof value === 'string') {
+                  merged[key] = value
+                }
+              }
+            })
+            return (
+              <AnnouncementsBoard
+                clubs={clubs}
+                announcements={merged}
+                saveAnnouncement={saveAnnouncement}
+                clearAnnouncement={clearAnnouncement}
+                savingAnnouncements={savingAnnouncements}
+                showToast={showToast}
+              />
+            )
+          })()}
           
           {activeSection === 'activity' && (
             <ActivityLog />
@@ -4053,11 +4066,20 @@ export function AdminPanel() {
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Search a club, edit its announcement, and save.</p>
 
               {(() => {
-                const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+                // Merge announcements but filter out timestamp keys
+                const merged: Record<string, string> = { ...announcements }
+                Object.keys(localPendingAnnouncements).forEach(key => {
+                  if (!key.endsWith('_timestamp')) {
+                    const value = localPendingAnnouncements[key]
+                    if (typeof value === 'string') {
+                      merged[key] = value
+                    }
+                  }
+                })
                 return (
               <AnnounceEditor
             clubs={clubs}
-            announcements={mergedAnnouncements}
+            announcements={merged}
             setAnnouncements={setAnnouncements}
             saveAnnouncement={async (id: string, text: string) => {
               await saveAnnouncement(id, text)
@@ -4083,11 +4105,20 @@ export function AdminPanel() {
           
           {/* Bulk Delete Section */}
           {(() => {
-            const mergedAnnouncements = { ...announcements, ...localPendingAnnouncements }
+            // Merge announcements but filter out timestamp keys
+            const merged: Record<string, string> = { ...announcements }
+            Object.keys(localPendingAnnouncements).forEach(key => {
+              if (!key.endsWith('_timestamp')) {
+                const value = localPendingAnnouncements[key]
+                if (typeof value === 'string') {
+                  merged[key] = value
+                }
+              }
+            })
             return (
           <BulkDeleteAnnouncements
             clubs={clubs}
-            announcements={mergedAnnouncements}
+            announcements={merged}
             onDelete={async (ids: string[]) => {
               // Call new bulk delete API for atomic removal
               if (ids.length === 0) return
