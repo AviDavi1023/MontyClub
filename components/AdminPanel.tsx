@@ -285,21 +285,30 @@ export function AdminPanel() {
   }, [localPendingCollectionChanges, collectionsStorageLoaded])
 
   // Auto-clear pending collection changes that now match database state
+  // CONSERVATIVE: Only clear if state matches AND pending change is at least 3 seconds old
   useEffect(() => {
     if (!collectionsStorageLoaded) return
     if (Object.keys(localPendingCollectionChanges).length === 0) return
 
-    // Debug logging removed for cleaner console
+    const now = Date.now()
+    const MIN_AGE_BEFORE_CLEAR = 3000 // 3 seconds - gives Supabase time to propagate
 
     const newPending = { ...localPendingCollectionChanges }
     let hasChanges = false
 
     for (const collectionId in newPending) {
       const pending = newPending[collectionId]
+      const pendingTimestamp = (pending as any)._timestamp || 0
+      const age = now - pendingTimestamp
+      
+      // Skip if too recent - still propagating to Supabase
+      if (pendingTimestamp > 0 && age < MIN_AGE_BEFORE_CLEAR) {
+        continue
+      }
+      
       const found = collections.find(c => c.id === collectionId)
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !found) {
-        // Debug logging removed
         delete newPending[collectionId]
         hasChanges = true
         continue
@@ -307,11 +316,13 @@ export function AdminPanel() {
       if (found) {
         // If enabled matches DB, clear enabled flag
         if (pending.enabled !== undefined && found.enabled === pending.enabled) {
-          // Debug logging removed
           delete newPending[collectionId].enabled
           hasChanges = true
-        } else if (pending.enabled !== undefined) {
-          // Debug logging removed
+        }
+        // If display matches DB, clear display flag
+        if (pending.display !== undefined && found.display === pending.display) {
+          delete newPending[collectionId].display
+          hasChanges = true
         }
         // If accepting matches DB, clear accepting flag
         if (pending.accepting !== undefined && found.accepting === pending.accepting) {
@@ -330,7 +341,7 @@ export function AdminPanel() {
         }
         // If no remaining flags, remove entry
         const entry = newPending[collectionId]
-        if (entry && !entry.deleted && entry.enabled === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
+        if (entry && !entry.deleted && entry.enabled === undefined && entry.display === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
           delete newPending[collectionId]
           hasChanges = true
         }
@@ -338,10 +349,7 @@ export function AdminPanel() {
     }
 
     if (hasChanges) {
-      // Debug logging removed
       setLocalPendingCollectionChanges(newPending)
-    } else {
-      // Debug logging removed
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
@@ -580,7 +588,7 @@ export function AdminPanel() {
 
     // Optimistically update display
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -645,7 +653,7 @@ export function AdminPanel() {
     const nextAccepting = !effectiveCurrentAccepting
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -709,7 +717,7 @@ export function AdminPanel() {
     const nextRenewal = !effectiveCurrentRenewal
 
     setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal } }
+      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal, _timestamp: Date.now() } }
       try {
         localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
         localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
@@ -1711,7 +1719,7 @@ export function AdminPanel() {
     setLocalPendingChanges(prev => {
       const newPending = {
         ...prev,
-        [id]: { ...(prev[id] || {}), deleted: true },
+        [id]: { ...(prev[id] || {}), deleted: true, _timestamp: Date.now() },
       }
       try {
         localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
@@ -1803,14 +1811,15 @@ export function AdminPanel() {
     // Apply the batch intent using functional update to avoid stale closures
     setLocalPendingChanges(prev => {
       const newPending = { ...prev }
+      const timestamp = Date.now()
       if (action === 'delete') {
         ids.forEach(id => {
-          newPending[id] = { ...(newPending[id] || {}), deleted: true }
+          newPending[id] = { ...(newPending[id] || {}), deleted: true, _timestamp: timestamp }
         })
       } else {
         const reviewedVal = action === 'review'
         ids.forEach(id => {
-          newPending[id] = { ...(newPending[id] || {}), reviewed: reviewedVal }
+          newPending[id] = { ...(newPending[id] || {}), reviewed: reviewedVal, _timestamp: timestamp }
         })
       }
       try {
@@ -2082,6 +2091,13 @@ export function AdminPanel() {
       const pending = stillPending[id]
       const dbItem = updates.find(u => String(u.id) === id)
       const confirmed = confirmedOperationsRef.current.get(id)
+      
+      // SAFETY: Only auto-clear if confirmed by API OR older than 5 seconds
+      const pendingTimestamp = (pending as any)._timestamp || 0
+      const age = pendingTimestamp > 0 ? Date.now() - pendingTimestamp : Infinity
+      const MIN_AGE_MS = 5000 // 5 seconds minimum before auto-clear
+      
+      const canAutoClear = confirmed || age >= MIN_AGE_MS
 
       console.log(JSON.stringify({ 
         tag: 'autoclear', 
@@ -2090,8 +2106,24 @@ export function AdminPanel() {
         id,
         pending: { reviewed: pending.reviewed, deleted: pending.deleted },
         dbItem: dbItem ? { id: String(dbItem.id), reviewed: dbItem.reviewed } : null,
-        confirmed: confirmed ? { reviewed: confirmed.reviewed, timestamp: confirmed.timestamp } : null
+        age,
+        canAutoClear,
+        confirmed: confirmed ? { reviewed: confirmed.reviewed, timestamp: confirmed.timestamp } : null,
+        canAutoClear
       }))
+      
+      // Skip auto-clear if not confirmed and too recent
+      if (!canAutoClear) {
+        console.log(JSON.stringify({ 
+          tag: 'autoclear', 
+          step: 'skip-too-recent', 
+          autoClearId, 
+          id,
+          age
+        }))
+        stillPendingIds.push(id)
+        return
+      }
 
       // PRIORITY 1: If operation was confirmed by API, clear it immediately
       // API response is source of truth - don't wait for database
@@ -2277,10 +2309,14 @@ export function AdminPanel() {
   }, [localPendingAnnouncements, announcementsStorageLoaded])
 
   // Auto-clear pending announcements that now match database state
+  // CONSERVATIVE: Only clear if announcement matches DB AND is at least 3 seconds old
   useEffect(() => {
     if (!announcementsStorageLoaded) return
-    const pendingCount = Object.keys(localPendingAnnouncements).length
+    const pendingCount = Object.keys(localPendingAnnouncements).filter(k => !k.endsWith('_timestamp')).length
     if (pendingCount === 0) return
+
+    const now = Date.now()
+    const MIN_AGE_BEFORE_CLEAR = 3000 // 3 seconds - gives Supabase time to propagate
 
     // Create a hash of current state to detect actual changes
     const stateHash = JSON.stringify({ announcements, localPendingAnnouncements })
@@ -2296,13 +2332,25 @@ export function AdminPanel() {
     let hasCleared = false
 
     Object.keys(stillPending).forEach(id => {
+      // Skip timestamp keys
+      if (id.endsWith('_timestamp')) return
+      
       const pendingText = stillPending[id]
+      const pendingTimestamp = stillPending[`${id}_timestamp`] || 0
+      const age = pendingTimestamp > 0 ? now - pendingTimestamp : Infinity
       const dbText = announcements[id] || ''
+
+      // Skip if too recent - still propagating to Supabase
+      if (pendingTimestamp > 0 && age < MIN_AGE_BEFORE_CLEAR) {
+        console.log(`⏳ Keeping announcement ${id} - too recent (age: ${age}ms)`)
+        return
+      }
 
       // If announcement text matches DB (including both being empty), clear it
       if (pendingText === dbText) {
         console.log(`✅ Clearing announcement ${id} - DB now matches ("${pendingText}")`)
         delete stillPending[id]
+        delete stillPending[`${id}_timestamp`]
         hasCleared = true
       } else {
         console.log(`⏳ Keeping announcement ${id} - DB mismatch (pending: "${pendingText}", db: "${dbText}")`)
@@ -2311,7 +2359,7 @@ export function AdminPanel() {
 
     // Only update state if something actually changed
     if (hasCleared) {
-      const newPendingCount = Object.keys(stillPending).length
+      const newPendingCount = Object.keys(stillPending).filter(k => !k.endsWith('_timestamp')).length
       // Ensure we're actually removing something (prevents state thrashing)
       if (newPendingCount < pendingCount) {
         console.log('📝 Updating announcements localStorage with remaining pending:', stillPending)
@@ -2440,7 +2488,8 @@ export function AdminPanel() {
     setSavingAnnouncements(prev => ({ ...prev, [id]: true }))
     
     // Do NOT mutate announcements optimistically; only update localPendingAnnouncements
-    const newPending = { ...localPendingAnnouncements, [id]: text || '' }
+    const timestamp = Date.now()
+    const newPending = { ...localPendingAnnouncements, [id]: text || '', [`${id}_timestamp`]: timestamp }
     setLocalPendingAnnouncements(newPending)
     console.log('💾 SAVE ANNOUNCEMENT - Saving to localStorage:', newPending)
     try {

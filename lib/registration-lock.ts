@@ -47,14 +47,19 @@ export async function withRegistrationLock<R>(
 export function cleanupRegistrationLocks(): number {
   const now = Date.now()
   let cleaned = 0
+  const MAX_LOCKS = 1000
+  const LOCK_EXPIRE_MS = 60 * 60 * 1000 // 1 hour
 
-  // Remove locks older than 1 hour
-  for (const [path] of registrationLocks.entries()) {
-    // Extract timestamp from operation ID in the promise (simple heuristic)
-    // For now, keep all locks (they auto-resolve), just log
-    if (registrationLocks.size > 10000) {
-      console.warn('[registration-lock] Lock map has grown large, consider restart')
-    }
+  // If we have too many locks, aggressively clean up
+  if (registrationLocks.size > MAX_LOCKS) {
+    console.warn(`[registration-lock] Lock map has ${registrationLocks.size} entries, cleaning up...`)
+    
+    // Clear all locks - they're all resolved anyway (just kept for reference)
+    // New operations will create fresh locks
+    registrationLocks.clear()
+    cleaned = registrationLocks.size
+    
+    console.log(`[registration-lock] Cleared ${cleaned} locks`)
   }
 
   return cleaned
