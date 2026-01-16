@@ -615,6 +615,22 @@ export function AdminPanel() {
       } catch {}
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
       await loadCollections()
+      
+      // AUTO-REPUBLISH: If enabling display for a collection, immediately republish the catalog
+      if (nextDisplay) {
+        console.log('[Display Toggle] Auto-republishing catalog with new display collection...')
+        try {
+          setPublishingCatalog(true)
+          await publishSnapshotNow()
+          showToast('Catalog republished with new collection', 'success')
+        } catch (publishErr) {
+          console.error('[Display Toggle] Auto-republish failed:', publishErr)
+          showToast('Display updated but catalog republish failed', 'error')
+        } finally {
+          setPublishingCatalog(false)
+        }
+      }
+      
       try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
       setLocalPendingCollectionChanges(prev => {
@@ -3128,9 +3144,6 @@ export function AdminPanel() {
               adminApiKey={adminApiKey}
               setAdminApiKey={setAdminApiKey}
               saveAdminApiKey={saveAdminApiKey}
-              announcementsEnabled={announcementsEnabled}
-              toggleAnnouncements={toggleAnnouncements}
-              savingSettings={savingSettings}
               refreshCache={refreshCache}
               refreshingCache={refreshingCache}
               publishSnapshotNow={publishSnapshotNow}
@@ -3174,6 +3187,9 @@ export function AdminPanel() {
                 clearAnnouncement={clearAnnouncement}
                 savingAnnouncements={savingAnnouncements}
                 showToast={showToast}
+                announcementsEnabled={announcementsEnabled}
+                toggleAnnouncements={toggleAnnouncements}
+                savingSettings={savingSettings}
               />
             )
           })()}

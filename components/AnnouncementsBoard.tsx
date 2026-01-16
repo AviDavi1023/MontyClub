@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import { Search, Megaphone, Trash2, Edit2, X, Check } from 'lucide-react'
 import { Club } from '@/types/club'
+import { Toggle } from '@/components/Toggle'
+import { InfoTooltip } from '@/components/ui'
 
 interface AnnouncementsBoardProps {
   clubs: Club[]
@@ -11,6 +13,10 @@ interface AnnouncementsBoardProps {
   clearAnnouncement: (id: string) => Promise<void>
   savingAnnouncements: Record<string, boolean>
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void
+  // Announcements feature toggle
+  announcementsEnabled: boolean | null
+  toggleAnnouncements: () => void
+  savingSettings: boolean
 }
 
 export function AnnouncementsBoard({
@@ -20,6 +26,9 @@ export function AnnouncementsBoard({
   clearAnnouncement,
   savingAnnouncements,
   showToast,
+  announcementsEnabled,
+  toggleAnnouncements,
+  savingSettings,
 }: AnnouncementsBoardProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -92,12 +101,28 @@ export function AnnouncementsBoard({
 
   return (
     <div className="space-y-8 max-w-full">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Announcements</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">
-          Manage club announcements. Search for a club to add or edit announcements.
-        </p>
+      {/* Header with Feature Toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Announcements</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">
+            Manage club announcements. Search for a club to add or edit announcements.
+          </p>
+        </div>
+        
+        <div className="card p-4 flex items-center gap-3 self-start">
+          <Toggle
+            checked={announcementsEnabled ?? false}
+            onChange={toggleAnnouncements}
+            disabled={savingSettings}
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Announcements Feature
+            </span>
+            <InfoTooltip text="When enabled, club announcements will be displayed on the public clubs page" />
+          </div>
+        </div>
       </div>
 
       {/* Active Announcements Summary */}

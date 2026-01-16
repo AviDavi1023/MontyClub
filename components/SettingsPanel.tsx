@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Lock, RefreshCw, Megaphone, FileSpreadsheet, Plus } from 'lucide-react'
+import { Lock, RefreshCw, FileSpreadsheet, Plus } from 'lucide-react'
 import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
 import { RegistrationCollection } from '@/types/club'
@@ -10,9 +10,6 @@ interface SettingsPanelProps {
   adminApiKey: string
   setAdminApiKey: (key: string) => void
   saveAdminApiKey: () => void
-  announcementsEnabled: boolean | null
-  toggleAnnouncements: () => void
-  savingSettings: boolean
   refreshCache: () => void
   refreshingCache: boolean
   publishSnapshotNow: () => void
@@ -40,9 +37,6 @@ export function SettingsPanel({
   adminApiKey,
   setAdminApiKey,
   saveAdminApiKey,
-  announcementsEnabled,
-  toggleAnnouncements,
-  savingSettings,
   refreshCache,
   refreshingCache,
   publishSnapshotNow,
@@ -144,35 +138,6 @@ export function SettingsPanel({
             <RefreshCw className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} />
             {publishingCatalog ? 'Publishing...' : 'Publish Catalog Now'}
           </button>
-        </div>
-      </div>
-
-      {/* Feature Toggles */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          Feature Toggles
-          <InfoTooltip text="Enable or disable site-wide features" />
-        </h2>
-
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-                <Megaphone className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                Announcements
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {announcementsEnabled === null ? 'Loading...' : (announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site')}
-              </p>
-            </div>
-            {announcementsEnabled !== null && (
-              <Toggle
-                checked={announcementsEnabled}
-                onChange={() => { if (!savingSettings) toggleAnnouncements() }}
-                disabled={savingSettings}
-              />
-            )}
-          </div>
         </div>
       </div>
 
