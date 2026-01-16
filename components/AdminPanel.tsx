@@ -2108,8 +2108,7 @@ export function AdminPanel() {
         dbItem: dbItem ? { id: String(dbItem.id), reviewed: dbItem.reviewed } : null,
         age,
         canAutoClear,
-        confirmed: confirmed ? { reviewed: confirmed.reviewed, timestamp: confirmed.timestamp } : null,
-        canAutoClear
+        confirmed: confirmed ? { reviewed: confirmed.reviewed, timestamp: confirmed.timestamp } : null
       }))
       
       // Skip auto-clear if not confirmed and too recent
