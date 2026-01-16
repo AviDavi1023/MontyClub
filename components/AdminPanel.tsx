@@ -150,7 +150,7 @@ export function AdminPanel() {
   const [importingExcel, setImportingExcel] = useState(false)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string }
+  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
   const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
   const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
@@ -159,14 +159,14 @@ export function AdminPanel() {
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
-  const [localPendingChanges, setLocalPendingChanges] = useState<Record<string, { reviewed?: boolean; deleted?: boolean }>>({})
+  const [localPendingChanges, setLocalPendingChanges] = useState<Record<string, { reviewed?: boolean; deleted?: boolean; _timestamp?: number }>>({})
   const [localStorageLoaded, setLocalStorageLoaded] = useState(false)
   // Track confirmed operations - operations where API confirmed success
   // This is the source of truth - if API says it succeeded, we trust it
   const confirmedOperationsRef = useRef<Map<string, { reviewed?: boolean; deleted?: boolean; timestamp: number }>>(new Map())
   const PENDING_KEY = 'montyclub:pendingUpdateChanges'
   const PENDING_BACKUP_KEY = 'montyclub:pendingUpdateChanges:backup'
-  const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
+  const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string | number>>({})
   const [announcementsStorageLoaded, setAnnouncementsStorageLoaded] = useState(false)
   const announcementsAutoClearcheckRef = useRef<string>('') // Track last processed state
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
