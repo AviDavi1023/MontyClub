@@ -71,11 +71,13 @@ export async function POST(request: NextRequest) {
       // Get the display collection - read directly from Supabase for consistency
       const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
       const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
-      const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
+      // IMPORTANT: Only use the explicitly selected display collection.
+      // Do not fall back to an enabled/accepting collection, which can cause publishing from the wrong source.
+      const displayCollection = collections.find(c => c.display)
 
       if (!displayCollection) {
-        console.warn('[Snapshot] No display collection found for snapshot')
-        throw new Error('No display collection configured')
+        console.warn('[Snapshot] No display collection found for snapshot. Collections state:', collections.map(c => ({ id: c.id, name: c.name, display: c.display, enabled: (c as any).enabled, accepting: (c as any).accepting })))
+        throw new Error('No display collection configured. Please select a collection as "Public Catalog" in Settings.')
       }
 
       console.log(`[Snapshot] Publishing from collection: ${displayCollection.name} (${displayCollection.id})`)
