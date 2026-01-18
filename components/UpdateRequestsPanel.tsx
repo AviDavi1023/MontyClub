@@ -6,16 +6,15 @@ import { Club } from '@/types/club'
 
 interface UpdateRequest {
   id: string
-  clubId: string
+  clubId?: string
   clubName: string
+  updateType: string
+  suggestedChange: string
+  contactEmail: string
+  additionalNotes?: string
   requestedBy: string
   requestedAt: string
   status: 'pending' | 'approved' | 'rejected'
-  updates: {
-    field: string
-    currentValue: string
-    proposedValue: string
-  }[]
 }
 
 interface UpdateRequestsPanelProps {
@@ -51,9 +50,8 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
         // Map 'reviewed' field to 'status' for backwards compatibility
         status: item.status || (item.reviewed === true ? 'approved' : item.reviewed === false ? 'pending' : 'pending'),
         clubName: item.clubName || item.name || 'Unknown Club',
-        requestedBy: item.requestedBy || item.createdBy || 'Unknown',
+        requestedBy: item.requestedBy || item.createdBy || item.contactEmail || 'Unknown',
         requestedAt: item.requestedAt || item.createdAt || new Date().toISOString(),
-        updates: Array.isArray(item.updates) ? item.updates : [],
       })) : []
       setUpdateRequests(mappedData)
       setError('')
@@ -306,25 +304,31 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
 
               {expandedId === req.id && (
                 <div className="mt-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="space-y-3">
-                    {req.updates.map((update, idx) => (
-                      <div key={idx} className="bg-gray-50 dark:bg-gray-900/30 p-3 rounded">
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2 capitalize">
-                          {update.field}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <div className="text-gray-600 dark:text-gray-400 font-medium mb-1">Current</div>
-                            <div className="text-gray-900 dark:text-white break-words">{update.currentValue}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-600 dark:text-gray-400 font-medium mb-1">Proposed</div>
-                            <div className="text-gray-900 dark:text-white break-words">{update.proposedValue}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  {/* Update Type */}
+                  <div className="bg-gray-50 dark:bg-gray-900/30 p-3 rounded">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Update Type</div>
+                    <div className="text-sm text-gray-900 dark:text-white">{req.updateType || 'Not specified'}</div>
                   </div>
+
+                  {/* Suggested Change */}
+                  <div className="bg-gray-50 dark:bg-gray-900/30 p-3 rounded">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Suggested Change</div>
+                    <div className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{req.suggestedChange || 'Not specified'}</div>
+                  </div>
+
+                  {/* Contact Email */}
+                  <div className="bg-gray-50 dark:bg-gray-900/30 p-3 rounded">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Contact Email</div>
+                    <a href={`mailto:${req.contactEmail}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">{req.contactEmail}</a>
+                  </div>
+
+                  {/* Additional Notes */}
+                  {req.additionalNotes && (
+                    <div className="bg-gray-50 dark:bg-gray-900/30 p-3 rounded">
+                      <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Additional Notes</div>
+                      <div className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{req.additionalNotes}</div>
+                    </div>
+                  )}
 
                   {req.status === 'pending' && (
                     <div className="flex gap-2 pt-2">
