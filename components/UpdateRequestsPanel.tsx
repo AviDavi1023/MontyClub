@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react'
 import { Club } from '@/types/club'
 
 interface UpdateRequest {
@@ -15,6 +15,13 @@ interface UpdateRequest {
   requestedBy: string
   requestedAt: string
   status: 'pending' | 'approved' | 'rejected'
+  _timestamp?: number
+}
+
+interface PendingUpdateChange {
+  status?: 'pending' | 'approved' | 'rejected'
+  deleted?: boolean
+  _timestamp?: number
 }
 
 interface UpdateRequestsPanelProps {
@@ -30,8 +37,18 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [pendingChanges, setPendingChanges] = useState<Record<string, PendingUpdateChange>>({})
 
   useEffect(() => {
+    // Load pending changes from localStorage
+    try {
+      const stored = localStorage.getItem('localPendingUpdateChanges')
+      if (stored) {
+        setPendingChanges(JSON.parse(stored))
+      }
+    } catch (e) {
+      console.warn('Failed to load pending update changes:', e)
+    }
     loadUpdateRequests()
   }, [])
 
@@ -65,6 +82,17 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
 
   const handleApprove = async (requestId: string) => {
     setProcessingId(requestId)
+    
+    // Optimistic update
+    const newPending = { ...pendingChanges }
+    newPending[requestId] = { status: 'approved', _timestamp: Date.now() }
+    setPendingChanges(newPending)
+    localStorage.setItem('localPendingUpdateChanges', JSON.stringify(newPending))
+    
+    setUpdateRequests(prev =>
+      prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r)
+    )
+    
     try {
       const response = await fetch(`/api/updates/${requestId}`, {
         method: 'PATCH',
@@ -75,11 +103,20 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
         body: JSON.stringify({ reviewed: true })
       })
       if (!response.ok) throw new Error('Failed to approve')
-      setUpdateRequests(prev =>
-        prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r)
-      )
+      
+      // Clear pending change on success
+      const updatedPending = { ...newPending }
+      delete updatedPending[requestId]
+      setPendingChanges(updatedPending)
+      localStorage.setItem('localPendingUpdateChanges', JSON.stringify(updatedPending))
     } catch (err) {
       setError(String(err))
+      // Revert optimistic update on error
+      const revertPending = { ...newPending }
+      delete revertPending[requestId]
+      setPendingChanges(revertPending)
+      localStorage.setItem('localPendingUpdateChanges', JSON.stringify(revertPending))
+      loadUpdateRequests()
     } finally {
       setProcessingId(null)
     }
@@ -87,6 +124,15 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
 
   const handleReject = async (requestId: string) => {
     setProcessingId(requestId)
+    
+    // Optimistic update
+    const newPending = { ...pendingChanges }
+    newPending[requestId] = { status: 'rejected', _timestamp: Date.now() }
+    setPendingChanges(newPending)
+    localStorage.setItem('localPendingUpdateChanges', JSON.stringify(newPending))
+    
+    setUpdateRequests(prev => prev.filter(r => r.id !== requestId))
+    
     try {
       const response = await fetch(`/api/updates/${requestId}`, {
         method: 'DELETE',
@@ -95,9 +141,20 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
         }
       })
       if (!response.ok) throw new Error('Failed to reject')
-      setUpdateRequests(prev => prev.filter(r => r.id !== requestId))
+      
+      // Clear pending change on success
+      const updatedPending = { ...newPending }
+      delete updatedPending[requestId]
+      setPendingChanges(updatedPending)
+      localStorage.setItem('localPendingUpdateChanges', JSON.stringify(updatedPending))
     } catch (err) {
       setError(String(err))
+      // Revert optimistic update on error
+      const revertPending = { ...newPending }
+      delete revertPending[requestId]
+      setPendingChanges(revertPending)
+      localStorage.setItem('localPendingUpdateChanges', JSON.stringify(revertPending))
+      loadUpdateRequests()
     } finally {
       setProcessingId(null)
     }
@@ -330,26 +387,45 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
                     </div>
                   )}
 
-                  {req.status === 'pending' && (
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={() => handleApprove(req.id)}
-                        disabled={processingId === req.id}
-                        className="btn-primary text-sm flex items-center gap-2"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReject(req.id)}
-                        disabled={processingId === req.id}
-                        className="btn-secondary text-sm flex items-center gap-2"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Reject
-                      </button>
-                    </div>
-                  )}
+                  {/* Action Buttons - Available for all statuses */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={() => handleApprove(req.id)}
+                      disabled={processingId === req.id}
+                      className={`text-sm flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+                        req.status === 'approved'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'btn-primary'
+                      }`}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleReject(req.id)}
+                      disabled={processingId === req.id}
+                      className={`text-sm flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+                        req.status === 'rejected'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : 'btn-secondary'
+                      }`}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this update request? This cannot be undone.')) {
+                          handleReject(req.id)
+                        }
+                      }}
+                      disabled={processingId === req.id}
+                      className="text-sm flex items-center gap-2 px-3 py-2 rounded bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
