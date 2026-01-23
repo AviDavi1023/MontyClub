@@ -1409,22 +1409,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 table-fixed min-w-[1400px]">
+            <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <div className="w-full overflow-x-auto max-w-full">
+                <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 min-w-max">
                 <colgroup>
-                  <col className="w-8" />
-                  <col className="w-20" />
-                  <col className="w-28" />
-                  <col className="w-20" />
-                  <col className="w-36" />
-                  <col className="w-40" />
-                  <col className="w-20" />
-                  <col className="w-28" />
-                  <col className="w-32" />
-                  <col className="w-24" />
-                  <col className="w-28" />
-                  <col className="w-28" />
-                  <col className="w-28" />
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '180px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '180px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '140px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '120px' }} />
                 </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
@@ -1602,19 +1603,19 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1"
                             title="Double-click to edit"
                           >
-                            <div className="font-medium text-gray-900 dark:text-white text-sm truncate max-w-full" title={reg.clubName}>{reg.clubName}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-full" title={reg.email}>{reg.email}</div>
+                            <div className="font-medium text-gray-900 dark:text-white text-sm truncate">{reg.clubName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{reg.email}</div>
                           </div>
                         )}
                         {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
                           <div className="flex items-center gap-1 mt-1 text-xs text-orange-600 dark:text-orange-400">
-                            <AlertCircle className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">Duplicate?</span>
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Duplicate?</span>
                           </div>
                         )}
                       </td>
                       <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate max-w-full" title={reg.statementOfPurpose}>
+                        <div className="truncate" title={reg.statementOfPurpose}>
                           {reg.statementOfPurpose || '—'}
                         </div>
                       </td>
@@ -1629,41 +1630,37 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         ) : (
-                          <div 
+                          <span 
                             onDoubleClick={() => {
                               setQuickEditId(reg.id)
                               setQuickEditFields({ clubName: reg.clubName, category: reg.category })
                             }}
-                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 text-xs truncate"
+                            className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 inline-block text-xs"
                             title="Double-click to edit"
                           >
                             {reg.category || '—'}
-                          </div>
+                          </span>
                         )}
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-900 dark:text-white">
-                        <div className="truncate max-w-full" title={reg.advisorName}>{reg.advisorName}</div>
-                      </td>
+                      <td className="px-2 py-3 text-xs text-gray-900 dark:text-white truncate">{reg.advisorName}</td>
                       <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate max-w-full" title={reg.studentContactName}>{reg.studentContactName}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate max-w-full" title={reg.studentContactEmail}>{reg.studentContactEmail}</div>
+                        <div className="truncate">{reg.studentContactName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.studentContactEmail}</div>
                       </td>
+                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '—'}</td>
                       <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate max-w-full" title={reg.location}>{reg.location || '—'}</div>
-                      </td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate max-w-full" title={reg.meetingDay}>{reg.meetingDay}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate max-w-full" title={reg.meetingFrequency}>{reg.meetingFrequency}</div>
+                        <div className="truncate">{reg.meetingDay}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.meetingFrequency}</div>
                       </td>
                       <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
                         {reg.socialMedia ? (
-                          <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate block max-w-full" title={reg.socialMedia}>
+                          <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate block">
                             {reg.socialMedia.length > 15 ? reg.socialMedia.substring(0, 15) + '...' : reg.socialMedia}
                           </a>
                         ) : '—'}
                       </td>
                       <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate max-w-full" title={reg.notes}>
+                        <div className="truncate" title={reg.notes}>
                           {reg.notes || '—'}
                         </div>
                       </td>
@@ -1671,6 +1668,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
