@@ -1410,21 +1410,21 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         <>
           {viewMode === 'table' ? (
             <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 table-fixed">
+              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 table-fixed min-w-[1400px]">
                 <colgroup>
-                  <col className="w-10" />
-                  <col className="w-24" />
-                  <col className="w-32" />
-                  <col className="w-24" />
-                  <col className="w-40" />
-                  <col className="w-48" />
-                  <col className="w-24" />
-                  <col className="w-32" />
+                  <col className="w-8" />
+                  <col className="w-20" />
+                  <col className="w-28" />
+                  <col className="w-20" />
                   <col className="w-36" />
+                  <col className="w-40" />
+                  <col className="w-20" />
                   <col className="w-28" />
                   <col className="w-32" />
-                  <col className="w-32" />
-                  <col className="w-32" />
+                  <col className="w-24" />
+                  <col className="w-28" />
+                  <col className="w-28" />
+                  <col className="w-28" />
                 </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
