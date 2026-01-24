@@ -1409,26 +1409,26 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 min-w-max">
+            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm" style={{ maxWidth: '100%' }}>
+              <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900" style={{ minWidth: '900px' }}>
                 <colgroup>
-                  <col style={{ width: '40px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '180px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '180px' }} />
-                  <col style={{ width: '200px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '150px' }} />
-                  <col style={{ width: '150px' }} />
-                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '36px' }} />
+                  <col style={{ width: '70px' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '90px' }} />
                   <col style={{ width: '140px' }} />
                   <col style={{ width: '120px' }} />
-                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '90px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '85px' }} />
+                  <col style={{ width: '90px' }} />
+                  <col style={{ width: '70px' }} />
+                  <col style={{ width: '70px' }} />
                 </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    <th className="px-2 py-3 text-left">
+                    <th className="px-1.5 py-2 text-left">
                       <input 
                         type="checkbox" 
                         aria-label="Select all" 
@@ -1441,7 +1441,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       />
                     </th>
                     <th 
-                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('status')}
                     >
                       <div className="flex items-center gap-1">
@@ -1451,9 +1451,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                     <th 
-                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('submitted')}
                     >
                       <div className="flex items-center gap-1">
@@ -1464,7 +1464,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       </div>
                     </th>
                     <th 
-                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('name')}
                     >
                       <div className="flex items-center gap-1">
@@ -1474,9 +1474,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
                     <th 
-                      className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('category')}
                     >
                       <div className="flex items-center gap-1">
@@ -1486,18 +1486,18 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         )}
                       </div>
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Location</th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Social Media</th>
-                    <th className="px-2 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Notes</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Advisor</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Contact</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Location</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Meeting</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Social</th>
+                    <th className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {visible.map(reg => (
                     <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="px-2 py-3">
+                      <td className="px-1.5 py-2">
                         <input 
                           type="checkbox" 
                           checked={selectedIds.has(reg.id)} 
@@ -1509,7 +1509,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           className="rounded border-gray-300 dark:border-gray-600"
                         />
                       </td>
-                      <td className="px-2 py-3">
+                      <td className="px-1.5 py-2">
                         <div className="flex items-center gap-1">
                           <span className={getStatusBadge(reg.status)}>
                             {getStatusIcon(reg.status)}
@@ -1520,13 +1520,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           )}
                         </div>
                       </td>
-                      <td className="px-2 py-2">
-                        <div className="flex gap-1 items-center flex-wrap">
+                      <td className="px-1.5 py-1">
+                        <div className="flex gap-0.5 items-center flex-wrap">
                           {reg.status === 'pending' && (
                             <button 
                               onClick={() => handleApprove(reg)} 
                               disabled={processingId === reg.id}
-                              className="px-1.5 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              className="px-1 py-0.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span className="hidden xl:inline">Approve</span>
@@ -1535,7 +1535,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <button 
                             onClick={() => openEditModal(reg)} 
                             disabled={processingId === reg.id}
-                            className="px-1.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                            className="px-1 py-0.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
                           >
                             Edit
                           </button>
@@ -1543,7 +1543,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             <button
                               onClick={() => handleApprove(reg)}
                               disabled={processingId === reg.id}
-                              className="px-1.5 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              className="px-1 py-0.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span className="hidden xl:inline">Approve</span>
@@ -1552,33 +1552,33 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             <button 
                               onClick={() => handleDeny(reg)} 
                               disabled={processingId === reg.id}
-                              className="px-1.5 py-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                              className="px-1 py-0.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
                             >
                               Deny
                             </button>
                           )}
                         </div>
                       </td>
-                      <td className="px-2 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="whitespace-nowrap text-xs">{new Date(reg.submittedAt).toLocaleDateString()}</div>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="whitespace-nowrap">{new Date(reg.submittedAt).toLocaleDateString()}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
-                      <td className="px-2 py-3">
+                      <td className="px-1.5 py-2">
                         {quickEditId === reg.id ? (
                           <div className="space-y-1">
                             <input
                               type="text"
                               value={quickEditFields.clubName ?? reg.clubName}
                               onChange={(e) => setQuickEditFields(prev => ({ ...prev, clubName: e.target.value }))}
-                              className="w-full px-2 py-1 text-sm border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
+                              className="w-full px-1.5 py-0.5 text-xs border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
                               placeholder="Club name"
                               autoFocus
                             />
-                            <div className="flex gap-1">
+                            <div className="flex gap-0.5">
                               <button
                                 onClick={() => saveQuickEdit(reg)}
                                 disabled={processingId === reg.id}
-                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                                className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
                               >
                                 Save
                               </button>
@@ -1587,7 +1587,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                   setQuickEditId(null)
                                   setQuickEditFields({})
                                 }}
-                                className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded"
+                                className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded"
                               >
                                 Cancel
                               </button>
@@ -1602,7 +1602,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1"
                             title="Double-click to edit"
                           >
-                            <div className="font-medium text-gray-900 dark:text-white text-sm truncate">{reg.clubName}</div>
+                            <div className="font-medium text-gray-900 dark:text-white text-xs truncate">{reg.clubName}</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{reg.email}</div>
                           </div>
                         )}
@@ -1613,17 +1613,17 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </div>
                         )}
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate" title={reg.statementOfPurpose}>
                           {reg.statementOfPurpose || '—'}
                         </div>
                       </td>
-                      <td className="px-2 py-3 text-sm text-gray-900 dark:text-white">
+                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white">
                         {quickEditId === reg.id ? (
                           <select
                             value={quickEditFields.category ?? reg.category}
                             onChange={(e) => setQuickEditFields(prev => ({ ...prev, category: e.target.value }))}
-                            className="w-full px-2 py-1 text-xs border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
+                            className="w-full px-1.5 py-0.5 text-xs border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-400"
                           >
                             <option value="">Select category</option>
                             {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -1641,24 +1641,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-900 dark:text-white truncate">{reg.advisorName}</td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white truncate">{reg.advisorName}</td>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate">{reg.studentContactName}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.studentContactEmail}</div>
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '—'}</td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '—'}</td>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate">{reg.meetingDay}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.meetingFrequency}</div>
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         {reg.socialMedia ? (
                           <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate block">
-                            {reg.socialMedia.length > 15 ? reg.socialMedia.substring(0, 15) + '...' : reg.socialMedia}
+                            {reg.socialMedia.length > 12 ? reg.socialMedia.substring(0, 12) + '...' : reg.socialMedia}
                           </a>
                         ) : '—'}
                       </td>
-                      <td className="px-2 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate" title={reg.notes}>
                           {reg.notes || '—'}
                         </div>
