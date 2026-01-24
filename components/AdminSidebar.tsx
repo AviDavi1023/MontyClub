@@ -2,7 +2,6 @@
 
 import { 
   LayoutDashboard, 
-  Settings, 
   Users, 
   FileText, 
   Megaphone, 
@@ -59,12 +58,6 @@ export function AdminSidebar({
       label: 'Admin Users', 
       icon: Users,
       description: 'User management'
-    },
-    { 
-      id: 'settings', 
-      label: 'Settings', 
-      icon: Settings,
-      description: 'System configuration'
     },
     { 
       id: 'activity', 
