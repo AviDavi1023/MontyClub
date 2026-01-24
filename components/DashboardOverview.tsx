@@ -1,7 +1,8 @@
 'use client'
 
-import { ClipboardList, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle } from 'lucide-react'
+import { ClipboardList, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Lock, RefreshCw } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
+import { InfoTooltip } from '@/components/ui'
 
 interface DashboardOverviewProps {
   clubs: Club[]
@@ -11,6 +12,13 @@ interface DashboardOverviewProps {
   pendingRegistrationsCount?: number
   approvedRegistrationsCount?: number
   rejectedRegistrationsCount?: number
+  adminApiKey: string
+  setAdminApiKey: (key: string) => void
+  saveAdminApiKey: () => void
+  refreshCache: () => void
+  refreshingCache: boolean
+  publishSnapshotNow: () => void
+  publishingCatalog: boolean
 }
 
 export function DashboardOverview({
@@ -21,6 +29,13 @@ export function DashboardOverview({
   pendingRegistrationsCount = 0,
   approvedRegistrationsCount = 0,
   rejectedRegistrationsCount = 0,
+  adminApiKey,
+  setAdminApiKey,
+  saveAdminApiKey,
+  refreshCache,
+  refreshingCache,
+  publishSnapshotNow,
+  publishingCatalog,
 }: DashboardOverviewProps) {
   const activeClubs = clubs.filter(c => c.active).length
   const inactiveClubs = clubs.filter(c => !c.active).length
@@ -204,7 +219,7 @@ export function DashboardOverview({
               ))}
               {collections.length > 3 && (
                 <button
-                  onClick={() => onNavigate('settings')}
+                  onClick={() => onNavigate('registrations')}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
                 >
                   View all {collections.length} collections →
@@ -212,6 +227,80 @@ export function DashboardOverview({
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* System Settings */}
+      <div className="card p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          System Settings
+          <InfoTooltip text="Core system configuration including API access and data management" />
+        </h2>
+
+        {/* Admin API Key */}
+        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            Admin API Key
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Required for managing registrations, analytics, announcements, and other admin features.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+              <input
+                type="password"
+                value={adminApiKey}
+                onChange={(e) => setAdminApiKey(e.target.value)}
+                className="input-field text-sm"
+                placeholder="Enter your ADMIN_API_KEY"
+              />
+            </div>
+            <button onClick={saveAdminApiKey} className="btn-primary whitespace-nowrap">
+              <Lock className="h-4 w-4 mr-2" />
+              Save Key
+            </button>
+          </div>
+        </div>
+
+        {/* Cache Management */}
+        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Cache Management</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Force fresh data after updates. Cache refreshes automatically every 24 hours.
+          </p>
+          <button
+            onClick={refreshCache}
+            disabled={refreshingCache}
+            className="btn-primary flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
+            {refreshingCache ? 'Refreshing...' : 'Refresh Cache Now'}
+          </button>
+        </div>
+
+        {/* Snapshot Publishing */}
+        <div>
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Catalog Snapshot</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            {!catalogStatus ? 'Loading...' : catalogStatus.exists 
+              ? `✅ Published: ${catalogStatus.clubCount} clubs` 
+              : '⚠️ No catalog published yet'}
+          </p>
+          {catalogStatus?.exists && catalogStatus.generatedAt && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Last updated: {new Date(catalogStatus.generatedAt).toLocaleString()}
+            </p>
+          )}
+          <button
+            onClick={publishSnapshotNow}
+            disabled={publishingCatalog}
+            className="btn-primary flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} />
+            {publishingCatalog ? 'Publishing...' : 'Publish Catalog Now'}
+          </button>
         </div>
       </div>
 
@@ -232,10 +321,10 @@ export function DashboardOverview({
             Manage Announcements
           </button>
           <button
-            onClick={() => onNavigate('settings')}
+            onClick={() => onNavigate('users')}
             className="btn-secondary text-sm"
           >
-            System Settings
+            User Management
           </button>
           <button
             onClick={() => onNavigate('activity')}

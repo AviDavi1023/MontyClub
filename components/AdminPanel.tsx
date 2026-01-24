@@ -3136,11 +3136,6 @@ export function AdminPanel() {
               pendingRegistrationsCount={pendingRegistrationsCount}
               approvedRegistrationsCount={approvedRegistrationsCount}
               rejectedRegistrationsCount={rejectedRegistrationsCount}
-            />
-          )}
-          
-          {activeSection === 'settings' && (
-            <SettingsPanel
               adminApiKey={adminApiKey}
               setAdminApiKey={setAdminApiKey}
               saveAdminApiKey={saveAdminApiKey}
@@ -3148,7 +3143,11 @@ export function AdminPanel() {
               refreshingCache={refreshingCache}
               publishSnapshotNow={publishSnapshotNow}
               publishingCatalog={publishingCatalog}
-              catalogStatus={catalogStatus}
+            />
+          )}
+          
+          {activeSection === 'settings' && (
+            <SettingsPanel
               collections={collections}
               localPendingCollectionChanges={localPendingCollectionChanges}
               toggleCollectionDisplay={toggleCollectionDisplay}
@@ -3205,26 +3204,181 @@ export function AdminPanel() {
             </div>
           )}
           
-          {activeSection === 'registrations' && activeCollectionId && (
+          {activeSection === 'registrations' && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
-                <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests</p>
+              {/* Collections Management */}
+              <div className="card p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  Registration Collections
+                  <InfoTooltip text="Manage multiple registration form collections (e.g., different years). Select a collection to view its registrations below." />
+                </h2>
+
+                {/* Create New Collection */}
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Create New Collection</h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && createCollection()}
+                      placeholder="e.g., 2026 Club Requests"
+                      className="input-field text-sm flex-1"
+                    />
+                    <button
+                      onClick={createCollection}
+                      disabled={creatingCollection || !newCollectionName.trim()}
+                      className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {creatingCollection ? 'Creating...' : 'Create'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Collections List */}
+                <div className="space-y-3">
+                  {collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
+                      No collections yet. Create one above to get started.
+                    </p>
+                  ) : (
+                    collections
+                      .filter(c => !localPendingCollectionChanges[c.id]?.deleted)
+                      .map((collection) => {
+                        const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                        const isAccepting = collection.accepting ?? collection.enabled ?? false
+                        const isRenewal = collection.renewalEnabled ?? false
+                        const isPending = localPendingCollectionChanges[collection.id]
+                        
+                        return (
+                          <div
+                            key={collection.id}
+                            onClick={() => setActiveCollectionId(collection.id)}
+                            className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                              activeCollectionId === collection.id
+                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200 dark:ring-primary-800'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="font-medium text-gray-900 dark:text-white truncate">
+                                    {collection.name}
+                                  </h4>
+                                  {isDisplay && (
+                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                      Displayed
+                                    </span>
+                                  )}
+                                  {isAccepting && (
+                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                      Accepting
+                                    </span>
+                                  )}
+                                  {isRenewal && (
+                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                      Renewal
+                                    </span>
+                                  )}
+                                  {isPending && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  Created {new Date(collection.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                              
+                              <div className="flex flex-col gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="displayCollection"
+                                    checked={isDisplay}
+                                    onChange={() => toggleCollectionDisplay(collection.id)}
+                                    disabled={togglingCollection === collection.id}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  <span className="text-gray-700 dark:text-gray-300">Public Catalog</span>
+                                </label>
+                                
+                                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAccepting}
+                                    onChange={() => toggleCollectionAccepting(collection.id)}
+                                    disabled={togglingCollection === collection.id}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  <span className="text-gray-700 dark:text-gray-300">Accept Registrations</span>
+                                </label>
+                                
+                                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isRenewal}
+                                    onChange={() => toggleCollectionRenewal(collection.id)}
+                                    disabled={togglingCollection === collection.id}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  <span className="text-gray-700 dark:text-gray-300">Enable Renewals</span>
+                                </label>
+                                
+                                <button
+                                  onClick={async () => {
+                                    const confirmed = await confirm({
+                                      title: 'Delete Collection',
+                                      message: `Delete collection "${collection.name}"? This cannot be undone.`,
+                                      confirmText: 'Delete',
+                                      variant: 'danger'
+                                    })
+                                    if (confirmed) {
+                                      deleteCollection(collection.id)
+                                    }
+                                  }}
+                                  disabled={togglingCollection === collection.id}
+                                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  )}
+                </div>
               </div>
-              <RegistrationsList
-                collectionId={activeCollectionId}
-                collections={collections}
-                adminApiKey={adminApiKey}
-                collectionSlug={(() => {
-                  const pending = localPendingCollectionChanges[activeCollectionId]
-                  const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                  return slugifyName(baseName)
-                })()}
-                collectionName={(() => {
-                  const pending = localPendingCollectionChanges[activeCollectionId]
-                  return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                })()}
-              />
+
+              {/* Registrations List */}
+              {activeCollectionId ? (
+                <div>
+                  <div className="mb-4">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
+                    <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
+                  </div>
+                  <RegistrationsList
+                    collectionId={activeCollectionId}
+                    collections={collections}
+                    adminApiKey={adminApiKey}
+                    collectionSlug={(() => {
+                      const pending = localPendingCollectionChanges[activeCollectionId]
+                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                      return slugifyName(baseName)
+                    })()}
+                    collectionName={(() => {
+                      const pending = localPendingCollectionChanges[activeCollectionId]
+                      return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                    })()}
+                  />
+                </div>
+              ) : (
+                <div className="card p-8 text-center">
+                  <p className="text-gray-500 dark:text-gray-400">Select a collection above to view its registrations</p>
+                </div>
+              )}
             </div>
           )}
           
@@ -3242,783 +3396,10 @@ export function AdminPanel() {
               adminApiKey={adminApiKey}
             />
           )}
-          
-          {/* Keep legacy sections below for backward compatibility */}
-          {false && (
-            <>
-      {/* Section Navigation */}
-      <div className="sticky top-0 z-30 -mt-2 pt-2 pb-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 dark:supports-[backdrop-filter]:bg-gray-900/60">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => updatesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Review and manage user-submitted update requests"
-          >
-            Update Requests
-          </button>
-          <button
-            onClick={() => {
-              setShowAnnouncementsPanel(true)
-              setTimeout(() => announcementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-            }}
-            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Create and manage club announcements"
-          >
-            Announcements
-          </button>
-          <button
-            onClick={() => {
-              // Ensure a collection is selected before opening registrations
-              if (!activeCollectionId && collections.length > 0) {
-                const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
-                setActiveCollectionId(enabledCol?.id || collections[0].id)
-              }
-              setShowRegistrations(true)
-              setTimeout(() => registrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-            }}
-            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="View and manage club registrations"
-          >
-            Registrations
-          </button>
-          <button
-            onClick={() => {
-              setShowStatistics(true)
-              setTimeout(() => statisticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-            }}
-            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Analytics and usage statistics"
-          >
-            Analytics
-          </button>
-          <button
-            onClick={() => {
-              setShowUserManagement(true)
-              setTimeout(() => userManagementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-            }}
-            className="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Manage admin accounts"
-          >
-            Admin Users
-          </button>
         </div>
       </div>
 
-      {/* Admin API Key */}
-      <div className="card">
-        <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-          <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          Admin API Key
-        </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Required for managing registrations, analytics, announcements, and other admin features.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
-            <input
-              type="password"
-              value={adminApiKey}
-              onChange={(e) => setAdminApiKey(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Enter your ADMIN_API_KEY"
-            />
-          </div>
-          <button onClick={saveAdminApiKey} className="btn-primary whitespace-nowrap">
-            <Lock className="h-4 w-4 mr-2" />
-            Save Key
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Actions removed */}
-      {false && (
-      <div ref={announcementsRef} className="card">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span>Quick Actions</span>
-          <InfoTooltip text="Toggle announcements visibility, manage analytics, and open statistics. These actions affect site-wide behavior." />
-        </h2>
-        
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Announcements</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {announcementsEnabled === null ? '' : (announcementsEnabled ? 'Announcements are currently shown on the site' : 'Announcements are currently hidden from the site')}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center justify-between w-full sm:w-auto sm:flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <Megaphone className="h-4 w-4" />
-                  <span>Show on site</span>
-                </div>
-                {announcementsEnabled !== null && (
-                  <Toggle
-                    checked={announcementsEnabled ?? false}
-                    onChange={() => { if (!savingSettings) toggleAnnouncements() }}
-                    disabled={savingSettings}
-                  />
-                )}
-              </div>
-              <button
-                onClick={() => setShowAnnouncementsPanel(!showAnnouncementsPanel)}
-                className="btn-primary flex items-center justify-center gap-2"
-              >
-                <Megaphone className="h-4 w-4" />
-                {showAnnouncementsPanel ? 'Close' : 'Manage'}
-              </button>
-            </div>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">User Management</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Manage admin users and permissions</p>
-            <button
-              onClick={toggleUserManagement}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2"
-            >
-              <Users className="h-4 w-4" />
-              {showUserManagement ? 'Close Users' : 'Manage Users'}
-            </button>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Statistics</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">View club data analytics and stats</p>
-            <button
-              onClick={() => setShowStatistics(!showStatistics)}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              {showStatistics ? 'Close Statistics' : 'View Statistics'}
-            </button>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Refresh Cache</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Force fresh data after updates (24hr cache)</p>
-            <button
-              onClick={refreshCache}
-              disabled={refreshingCache}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
-              {refreshingCache ? 'Refreshing...' : 'Refresh Now'}
-            </button>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Snapshot Status</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {!catalogStatus ? 'Loading...' : catalogStatus?.exists 
-                ? `✅ Published: ${catalogStatus?.clubCount ?? 0} clubs` 
-                : '⚠️ Not published'}
-            </p>
-            {(catalogStatus?.exists && catalogStatus?.generatedAt) && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Last updated: {new Date(catalogStatus!.generatedAt!).toLocaleString()}
-              </p>
-            )}
-            <button
-              onClick={publishSnapshotNow}
-              disabled={publishingCatalog}
-              className="btn-primary w-full sm:w-auto flex items-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} />
-              {publishingCatalog ? 'Publishing...' : 'Publish Catalog'}
-            </button>
-          </div>
-
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Club Registration Collections</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Manage multiple registration form collections (e.g., different years). <strong>Public Catalog</strong> (one only) selects which collection appears in the club directory. <strong>Registration Form</strong> (multiple allowed) controls which collections accept submissions.
-            </p>
-            
-            {/* Create New Collection */}
-            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Create New Collection</h4>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createCollection()}
-                  placeholder="e.g., 2026 Club Requests"
-                  className="input-field text-sm flex-1"
-                />
-                <button
-                  onClick={createCollection}
-                  disabled={creatingCollection || !newCollectionName.trim()}
-                  className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  {creatingCollection ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </div>
-
-            {/* Import from Excel */}
-            {activeCollectionId && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Import from Excel
-                </h4>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                  Upload an Excel file to import clubs into the selected collection
-                </p>
-                {activeCollectionId?.startsWith('temp-col-') && (
-                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2 font-medium">
-                    ⏳ Collection is being created... Please wait a moment before importing.
-                  </p>
-                )}
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  disabled={importingExcel || activeCollectionId?.startsWith('temp-col-') || false}
-                  onChange={async (e) => {
-                    if (!e.target.files?.[0] || !activeCollectionId) return
-                    
-                    // Prevent import on temporary collections
-                    if (activeCollectionId.startsWith('temp-col-')) {
-                      showToast('Please wait for the collection to be created before importing', 'error')
-                      return
-                    }
-                    
-                    const file = e.target.files[0]
-                    if (!file.name.endsWith('.xlsx')) {
-                      showToast('Please upload an Excel (.xlsx) file', 'error')
-                      return
-                    }
-
-                    const formData = new FormData()
-                    formData.append('file', file)
-                    formData.append('collectionId', activeCollectionId)
-
-                    try {
-                      setImportingExcel(true)
-                      const response = await fetch('/api/upload-excel', {
-                        method: 'POST',
-                        body: formData,
-                      })
-
-                      if (!response.ok) {
-                        const error = await response.json()
-                        throw new Error(error.error || 'Upload failed')
-                      }
-
-                      const result = await response.json()
-                      showToast(result.message || 'Import successful!', 'success')
-                      
-                      // Clear the input
-                      e.target.value = ''
-                      
-                      // Broadcast club data change
-                      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-                        try {
-                          const bc = new window.BroadcastChannel('clubData')
-                          bc.postMessage('changed')
-                          bc.close()
-                        } catch {}
-                      }
-                    } catch (error) {
-                      console.error('Excel import error:', error)
-                      showToast(String(error), 'error')
-                    } finally {
-                      setImportingExcel(false)
-                    }
-                  }}
-                  className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-              </div>
-            )}
-
-            {/* Collections List */}
-            <div className="space-y-2 mb-4">
-              {(() => {
-                const overlayed = (() => {
-                  const map = new Map<string, RegistrationCollection>()
-                  // start with server snapshot
-                  for (const c of collections) map.set(c.id, { ...c })
-                  // apply pending changes
-                  for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
-                    if (change.deleted) {
-                      map.delete(id)
-                      continue
-                    }
-                    if (change.created) {
-                      if (!map.has(id)) {
-                        map.set(id, {
-                          id,
-                          name: change.name || 'New Collection',
-                          enabled: change.enabled ?? false,
-                          display: change.display ?? false,
-                          accepting: change.accepting ?? false,
-                          createdAt: new Date().toISOString()
-                        })
-                      }
-                    }
-                    const obj = map.get(id)!
-                    if (obj && change.enabled !== undefined) obj.enabled = Boolean(change.enabled)
-                    if (obj && change.display !== undefined) obj.display = Boolean(change.display)
-                    if (obj && change.accepting !== undefined) obj.accepting = Boolean(change.accepting)
-                    if (obj && change.name) obj.name = String(change.name)
-                  }
-                  return Array.from(map.values())
-                })()
-                return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
-                ) : (
-                  <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
-                    <div
-                      key={collection.id}
-                      onClick={() => setActiveCollectionId(collection.id)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                        activeCollectionId === collection.id
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-primary-50/50 dark:hover:border-primary-700 dark:hover:bg-primary-900/10'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h5 className="font-medium text-gray-900 dark:text-white truncate">{collection.name}</h5>
-                          {(() => {
-                            const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                            const isAccepting = collection.accepting ?? collection.enabled ?? false
-                            return (
-                              <>
-                                {isDisplay && (
-                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                    Displayed
-                                  </span>
-                                )}
-                                {isAccepting && (
-                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                    Accepting
-                                  </span>
-                                )}
-                              </>
-                            )
-                          })()}
-                          {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Created {new Date(collection.createdAt).toLocaleDateString()}
-                        </p>
-                        {(() => {
-                          const isAccepting = collection.accepting ?? collection.enabled ?? false
-                          const isRenewalEnabled = collection.renewalEnabled ?? false
-                          return (
-                            <>
-                              {isAccepting && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">Registration form:</span>
-                                  <a
-                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    /register-club?collection={slugifyName(collection.name)}
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                </div>
-                              )}
-                              {isRenewalEnabled && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">Renewal form:</span>
-                                  <a
-                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${collection.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    /renew-club/{collection.id}
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                </div>
-                              )}
-                            </>
-                          )
-                        })()}
-                      </div>
-                      <div className="flex flex-col gap-3 flex-shrink-0 w-48" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
-                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Public Catalog</div>
-                          <label className="flex items-center gap-1.5 cursor-pointer text-xs">
-                            <input
-                              type="radio"
-                              name="displayCollection"
-                              checked={(() => {
-                                const pending = localPendingCollectionChanges[collection.id]?.display
-                                if (pending !== undefined) return pending
-                                return collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                              })()}
-                              onChange={() => toggleCollectionDisplay(collection.id)}
-                              disabled={togglingCollection === collection.id}
-                              className="w-3.5 h-3.5"
-                            />
-                            <span className="text-gray-700 dark:text-gray-300">Display?</span>
-                          </label>
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
-                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Registration Form</div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-700 dark:text-gray-300">Enable</span>
-                            <Toggle
-                              checked={(() => {
-                                const pending = localPendingCollectionChanges[collection.id]?.accepting
-                                if (pending !== undefined) return pending
-                                return collection.accepting ?? collection.enabled ?? false
-                              })()}
-                              onChange={() => toggleCollectionAccepting(collection.id)}
-                              disabled={togglingCollection === collection.id}
-                            />
-                          </div>
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
-                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Renewal Form</div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-700 dark:text-gray-300">Enable</span>
-                            <Toggle
-                              checked={(() => {
-                                const pending = localPendingCollectionChanges[collection.id]?.renewalEnabled
-                                if (pending !== undefined) return pending
-                                return collection.renewalEnabled ?? false
-                              })()}
-                              onChange={() => toggleCollectionRenewal(collection.id)}
-                              disabled={togglingCollection === collection.id}
-                            />
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingCollectionId(collection.id)
-                            setEditingCollectionName(collection.name)
-                          }}
-                          className="mt-2 p-1.5 w-full text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded transition-colors text-xs font-medium"
-                          title="Edit collection name"
-                        >
-                          <Edit3 className="h-4 w-4 inline mr-1" />
-                          Edit Collection
-                        </button>
-                        {collections.length > 1 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteCollection(collection.id)
-                            }}
-                            className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium"
-                            title="Delete collection"
-                          >
-                            <Trash2 className="h-4 w-4 inline mr-1" />
-                            Delete Collection
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}</> 
-                )
-              })()}
-            </div>
-
-            {/* View Registrations Button */}
-              <button
-                onClick={() => setShowRegistrations(!showRegistrations)}
-                disabled={!activeCollectionId}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                {showRegistrations ? 'Close Registrations' : 'View Registrations'}
-                {activeCollectionId && (() => {
-                  const overlayedName = (() => {
-                    // prefer overlay name if present
-                    const colId = activeCollectionId!
-                    const pending = localPendingCollectionChanges[colId]
-                    if (pending?.name) return pending.name
-                    const found = collections.find(c => c.id === colId)
-                    return found?.name || ''
-                  })()
-                  return ` (${overlayedName})`
-                })()}
-              </button>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* Update Requests */}
-      <div ref={updatesRef} className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <span>Update Requests {updates.length > 0 && `(${updates.length})`}</span>
-            <InfoTooltip text="Review, mark reviewed/unreviewed, and delete user-submitted change requests. Use Select All for batch operations." />
-          </h2>
-          <button
-            onClick={() => fetchUpdates()}
-            className="btn-secondary p-2"
-            title="Refresh requests"
-            disabled={refreshingUpdates}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshingUpdates ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {updates.length === 0 ? (
-          <p className="text-gray-600 dark:text-gray-400">No update requests yet.</p>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (updatingBatch) return
-                    if (selectedUpdateIds.size === updates.length) setSelectedUpdateIds(new Set())
-                    else setSelectedUpdateIds(new Set(updates.map(u => String(u.id))))
-                  }}
-                  disabled={updatingBatch}
-                  className="btn-secondary text-xs"
-                >
-                  {selectedUpdateIds.size === updates.length ? 'Deselect All' : 'Select All'}
-                </button>
-                {selectedUpdateIds.size > 0 && (
-                  <>
-                    <button
-                      onClick={() => performBatch('review')}
-                      disabled={updatingBatch}
-                      className="btn-secondary text-xs"
-                    >Mark Reviewed</button>
-                    <button
-                      onClick={() => performBatch('unreview')}
-                      disabled={updatingBatch}
-                      className="btn-secondary text-xs"
-                    >Mark Unreviewed</button>
-                    <button
-                      onClick={() => performBatch('delete')}
-                      disabled={updatingBatch}
-                      className="text-red-600 dark:text-red-400 text-xs"
-                    >Delete</button>
-                  </>
-                )}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedUpdateIds.size > 0 ? `${selectedUpdateIds.size} selected` : `${updates.length} total`}
-              </div>
-            </div>
-
-            {updates
-              .map((u) => {
-                const pending = localPendingChanges[String(u.id)]
-                // If marked as deleted locally, hide it
-                if (pending?.deleted) return null
-                // Apply pending reviewed state if it exists
-                const displayItem = pending?.reviewed !== undefined ? { ...u, reviewed: pending.reviewed } : u
-                return { ...displayItem, _originalId: u.id }
-              })
-              .filter(item => item !== null)
-              .map((u: any) => (
-              <div key={u._originalId} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
-                  <div className="flex items-start gap-3 flex-1">
-                    <label className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        disabled={updatingBatch || singleProcessingId === String(u.id)}
-                        checked={selectedUpdateIds.has(String(u.id))}
-                        onChange={() => {
-                          const id = String(u.id)
-                          const next = new Set(selectedUpdateIds)
-                          if (next.has(id)) next.delete(id); else next.add(id)
-                          setSelectedUpdateIds(next)
-                        }}
-                        className="mt-1"
-                      />
-                    </label>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-medium text-gray-900 dark:text-white">{u.clubName || '—'}</h3>
-                      <span className="text-sm text-gray-500">({u.updateType || 'Update'})</span>
-                      {u.reviewed ? (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">Reviewed</span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">Pending</span>
-                      )}
-                      {singleProcessingId === String(u.id) && (
-                        <span className="text-xs text-gray-500">Processing...</span>
-                      )}
-                      {localPendingChanges[String(u.id)] && (
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">Syncing...</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Submitted: {new Date(u.createdAt).toLocaleString()}</p>
-                  </div>
-                  </div>
-                  <div className="flex items-center gap-2 md:flex-shrink-0 mt-2 md:mt-0">
-                    <button
-                      onClick={() => handleToggleSingle(u)}
-                      disabled={updatingBatch || singleProcessingId === String(u.id)}
-                      className="btn-secondary text-xs whitespace-nowrap flex-1 md:flex-initial"
-                    >
-                      {u.reviewed ? 'Mark Unreviewed' : 'Mark Reviewed'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSingle(u)}
-                      disabled={updatingBatch || singleProcessingId === String(u.id)}
-                      className="text-red-600 dark:text-red-400 text-xs flex-1 md:flex-initial"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                  <p><strong>Suggested:</strong> {u.suggestedChange || '—'}</p>
-                  <p className="mt-1"><strong>Contact:</strong> {u.contactEmail || '—'}</p>
-                  {u.additionalNotes && <p className="mt-1"><strong>Notes:</strong> {u.additionalNotes}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Pilot Analytics */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span>Pilot Analytics</span>
-          <InfoTooltip text="Manage pilot analytics period and summary." />
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Pilot Analytics */}
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg md:col-span-2">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">Pilot Analytics</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Manage temporary usage analytics for pilot testing. Data is anonymous and stored as JSON files you can clear anytime.</p>
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Period Label</label>
-                  <input
-                    value={analyticsPeriod}
-                    onChange={(e) => setAnalyticsPeriod(e.target.value)}
-                    className="input-field text-sm"
-                    placeholder="e.g. pilot-1"
-                  />
-                </div>
-                <div className="flex gap-3 items-center">
-                  <button onClick={saveAnalyticsPeriod} className="btn-secondary whitespace-nowrap">Save Period</button>
-                  <div className="flex items-center gap-2 whitespace-nowrap">
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Enable Analytics</span>
-                    <Toggle checked={analyticsEnabled} onChange={toggleAnalyticsEnabled} />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                onClick={fetchAnalyticsSummary}
-                disabled={loadingSummary}
-                className="btn-primary flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${loadingSummary ? 'animate-spin' : ''}`} />
-                {loadingSummary ? 'Loading Summary...' : 'Load Summary'}
-              </button>
-              <button
-                onClick={clearAnalyticsPeriod}
-                disabled={clearingAnalytics}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                {clearingAnalytics ? 'Clearing...' : 'Clear Period'}
-              </button>
-            </div>
-            {analyticsSummary && (
-              <div className="mt-6 space-y-4">
-                {(() => {
-                  const byTypeEntries = (Object.entries(analyticsSummary.byType || {}) as [string, unknown][])
-                  const clubOpenEntries = (Object.entries(analyticsSummary.clubOpens || {}) as [string, unknown][])
-                  const shareEntries = (Object.entries(analyticsSummary.shares || {}) as [string, unknown][])
-                  const totalClubOpens = clubOpenEntries.reduce((a, [, v]) => a + Number(v), 0)
-                  return (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Total Events</div>
-                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{analyticsSummary.totalEvents}</div>
-                        </div>
-                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Distinct Types</div>
-                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{byTypeEntries.length}</div>
-                        </div>
-                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Club Opens</div>
-                          <div className="text-lg font-semibold text-gray-900 dark:text-white">{totalClubOpens}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Events By Type</h4>
-                        <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                          {byTypeEntries.sort((a, b) => Number(b[1]) - Number(a[1])).map(([t, c]) => (
-                            <div key={t} className="flex justify-between">
-                              <span className="text-gray-600 dark:text-gray-400">{t}</span>
-                              <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {clubOpenEntries.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Club Opens</h4>
-                          <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                            {clubOpenEntries.sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10).map(([id, c]) => (
-                              <div key={id} className="flex justify-between">
-                                <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
-                                <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {shareEntries.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Top Shares</h4>
-                          <div className="space-y-1 max-h-32 overflow-y-auto pr-2 text-xs" style={{ scrollbarGutter: 'stable' }}>
-                            {shareEntries.sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10).map(([id, c]) => (
-                              <div key={id} className="flex justify-between">
-                                <span className="text-gray-600 dark:text-gray-400 truncate">{id}</span>
-                                <span className="font-medium text-gray-900 dark:text-white">{Number(c)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {analyticsSummary.sample && analyticsSummary.sample.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sample Events (first {analyticsSummary.sample.length})</h4>
-                          <pre className="text-[11px] bg-gray-900/80 text-gray-100 p-3 rounded overflow-x-auto max-h-64" style={{ scrollbarGutter: 'stable' }}>
-{JSON.stringify(analyticsSummary.sample, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            )}
-            {!analyticsSummary && !loadingSummary && (
-              <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">No summary loaded yet.</p>
-            )}
-          </div>
-
-        </div>
-      </div>
-
+      {/* Modals and Dialogs */}
       {/* User Management Modal */}
       {showUserManagement && (
         <>
@@ -4878,11 +4259,6 @@ export function AdminPanel() {
           </div>
         </div>
       )}
-
-            </>
-          )}
-        </div>
-      </div>
       
       {/* Global Confirm Dialog */}
       {isOpen && options && (
