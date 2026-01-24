@@ -1495,9 +1495,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {visible.map(reg => (
-                    <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="px-1.5 py-2">
+                  {visible.map(reg => {
+                    const isExpanded = expandedId === reg.id
+                    return (
+                    <>
+                    <tr key={reg.id} onClick={() => setExpandedId(isExpanded ? null : reg.id)} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer">
+                      <td className="px-1.5 py-2" onClick={(e) => e.stopPropagation()}>
                         <input 
                           type="checkbox" 
                           checked={selectedIds.has(reg.id)} 
@@ -1511,16 +1514,15 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       </td>
                       <td className="px-1.5 py-2">
                         <div className="flex items-center gap-1">
-                          <span className={getStatusBadge(reg.status)}>
+                          <span className={getStatusBadge(reg.status)} title={reg.status}>
                             {getStatusIcon(reg.status)}
-                            <span className="capitalize text-xs">{reg.status}</span>
                           </span>
                           {localPendingRegistrationChanges[reg.id] && (
                             <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">⟳</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1.5 py-1" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-0.5 items-center flex-wrap">
                           {reg.status === 'pending' && (
                             <button 
@@ -1563,7 +1565,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         <div className="whitespace-nowrap">{new Date(reg.submittedAt).toLocaleDateString()}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500">{new Date(reg.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
-                      <td className="px-1.5 py-2">
+                      <td className="px-1.5 py-2" onClick={(e) => e.stopPropagation()}>
                         {quickEditId === reg.id ? (
                           <div className="space-y-1">
                             <input
@@ -1595,7 +1597,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </div>
                         ) : (
                           <div
-                            onDoubleClick={() => {
+                            onDoubleClick={(e) => {
+                              e.stopPropagation()
                               setQuickEditId(reg.id)
                               setQuickEditFields({ clubName: reg.clubName, category: reg.category })
                             }}
@@ -1613,12 +1616,17 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </div>
                         )}
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="truncate" title={reg.statementOfPurpose}>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400" onClick={(e) => e.stopPropagation()}>
+                        <div className="truncate relative group" title={reg.statementOfPurpose}>
                           {reg.statementOfPurpose || '—'}
+                          {reg.statementOfPurpose && reg.statementOfPurpose.length > 50 && (
+                            <div className="hidden group-hover:block absolute left-0 top-full mt-1 z-50 p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-w-md text-xs whitespace-normal">
+                              {reg.statementOfPurpose}
+                            </div>
+                          )}
                         </div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white">
+                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white" onClick={(e) => e.stopPropagation()}>
                         {quickEditId === reg.id ? (
                           <select
                             value={quickEditFields.category ?? reg.category}
@@ -1630,7 +1638,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </select>
                         ) : (
                           <span 
-                            onDoubleClick={() => {
+                            onDoubleClick={(e) => {
+                              e.stopPropagation()
                               setQuickEditId(reg.id)
                               setQuickEditFields({ clubName: reg.clubName, category: reg.category })
                             }}
@@ -1664,7 +1673,35 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    {isExpanded && (
+                      <tr key={`${reg.id}-expanded`} className="bg-gray-50 dark:bg-gray-800">
+                        <td colSpan={13} className="px-4 py-4">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">Full Description:</span>
+                              <p className="mt-1 text-gray-600 dark:text-gray-400">{reg.statementOfPurpose}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">Additional Details:</span>
+                              <div className="mt-1 space-y-1 text-gray-600 dark:text-gray-400">
+                                <p><strong>Advisor:</strong> {reg.advisorName}</p>
+                                <p><strong>Student Contact:</strong> {reg.studentContactName} ({reg.studentContactEmail})</p>
+                                <p><strong>Location:</strong> {reg.location}</p>
+                                <p><strong>Meeting:</strong> {reg.meetingDay} - {reg.meetingFrequency}</p>
+                                {reg.socialMedia && <p><strong>Social:</strong> <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">{reg.socialMedia}</a></p>}
+                                {reg.notes && <p><strong>Notes:</strong> {reg.notes}</p>}
+                                <p><strong>Submitted:</strong> {new Date(reg.submittedAt).toLocaleString()}</p>
+                                {reg.advisorAgreementDate && <p><strong>Advisor Agreement:</strong> {new Date(reg.advisorAgreementDate).toLocaleDateString()}</p>}
+                                {reg.clubAgreementDate && <p><strong>Club Agreement:</strong> {new Date(reg.clubAgreementDate).toLocaleDateString()}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </>
+                  )})}
+
                 </tbody>
               </table>
             </div>
