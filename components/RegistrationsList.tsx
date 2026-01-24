@@ -1523,7 +1523,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         </div>
                       </td>
                       <td className="px-1.5 py-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-0.5 items-center flex-wrap">
+                        <div className="flex gap-1 items-center flex-wrap">
                           {reg.status === 'pending' && (
                             <button 
                               onClick={() => handleApprove(reg)} 
@@ -1616,12 +1616,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </div>
                         )}
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400" onClick={(e) => e.stopPropagation()}>
-                        <div className="truncate relative group" title={reg.statementOfPurpose}>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400 relative" onClick={(e) => e.stopPropagation()}>
+                        <div className="truncate group cursor-help">
                           {reg.statementOfPurpose || '—'}
-                          {reg.statementOfPurpose && reg.statementOfPurpose.length > 50 && (
-                            <div className="hidden group-hover:block absolute left-0 top-full mt-1 z-50 p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-w-md text-xs whitespace-normal">
+                          {reg.statementOfPurpose && reg.statementOfPurpose.length > 30 && (
+                            <div className="invisible group-hover:visible absolute left-0 top-full mt-1 z-[100] p-3 bg-white dark:bg-gray-900 border-2 border-primary-500 dark:border-primary-400 rounded-lg shadow-2xl w-96 text-sm leading-relaxed text-gray-800 dark:text-gray-200 whitespace-normal animate-in fade-in zoom-in-95 duration-200">
+                              <div className="font-semibold text-primary-600 dark:text-primary-400 mb-2 text-xs uppercase tracking-wide">Full Description</div>
                               {reg.statementOfPurpose}
+                              <div className="absolute -top-2 left-4 w-4 h-4 bg-white dark:bg-gray-900 border-l-2 border-t-2 border-primary-500 dark:border-primary-400 transform rotate-45"></div>
                             </div>
                           )}
                         </div>
