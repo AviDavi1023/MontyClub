@@ -1256,145 +1256,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         </div>
       </div>
 
-      {/* Bulk Actions Row - Only show when items are selected */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 flex-wrap p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{selectedIds.size} selected:</span>
-              <button
-                onClick={async () => {
-                  const confirmed = await confirm({
-                    title: 'Approve Registrations',
-                    message: `Approve ${selectedIds.size} selected registrations?`,
-                    confirmText: 'Approve All',
-                    variant: 'primary'
-                  })
-                  if (!confirmed) return
-                  const idsArray = Array.from(selectedIds)
-                  // Batch update localPendingRegistrationChanges using functional update
-                  setLocalPendingRegistrationChanges(prev => {
-                    const newPending = { ...prev }
-                    for (const id of idsArray) {
-                      newPending[id] = { status: 'approved' }
-                    }
-                    try {
-                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                    } catch (e) {
-                      // Ignore localStorage errors
-                    }
-                    return newPending
-                  })
-                  
-                  for (const id of idsArray) {
-                    const reg = registrations.find(r => r.id === id)
-                    if (!reg) continue
-                    try {
-                      await fetch('/api/registration-approve', {
-                        method: 'POST',
-                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
-                      })
-                    } catch (err) {
-                      console.error('Failed to approve', id, err)
-                    }
-                  }
-                  setSelectedIds(new Set())
-                  // Fetch fresh data to trigger auto-clear
-                  await loadRegistrations()
-                }}
-                className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
-              >Approve Selected</button>
-              <button
-                onClick={async () => {
-                  const reason = prompt('Optional denial reason (applies to all selected):') || ''
-                  const confirmed = await confirm({
-                    title: 'Deny Registrations',
-                    message: `Deny ${selectedIds.size} selected registrations?`,
-                    confirmText: 'Deny All',
-                    variant: 'danger'
-                  })
-                  if (!confirmed) return
-                  const idsArray = Array.from(selectedIds)
-                  // Batch update localPendingRegistrationChanges using functional update
-                  setLocalPendingRegistrationChanges(prev => {
-                    const newPending = { ...prev }
-                    for (const id of idsArray) {
-                      newPending[id] = { status: 'rejected', denialReason: reason }
-                    }
-                    try {
-                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                    } catch (e) {
-                      // Ignore localStorage errors
-                    }
-                    return newPending
-                  })
-
-                  for (const id of idsArray) {
-                    const reg = registrations.find(r => r.id === id)
-                    if (!reg) continue
-                    try {
-                      await fetch('/api/registration-deny', {
-                        method: 'POST',
-                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
-                      })
-                    } catch (err) {
-                      console.error('Failed to deny', id, err)
-                    }
-                  }
-                  setSelectedIds(new Set())
-                  // Fetch fresh data to trigger auto-clear
-                  await loadRegistrations()
-                }}
-                className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg"
-              >Deny Selected</button>
-              <button
-                onClick={async () => {
-                  const confirmed = await confirm({
-                    title: 'Delete Registrations',
-                    message: `Delete ${selectedIds.size} selected registrations? This cannot be undone.`,
-                    confirmText: 'Delete',
-                    variant: 'danger'
-                  })
-                  if (!confirmed) return
-                  const idsArray = Array.from(selectedIds)
-                  // Batch mark as deleted in localPendingRegistrationChanges using functional update
-                  setLocalPendingRegistrationChanges(prev => {
-                    const newPending = { ...prev }
-                    for (const id of idsArray) {
-                      newPending[id] = { deleted: true }
-                    }
-                    try {
-                      localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                      localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                    } catch (e) {
-                      // Ignore localStorage errors
-                    }
-                    return newPending
-                  })
-
-                  for (const id of idsArray) {
-                    const reg = registrations.find(r => r.id === id)
-                    if (!reg) continue
-                    try {
-                      await fetch('/api/registration-delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                        body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
-                      })
-                    } catch (err) {
-                      console.error('Failed to delete', id, err)
-                    }
-                  }
-                  setSelectedIds(new Set())
-                  // Fetch fresh data to trigger auto-clear
-                  await loadRegistrations()
-                }}
-                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
-              >Delete Selected</button>
-        </div>
-      )}
+      {/* Bulk Actions Row removed; using sticky bottom bar to avoid layout shift */}
 
       {visible.length === 0 ? (
         <div className="text-center py-16 px-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -1409,7 +1271,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm" style={{ scrollbarGutter: 'stable', overflowY: 'visible' }}>
               <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
@@ -1620,10 +1482,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         <div className="truncate group cursor-help">
                           {reg.statementOfPurpose || '—'}
                           {reg.statementOfPurpose && reg.statementOfPurpose.length > 30 && (
-                            <div className="invisible group-hover:visible absolute left-0 top-full mt-1 z-[100] p-3 bg-white dark:bg-gray-900 border-2 border-primary-500 dark:border-primary-400 rounded-lg shadow-2xl w-96 text-sm leading-relaxed text-gray-800 dark:text-gray-200 whitespace-normal animate-in fade-in zoom-in-95 duration-200">
-                              <div className="font-semibold text-primary-600 dark:text-primary-400 mb-2 text-xs uppercase tracking-wide">Full Description</div>
+                            <div className="invisible group-hover:visible absolute left-full top-0 ml-2 z-[100] p-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl w-96 text-sm leading-relaxed text-gray-800 dark:text-gray-200 whitespace-normal animate-in fade-in zoom-in-95 duration-150">
                               {reg.statementOfPurpose}
-                              <div className="absolute -top-2 left-4 w-4 h-4 bg-white dark:bg-gray-900 border-l-2 border-t-2 border-primary-500 dark:border-primary-400 transform rotate-45"></div>
+                              <div className="absolute top-3 -left-2 w-3 h-3 bg-white dark:bg-gray-900 border-l border-b border-gray-300 dark:border-gray-700 transform rotate-45"></div>
                             </div>
                           )}
                         </div>
