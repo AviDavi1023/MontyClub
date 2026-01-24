@@ -1409,22 +1409,22 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm" style={{ maxWidth: '100%' }}>
-              <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900" style={{ minWidth: '900px' }}>
+            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
                 <colgroup>
-                  <col style={{ width: '36px' }} />
-                  <col style={{ width: '70px' }} />
-                  <col style={{ width: '80px' }} />
-                  <col style={{ width: '90px' }} />
-                  <col style={{ width: '140px' }} />
-                  <col style={{ width: '120px' }} />
-                  <col style={{ width: '80px' }} />
-                  <col style={{ width: '90px' }} />
-                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '40px' }} />
                   <col style={{ width: '85px' }} />
-                  <col style={{ width: '90px' }} />
-                  <col style={{ width: '70px' }} />
-                  <col style={{ width: '70px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '140px' }} />
+                  <col style={{ width: '85px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '80px' }} />
                 </colgroup>
                 <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
