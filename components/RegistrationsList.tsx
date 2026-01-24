@@ -1409,9 +1409,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="w-full overflow-x-auto max-w-full">
-                <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 min-w-max">
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 min-w-max">
                 <colgroup>
                   <col style={{ width: '40px' }} />
                   <col style={{ width: '100px' }} />
@@ -1668,7 +1667,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                   ))}
                 </tbody>
               </table>
-              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
