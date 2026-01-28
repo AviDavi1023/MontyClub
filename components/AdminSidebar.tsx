@@ -7,7 +7,8 @@ import {
   Megaphone, 
   BarChart3,
   ClipboardList,
-  Activity
+  Activity,
+  Trash2
 } from 'lucide-react'
 
 interface AdminSidebarProps {
@@ -65,10 +66,17 @@ export function AdminSidebar({
       icon: Activity,
       description: 'Recent operations'
     },
+    { 
+      id: 'clear-data', 
+      label: 'Factory Reset', 
+      icon: Trash2,
+      description: 'Clear all data (advanced)',
+      variant: 'danger'
+    },
   ]
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] fixed top-16 left-0 overflow-y-auto z-10">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-[calc(100vh-4rem)] sticky top-16 left-0 overflow-y-auto z-10">
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <div className="space-y-1">
           {menuItems.map((item) => {
@@ -81,14 +89,16 @@ export function AdminSidebar({
                 onClick={() => onSectionChange(item.id)}
                 className={`
                   w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left transition-colors group
-                  ${isActive 
+                  ${isActive && item.variant !== 'danger'
                     ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-semibold border-l-4 border-primary-600 dark:border-primary-400' 
+                    : isActive && item.variant === 'danger'
+                    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold border-l-4 border-red-600 dark:border-red-400'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                   }
                 `}
                 title={item.description}
               >
-                <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isActive && item.variant !== 'danger' ? 'text-primary-600 dark:text-primary-400' : isActive && item.variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm leading-tight">{item.label}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</div>

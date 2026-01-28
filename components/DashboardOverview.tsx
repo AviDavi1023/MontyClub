@@ -303,37 +303,6 @@ export function DashboardOverview({
           </button>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <button
-            onClick={() => onNavigate('registrations')}
-            className="btn-primary text-sm"
-          >
-            Review Registrations
-          </button>
-          <button
-            onClick={() => onNavigate('announcements')}
-            className="btn-secondary text-sm"
-          >
-            Manage Announcements
-          </button>
-          <button
-            onClick={() => onNavigate('users')}
-            className="btn-secondary text-sm"
-          >
-            User Management
-          </button>
-          <button
-            onClick={() => onNavigate('activity')}
-            className="btn-secondary text-sm"
-          >
-            View Activity Log
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

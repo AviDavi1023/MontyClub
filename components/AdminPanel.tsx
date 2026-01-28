@@ -3026,6 +3026,10 @@ export function AdminPanel() {
       const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
       setActiveCollectionId(displayCol?.id || enabledCol?.id || collections[0].id)
     }
+    if (section === 'clear-data') {
+      // Open the Clear Data modal
+      setShowClearDataModal(true)
+    }
   }
 
   // Helper to handle Excel import
