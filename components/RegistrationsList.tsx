@@ -12,6 +12,7 @@ interface RegistrationsListProps {
   collectionName: string
   collectionId: string
   collections: Array<{ id: string; name: string; createdAt: string; renewalEnabled?: boolean }>
+  onActionComplete?: () => void
 }
 
 const CATEGORY_OPTIONS = [
@@ -28,7 +29,7 @@ const CATEGORY_OPTIONS = [
   'Other',
 ]
 
-export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections, onActionComplete }: RegistrationsListProps) {
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
@@ -652,6 +653,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       setUndoAction({ type: 'approve', data: reg, timestamp: Date.now() })
       setTimeout(() => setUndoAction(null), 5000)
       
+      // Trigger parent callback for publish reminder
+      onActionComplete?.()
+      
       console.log(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'load-registrations-start', 
@@ -764,6 +768,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       // Success: show undo toast
       setUndoAction({ type: 'deny', data: currentReg, timestamp: Date.now() })
       setTimeout(() => setUndoAction(null), 5000)
+      
+      // Trigger parent callback for publish reminder
+      onActionComplete?.()
       
       await loadRegistrations()
     } catch (err: any) {

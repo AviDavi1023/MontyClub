@@ -182,6 +182,7 @@ export function AdminPanel() {
     registrationCollections: false,
     registrations: false,
     analytics: false,
+    adminUsers: false,
   })
   const [clearingData, setClearingData] = useState(false)
   
@@ -1388,6 +1389,7 @@ export function AdminPanel() {
         registrationCollections: false,
         registrations: false,
         analytics: false,
+        adminUsers: false,
       })
       setShowClearDataModal(false)
 
@@ -3022,6 +3024,29 @@ export function AdminPanel() {
   // Calculate registration stats for dashboard (pendingRegistrationsCount calculated in useEffect above)
   const approvedRegistrationsCount = 0
   const rejectedRegistrationsCount = 0
+
+  // ESC key handler for factory reset modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showClearDataModal) {
+        setShowClearDataModal(false)
+        setClearDataPassword('')
+        setClearDataApiKey('')
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [showClearDataModal])
+
+  // Handler to show publish reminder toast after registration actions
+  const handleRegistrationActionComplete = () => {
+    const newToast: Toast = {
+      id: Date.now().toString(),
+      type: 'info',
+      message: 'Remember to Publish Catalog to make changes visible to the public'
+    }
+    setToasts(prev => [...prev, newToast])
+  }
   
   // Handle section navigation
   const handleSectionChange = (section: string) => {
@@ -3364,21 +3389,12 @@ export function AdminPanel() {
                       <div className="flex-1">
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
                         <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
-                        {/* Show which collection is selected */}
-                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                          <p className="text-sm text-blue-900 dark:text-blue-200">
-                            <strong>Collection:</strong> {collections.find(c => c.id === activeCollectionId)?.name || 'Unknown'}
-                          </p>
-                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                            Imports and changes made here will only affect this collection. Remember to <strong>Publish Catalog</strong> on the dashboard to make changes public.
-                          </p>
-                        </div>
                       </div>
                       {/* Excel Import Button */}
                       <div className="flex-shrink-0">
                         <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title={`Upload an Excel file to import clubs into "${collections.find(c => c.id === activeCollectionId)?.name || 'this collection'}"`}>
                           <FileSpreadsheet className="h-4 w-4" />
-                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel'}</span>
+                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel to This Collection'}</span>
                           <input
                             type="file"
                             accept=".xlsx"
@@ -3403,6 +3419,7 @@ export function AdminPanel() {
                       const pending = localPendingCollectionChanges[activeCollectionId]
                       return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
                     })()}
+                    onActionComplete={handleRegistrationActionComplete}
                   />
                 </div>
               ) : (
@@ -4032,6 +4049,7 @@ export function AdminPanel() {
                 })() )}
                 collectionId={activeCollectionId || ''}
                 collections={collections}
+                onActionComplete={handleRegistrationActionComplete}
               />
             </div>
           </div>
@@ -4174,6 +4192,19 @@ export function AdminPanel() {
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">Analytics Events</div>
                     <div className="text-xs text-gray-600 dark:text-gray-400">Clear all analytics tracking data</div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearOptions.adminUsers}
+                    onChange={(e) => setClearOptions({ ...clearOptions, adminUsers: e.target.checked })}
+                    disabled={clearingData}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">Admin Users</div>
+                    <div className="text-xs text-red-700 dark:text-red-300">⚠️ Delete all admin user accounts (requires re-setup)</div>
                   </div>
                 </label>
               </div>
