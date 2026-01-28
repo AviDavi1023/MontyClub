@@ -1373,8 +1373,8 @@ export function AdminPanel() {
       
       showToast(
         clearedItems 
-          ? `Data cleared successfully! ${clearedItems}` 
-          : 'Data cleared successfully',
+          ? `Data cleared successfully! ${clearedItems}. Please expect a slight delay for complete data erasure.` 
+          : 'Data cleared successfully! Please expect a slight delay for complete data erasure.',
         'success'
       )
 
@@ -1390,6 +1390,9 @@ export function AdminPanel() {
         analytics: false,
       })
       setShowClearDataModal(false)
+
+      // Redirect to dashboard
+      setActiveSection('dashboard')
 
       // Refresh all data after clearing
       setTimeout(() => {
@@ -3022,16 +3025,18 @@ export function AdminPanel() {
   
   // Handle section navigation
   const handleSectionChange = (section: string) => {
+    if (section === 'clear-data') {
+      // Open the Clear Data modal without changing section
+      setShowClearDataModal(true)
+      return
+    }
+    
     setActiveSection(section)
     if (section === 'registrations' && !activeCollectionId && collections.length > 0) {
       // Prioritize display collection when navigating to registrations
       const displayCol = collections.find(c => c.display && !localPendingCollectionChanges[c.id]?.deleted)
       const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
       setActiveCollectionId(displayCol?.id || enabledCol?.id || collections[0].id)
-    }
-    if (section === 'clear-data') {
-      // Open the Clear Data modal
-      setShowClearDataModal(true)
     }
   }
 
