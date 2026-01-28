@@ -55,10 +55,29 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
   const loadUpdateRequests = async () => {
     try {
       setLoading(true)
+      
+      // Check if API key is set
+      if (!adminApiKey) {
+        setError('Admin API key not configured. Please check your authentication settings.')
+        setUpdateRequests([])
+        return
+      }
+      
       const response = await fetch('/api/updates', {
         headers: { 'x-admin-key': adminApiKey }
       })
-      if (!response.ok) throw new Error('Failed to load update requests')
+      
+      if (response.status === 401) {
+        setError('Unauthorized: Invalid admin API key. Please verify your authentication.')
+        setUpdateRequests([])
+        return
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to load update requests (${response.status})`)
+      }
+      
       const data = await response.json()
       // API returns array directly, not wrapped in { updates: [...] }
       // Map the actual data structure to our interface

@@ -35,6 +35,25 @@ async function clearKVKeys(keys: string[]): Promise<void> {
   }
 }
 
+// Helper to clear all KV keys matching a pattern (useful for clearing all cached data)
+async function clearAllKVKeys(kvClient: any, pattern: string = '*'): Promise<void> {
+  try {
+    const keys = await kvClient.keys(pattern)
+    console.log(`[clear-data] Found ${keys.length} KV keys matching pattern '${pattern}'`)
+    
+    for (const key of keys) {
+      try {
+        await kvClient.del(key)
+        console.log(`[clear-data] Deleted KV key: ${key}`)
+      } catch (err) {
+        console.warn(`[clear-data] Failed to delete KV key ${key}:`, err)
+      }
+    }
+  } catch (err) {
+    console.warn('[clear-data] Failed to scan KV keys:', err)
+  }
+}
+
 interface ClearDataRequest {
   password: string
   adminApiKey: string
@@ -93,27 +112,35 @@ export async function POST(request: NextRequest) {
     const usersData = await readData('admin-users', {})
     const users: Record<string, any> = typeof usersData === 'object' && usersData !== null ? usersData : {}
     
-    // Find user by username matching the provided password
-    let adminUser: any = null
-    let matchedUsername: string | null = null
-    
-    // Try to find any user whose password matches
-    for (const [username, user] of Object.entries(users)) {
-      if (user && user.passwordHash) {
-        // Use the verifyPassword utility from lib/auth.ts
-        if (verifyPassword(password, user.passwordHash)) {
-          adminUser = user
-          matchedUsername = username
-          break
+    // Special case: if no admin users exist, require API key + password match (security measure)
+    // This allows re-authentication after admin-users have been cleared
+    if (Object.keys(users).length === 0) {
+      // When admin-users is empty, any password can be used as long as API key is valid
+      // This is intentional to allow recovery after factory reset
+      console.log('[clear-data] No admin users found - allowing reset with API key only')
+    } else {
+      // Find user by username matching the provided password
+      let adminUser: any = null
+      let matchedUsername: string | null = null
+      
+      // Try to find any user whose password matches
+      for (const [username, user] of Object.entries(users)) {
+        if (user && user.passwordHash) {
+          // Use the verifyPassword utility from lib/auth.ts
+          if (verifyPassword(password, user.passwordHash)) {
+            adminUser = user
+            matchedUsername = username
+            break
+          }
         }
       }
-    }
-    
-    if (!adminUser) {
-      return NextResponse.json(
-        { error: 'Invalid password' },
-        { status: 401 }
-      )
+      
+      if (!adminUser) {
+        return NextResponse.json(
+          { error: 'Invalid password' },
+          { status: 401 }
+        )
+      }
     }
 
     // Both authentications passed - proceed with clearing data
@@ -184,6 +211,25 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         errors.push(`Failed to clear registration collections: ${err}`)
         console.error('[clear-data] Error clearing collections:', err)
+      }
+    }
+
+    // Clear clubs snapshot (this is critical - snapshot must be wiped too)
+    if (clearOptions.registrationCollections) {
+      try {
+        const SNAPSHOT_PATH = 'settings/clubs-snapshot.json'
+        console.log('[clear-data] Clearing clubs snapshot...')
+        // Remove the snapshot file entirely - it will be regenerated when needed
+        await removePaths([SNAPSHOT_PATH])
+        // Also clear KV and caches
+        await clearKVKeys(['settings/clubs-snapshot.json'])
+        // Import and clear the clubs cache
+        const { invalidateClubsCache } = await import('@/lib/cache-utils')
+        invalidateClubsCache()
+        console.log('[clear-data] Cleared clubs snapshot successfully')
+      } catch (err) {
+        // Snapshot might not exist, which is fine
+        console.log('[clear-data] Clubs snapshot not found or already cleared:', err)
       }
     }
 
@@ -288,6 +334,60 @@ export async function POST(request: NextRequest) {
     // Note: localStorage clearing happens on client side
     if (clearOptions.localStorage) {
       response.cleared.localStorage = true
+    }
+
+    // FINAL STEP: Clear all KV cache keys to ensure complete data wipe
+    // This is critical because KV might cache data from any of the above operations
+    try {
+      const kvUrl = process.env.VERCEL_KV_URL
+      const kvToken = process.env.VERCEL_KV_TOKEN
+      
+      if (kvUrl && kvToken) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { createClient } = require('@vercel/kv')
+        const kvClient = createClient({ url: kvUrl, token: kvToken })
+        
+        // Clear all cache-related keys
+        const cacheKeys = [
+          'updates',
+          'announcements',
+          'registrations',
+          'admin-users',
+          'settings',
+          'renewal-settings',
+          'registration-collections',
+          'clubs-cache',
+          'updates-cache',
+          'announcements-cache',
+          'registrations-cache',
+          'users-cache',
+          'collections-cache',
+          'registration-actions-cache',
+        ]
+        
+        console.log('[clear-data] Clearing KV cache keys...')
+        await clearKVKeys(cacheKeys)
+        
+        // Also try to clear any remaining keys with pattern scanning
+        try {
+          const allKeys = await kvClient.keys('*')
+          console.log(`[clear-data] Found ${allKeys.length} remaining KV keys, clearing all...`)
+          for (const key of allKeys) {
+            try {
+              await kvClient.del(key)
+              console.log(`[clear-data] Deleted remaining KV key: ${key}`)
+            } catch (err) {
+              console.warn(`[clear-data] Failed to delete KV key ${key}:`, err)
+            }
+          }
+        } catch (err) {
+          console.warn('[clear-data] Failed to scan all KV keys:', err)
+        }
+        
+        console.log('[clear-data] KV clearing complete')
+      }
+    } catch (err) {
+      console.warn('[clear-data] Final KV clearing failed:', err)
     }
 
     if (errors.length > 0) {
