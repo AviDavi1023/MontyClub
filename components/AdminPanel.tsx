@@ -2888,6 +2888,29 @@ export function AdminPanel() {
     }
   }
 
+  // ESC key handler for factory reset modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showClearDataModal) {
+        setShowClearDataModal(false)
+        setClearDataPassword('')
+        setClearDataApiKey('')
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [showClearDataModal])
+
+  // Handler to show publish reminder toast after registration actions
+  const handleRegistrationActionComplete = () => {
+    const newToast: Toast = {
+      id: Date.now().toString(),
+      type: 'info',
+      message: 'Remember to Publish Catalog to make changes visible to the public'
+    }
+    setToasts(prev => [...prev, newToast])
+  }
+
   // Early return replacement: render login form or authenticated content
   if (!isAuthenticated) {
     return (
@@ -3024,29 +3047,6 @@ export function AdminPanel() {
   // Calculate registration stats for dashboard (pendingRegistrationsCount calculated in useEffect above)
   const approvedRegistrationsCount = 0
   const rejectedRegistrationsCount = 0
-
-  // ESC key handler for factory reset modal
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showClearDataModal) {
-        setShowClearDataModal(false)
-        setClearDataPassword('')
-        setClearDataApiKey('')
-      }
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [showClearDataModal])
-
-  // Handler to show publish reminder toast after registration actions
-  const handleRegistrationActionComplete = () => {
-    const newToast: Toast = {
-      id: Date.now().toString(),
-      type: 'info',
-      message: 'Remember to Publish Catalog to make changes visible to the public'
-    }
-    setToasts(prev => [...prev, newToast])
-  }
   
   // Handle section navigation
   const handleSectionChange = (section: string) => {
