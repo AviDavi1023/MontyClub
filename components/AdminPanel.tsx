@@ -3361,13 +3361,22 @@ export function AdminPanel() {
                 <div>
                   <div className="mb-6">
                     <div className="flex items-start justify-between gap-4 mb-4">
-                      <div>
+                      <div className="flex-1">
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
                         <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
+                        {/* Show which collection is selected */}
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                          <p className="text-sm text-blue-900 dark:text-blue-200">
+                            <strong>Collection:</strong> {collections.find(c => c.id === activeCollectionId)?.name || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                            Imports and changes made here will only affect this collection. Remember to <strong>Publish Catalog</strong> on the dashboard to make changes public.
+                          </p>
+                        </div>
                       </div>
                       {/* Excel Import Button */}
                       <div className="flex-shrink-0">
-                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title="Upload an Excel file to import clubs into this collection">
+                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title={`Upload an Excel file to import clubs into "${collections.find(c => c.id === activeCollectionId)?.name || 'this collection'}"`}>
                           <FileSpreadsheet className="h-4 w-4" />
                           <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel'}</span>
                           <input

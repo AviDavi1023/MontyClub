@@ -281,16 +281,21 @@ export function DashboardOverview({
         </div>
 
         {/* Snapshot Publishing */}
-        <div>
+        <div className={catalogStatus?.exists ? 'bg-white dark:bg-gray-800' : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'} style={!catalogStatus?.exists ? {} : {}} className="p-4 rounded-lg">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Catalog Snapshot</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             {!catalogStatus ? 'Loading...' : catalogStatus.exists 
               ? `✅ Published: ${catalogStatus.clubCount} clubs` 
-              : '⚠️ No catalog published yet'}
+              : '⚠️ No catalog published yet. Clubs won\'t be visible to the public until you publish.'}
           </p>
           {catalogStatus?.exists && catalogStatus.generatedAt && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               Last updated: {new Date(catalogStatus.generatedAt).toLocaleString()}
+            </p>
+          )}
+          {!catalogStatus?.exists && (
+            <p className="text-xs text-amber-700 dark:text-amber-300 mb-4">
+              <strong>Important:</strong> After making changes (approving registrations, editing clubs, etc.), click "Publish Catalog" to make them visible to the public.
             </p>
           )}
           <button
