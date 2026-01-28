@@ -1,10 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeData, readData } from '@/lib/runtime-store'
+import { writeData, readData, readMemory } from '@/lib/runtime-store'
 import { writeJSONToStorage, readJSONFromStorage, listPaths, removePaths } from '@/lib/supabase'
-import { updatesCache, announcementsCache, registrationActionsCache } from '@/lib/caches'
+import { updatesCache, announcementsCache, registrationActionsCache, registrationsCache, usersCache, collectionsCache } from '@/lib/caches'
 import { verifyPassword } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+// Helper to clear Vercel KV keys if configured
+async function clearKVKeys(keys: string[]): Promise<void> {
+  try {
+    // Check if KV is configured by trying to create a client
+    const kvUrl = process.env.VERCEL_KV_URL
+    const kvToken = process.env.VERCEL_KV_TOKEN
+    
+    if (!kvUrl || !kvToken) {
+      console.log('[clear-data] Vercel KV not configured, skipping KV deletion')
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { createClient } = require('@vercel/kv')
+    const kvClient = createClient({ url: kvUrl, token: kvToken })
+
+    for (const key of keys) {
+      try {
+        await kvClient.del(key)
+        console.log(`[clear-data] Deleted KV key: ${key}`)
+      } catch (err) {
+        console.warn(`[clear-data] Failed to delete KV key ${key}:`, err)
+      }
+    }
+  } catch (err) {
+    console.warn('[clear-data] KV deletion failed:', err)
+  }
+}
 
 interface ClearDataRequest {
   password: string
@@ -100,11 +129,14 @@ export async function POST(request: NextRequest) {
         const currentUpdates = await readData('updates', [])
         const count = currentUpdates.length
         await writeData('updates', [])
-        updatesCache.set([])
         updatesCache.clear()
+        // Clear KV if configured
+        await clearKVKeys(['updates'])
         response.cleared.updateRequests = { count }
+        console.log(`[clear-data] Cleared ${count} update requests`)
       } catch (err) {
         errors.push(`Failed to clear update requests: ${err}`)
+        console.error('[clear-data] Error clearing updates:', err)
       }
     }
 
@@ -114,11 +146,14 @@ export async function POST(request: NextRequest) {
         const currentAnnouncements = await readData('announcements', {})
         const count = Object.keys(currentAnnouncements).length
         await writeData('announcements', {})
-        announcementsCache.set({})
         announcementsCache.clear()
+        // Clear KV if configured
+        await clearKVKeys(['announcements'])
         response.cleared.announcements = { count }
+        console.log(`[clear-data] Cleared ${count} announcements`)
       } catch (err) {
         errors.push(`Failed to clear announcements: ${err}`)
+        console.error('[clear-data] Error clearing announcements:', err)
       }
     }
 
@@ -134,27 +169,48 @@ export async function POST(request: NextRequest) {
           id: `col-${Date.now()}`,
           name: `${new Date().getFullYear()} Club Requests`,
           enabled: true,
+          accepting: true,
+          display: true,
+          renewalEnabled: false,
           createdAt: new Date().toISOString()
         }
         
         await writeJSONToStorage(COLLECTIONS_PATH, [defaultCollection])
+        collectionsCache.clear()
+        // Clear KV if configured
+        await clearKVKeys(['settings/registration-collections.json'])
         response.cleared.registrationCollections = { count }
+        console.log(`[clear-data] Cleared ${count} registration collections, created default`)
       } catch (err) {
         errors.push(`Failed to clear registration collections: ${err}`)
+        console.error('[clear-data] Error clearing collections:', err)
       }
     }
 
     // Clear All Registrations
     if (clearOptions.registrations) {
       try {
+        // List all registration files
         const registrationPaths = await listPaths('registrations/')
-        if (registrationPaths.length > 0) {
-          await removePaths(registrationPaths)
+        const count = registrationPaths.length
+        
+        if (count > 0) {
+          console.log(`[clear-data] Found ${count} registration files, removing...`)
+          const removeResult = await removePaths(registrationPaths)
+          console.log(`[clear-data] Removed ${removeResult.removed} registration files`)
         }
+        
+        // Clear in-memory and cache
         registrationActionsCache.clear()
-        response.cleared.registrations = { count: registrationPaths.length }
+        registrationsCache.clear()
+        // Clear KV if configured
+        await clearKVKeys(['registrations', 'registration-actions-cache'])
+        
+        response.cleared.registrations = { count }
+        console.log(`[clear-data] Cleared all registrations`)
       } catch (err) {
         errors.push(`Failed to clear registrations: ${err}`)
+        console.error('[clear-data] Error clearing registrations:', err)
       }
     }
 
@@ -165,13 +221,17 @@ export async function POST(request: NextRequest) {
         let filesRemoved = 0
         
         if (analyticsPaths.length > 0) {
+          console.log(`[clear-data] Found ${analyticsPaths.length} analytics files, removing...`)
           const result = await removePaths(analyticsPaths)
-          filesRemoved = result.removed || 0
+          filesRemoved = result.removed || analyticsPaths.length
+          console.log(`[clear-data] Removed ${filesRemoved} analytics files`)
         }
         
         response.cleared.analytics = { filesRemoved }
+        console.log(`[clear-data] Cleared analytics`)
       } catch (err) {
         errors.push(`Failed to clear analytics: ${err}`)
+        console.error('[clear-data] Error clearing analytics:', err)
       }
     }
 
@@ -179,10 +239,15 @@ export async function POST(request: NextRequest) {
     if (clearOptions.settings) {
       try {
         const currentSettings = await readData('settings', {})
+        const count = Object.keys(currentSettings).length
         await writeData('settings', { announcementsEnabled: true })
-        response.cleared.settings = { count: Object.keys(currentSettings).length }
+        // Clear KV if configured
+        await clearKVKeys(['settings'])
+        response.cleared.settings = { count }
+        console.log(`[clear-data] Cleared ${count} settings entries`)
       } catch (err) {
         errors.push(`Failed to clear settings: ${err}`)
+        console.error('[clear-data] Error clearing settings:', err)
       }
     }
 
@@ -190,23 +255,33 @@ export async function POST(request: NextRequest) {
     if (clearOptions.renewalSettings) {
       try {
         const currentSettings = await readData('renewal-settings', {})
+        const count = Object.keys(currentSettings).length
         await writeData('renewal-settings', {})
-        response.cleared.renewalSettings = { count: Object.keys(currentSettings).length }
+        // Clear KV if configured
+        await clearKVKeys(['renewal-settings'])
+        response.cleared.renewalSettings = { count }
+        console.log(`[clear-data] Cleared ${count} renewal settings entries`)
       } catch (err) {
         errors.push(`Failed to clear renewal settings: ${err}`)
+        console.error('[clear-data] Error clearing renewal settings:', err)
       }
     }
 
-    // Clear Admin Users (but keep at least one admin user)
+    // Clear Admin Users
     if (clearOptions.adminUsers) {
       try {
         const currentUsers = await readData('admin-users', {})
         const currentCount = Object.keys(currentUsers).length
         // Reset to empty - users will need to be recreated
         await writeData('admin-users', {})
+        usersCache.clear()
+        // Clear KV if configured
+        await clearKVKeys(['admin-users'])
         response.cleared.adminUsers = { count: currentCount }
+        console.log(`[clear-data] Cleared ${currentCount} admin users`)
       } catch (err) {
         errors.push(`Failed to clear admin users: ${err}`)
+        console.error('[clear-data] Error clearing admin users:', err)
       }
     }
 
