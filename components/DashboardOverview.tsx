@@ -281,7 +281,7 @@ export function DashboardOverview({
         </div>
 
         {/* Snapshot Publishing */}
-        <div className={catalogStatus?.exists ? 'bg-white dark:bg-gray-800' : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'} style={!catalogStatus?.exists ? {} : {}} className="p-4 rounded-lg">
+        <div className={`p-4 rounded-lg ${catalogStatus?.exists ? 'bg-white dark:bg-gray-800' : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'}`}>
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Catalog Snapshot</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             {!catalogStatus ? 'Loading...' : catalogStatus.exists 
