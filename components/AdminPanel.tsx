@@ -3027,6 +3027,10 @@ export function AdminPanel() {
   const handleSectionChange = (section: string) => {
     if (section === 'clear-data') {
       // Open the Clear Data modal without changing section
+      // Pre-fill the API key if already authenticated
+      if (adminApiKey) {
+        setClearDataApiKey(adminApiKey)
+      }
       setShowClearDataModal(true)
       return
     }
@@ -3355,9 +3359,27 @@ export function AdminPanel() {
               {/* Registrations List */}
               {activeCollectionId ? (
                 <div>
-                  <div className="mb-4">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
-                    <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
+                  <div className="mb-6">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
+                        <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
+                      </div>
+                      {/* Excel Import Button */}
+                      <div className="flex-shrink-0">
+                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title="Upload an Excel file to import clubs into this collection">
+                          <FileSpreadsheet className="h-4 w-4" />
+                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel'}</span>
+                          <input
+                            type="file"
+                            accept=".xlsx"
+                            onChange={handleExcelImport}
+                            disabled={importingExcel || !activeCollectionId}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <RegistrationsList
                     collectionId={activeCollectionId}
@@ -4019,6 +4041,13 @@ export function AdminPanel() {
               ⚠️ WARNING: This action permanently deletes selected data and cannot be undone!
             </p>
 
+            {/* Info note */}
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs text-blue-800 dark:text-blue-300">
+                <strong>Tip:</strong> If you authenticated with your admin API key on the dashboard, it will be pre-filled below. Otherwise, enter it manually.
+              </p>
+            </div>
+
             {/* Authentication */}
             <div className="space-y-4 mb-6">
               <div>
@@ -4035,9 +4064,14 @@ export function AdminPanel() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Admin API Key *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Admin API Key *
+                  </label>
+                  {clearDataApiKey && (
+                    <span className="text-xs text-green-600 dark:text-green-400">✓ Pre-filled</span>
+                  )}
+                </div>
                 <input
                   type="password"
                   value={clearDataApiKey}
