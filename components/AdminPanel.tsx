@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3 } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -192,6 +192,9 @@ export function AdminPanel() {
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null)
   const [editingCollectionName, setEditingCollectionName] = useState('')
   const [savingCollectionEdit, setSavingCollectionEdit] = useState(false)
+
+  // Registration collections panel collapsed state
+  const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
 
   // Load analytics settings from localStorage
   useEffect(() => {
@@ -3114,8 +3117,8 @@ export function AdminPanel() {
         pendingRegistrationsCount={pendingRegistrationsCount}
       />
       
-      {/* Main Content Area - margin for fixed sidebar */}
-      <div className="flex-1 lg:ml-64">
+      {/* Main Content Area */}
+      <div className="flex-1">
         {/* In-panel page header (dashboard and all sections) */}
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
           <div className="mb-4 sm:mb-6">
@@ -3188,13 +3191,21 @@ export function AdminPanel() {
           
           {activeSection === 'registrations' && (
             <div className="space-y-6">
-              {/* Collections Management */}
+              {/* Registration Collection Settings - Collapsible */}
               <div className="card p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  Registration Collections
-                  <InfoTooltip text="Manage multiple registration form collections (e.g., different years). Select a collection to view its registrations below." />
-                </h2>
+                <button
+                  onClick={() => setIsCollectionsCollapsed(!isCollectionsCollapsed)}
+                  className="w-full flex items-center justify-between text-left hover:opacity-80 transition-opacity"
+                >
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    Registration Collection Settings
+                    <InfoTooltip text="Manage multiple registration form collections (e.g., different years). Select a collection to view its registrations below." />
+                  </h2>
+                  <ChevronDown className={`h-5 w-5 text-gray-600 dark:text-gray-400 transition-transform ${isCollectionsCollapsed ? '' : 'rotate-180'}`} />
+                </button>
 
+                {!isCollectionsCollapsed && (
+                  <div className="mt-4">
                 {/* Create New Collection */}
                 <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Create New Collection</h3>
@@ -3332,6 +3343,8 @@ export function AdminPanel() {
                       })
                   )}
                 </div>
+                  </div>
+                )}
               </div>
 
               {/* Registrations List */}
