@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       advisorAgreementDate: new Date().toISOString(),
       clubAgreementDate: new Date().toISOString(),
       notes: originalClubId ? `Renewal of club ID: ${originalClubId}` : 'Club renewal',
+      renewedFromId: originalClubId || undefined,
     }
 
     // Save to storage

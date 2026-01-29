@@ -62,6 +62,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const [undoAction, setUndoAction] = useState<{ type: string; data: any; timestamp: number } | null>(null)
   const [quickEditId, setQuickEditId] = useState<string | null>(null)
   const [quickEditFields, setQuickEditFields] = useState<{ clubName?: string; category?: string }>({})
+  const [renewalChanges, setRenewalChanges] = useState<Record<string, any>>({}) // Store changed fields for renewals
+  const [loadingRenewalChanges, setLoadingRenewalChanges] = useState<Record<string, boolean>>({})
     const openEditModal = (reg: ClubRegistration) => {
       setEditReg(reg)
       setEditFields({ ...reg })
@@ -145,6 +147,57 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const REGISTRATIONS_BACKUP_KEY = 'montyclub:pendingRegistrationChanges:backup'
   const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
   const [pendingCollectionsBySlug, setPendingCollectionsBySlug] = useState<Record<string, { created?: boolean; enabled?: boolean; name?: string }>>({})
+
+  // Fetch and compare fields for renewal registrations
+  const fetchRenewalChanges = async (renewalReg: ClubRegistration) => {
+    if (!renewalReg.renewedFromId || loadingRenewalChanges[renewalReg.id]) return
+    
+    setLoadingRenewalChanges(prev => ({ ...prev, [renewalReg.id]: true }))
+    
+    try {
+      // Fetch all clubs to find the original one
+      const response = await fetch('/api/clubs')
+      if (!response.ok) throw new Error('Failed to fetch clubs')
+      const clubs = await response.json()
+      
+      // Find the original club by ID
+      const originalClub = clubs.find((c: any) => c.id === renewalReg.renewedFromId)
+      if (!originalClub) {
+        setRenewalChanges(prev => ({ ...prev, [renewalReg.id]: null }))
+        return
+      }
+      
+      // Compare fields
+      const changes: any = {}
+      const fieldsToCompare = [
+        { key: 'clubName', label: 'Club Name' },
+        { key: 'category', label: 'Category' },
+        { key: 'advisorName', label: 'Advisor' },
+        { key: 'studentContactName', label: 'Student Contact Name' },
+        { key: 'studentContactEmail', label: 'Student Contact Email' },
+        { key: 'location', label: 'Location' },
+        { key: 'meetingDay', label: 'Meeting Day' },
+        { key: 'meetingFrequency', label: 'Meeting Frequency' },
+        { key: 'socialMedia', label: 'Social Media' },
+        { key: 'statementOfPurpose', label: 'Statement of Purpose' }
+      ]
+      
+      fieldsToCompare.forEach(({ key, label }) => {
+        const oldValue = originalClub[key] || ''
+        const newValue = renewalReg[key as keyof ClubRegistration] || ''
+        if (oldValue !== newValue) {
+          changes[key] = { label, old: oldValue, new: newValue }
+        }
+      })
+      
+      setRenewalChanges(prev => ({ ...prev, [renewalReg.id]: changes }))
+    } catch (err) {
+      console.error('Error fetching renewal changes:', err)
+      setRenewalChanges(prev => ({ ...prev, [renewalReg.id]: null }))
+    } finally {
+      setLoadingRenewalChanges(prev => ({ ...prev, [renewalReg.id]: false }))
+    }
+  }
 
   const loadRegistrations = async () => {
     if (!collectionSlug) return
@@ -493,13 +546,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const uniqueAdvisors = Array.from(new Set(registrationsOverlayed.map(r => r.advisorName).filter(Boolean))).sort()
   const uniqueMeetingDays = Array.from(new Set(registrationsOverlayed.map(r => r.meetingDay).filter(Boolean))).sort()
 
-  // Duplicate detection: Find registrations with similar club names
-  const detectDuplicates = (clubName: string, currentId: string) => {
+  // Duplicate detection: Find registrations with similar club names IN THE SAME COLLECTION
+  const detectDuplicates = (clubName: string, currentId: string, currentCollectionId: string) => {
     const normalized = clubName.toLowerCase().trim()
     const duplicates = registrationsOverlayed.filter(r => 
       r.id !== currentId && 
-      r.clubName.toLowerCase().trim().includes(normalized) || 
-      normalized.includes(r.clubName.toLowerCase().trim())
+      r.collectionId === currentCollectionId && // Only check within same collection
+      (r.clubName.toLowerCase().trim().includes(normalized) || 
+      normalized.includes(r.clubName.toLowerCase().trim()))
     )
     return duplicates.length > 0 ? duplicates : null
   }
@@ -1474,11 +1528,18 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1"
                             title="Double-click to edit"
                           >
-                            <div className="font-medium text-gray-900 dark:text-white text-xs truncate">{reg.clubName}</div>
+                            <div className="font-medium text-gray-900 dark:text-white text-xs truncate flex items-center gap-1.5">
+                              {reg.clubName}
+                              {reg.renewedFromId && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded whitespace-nowrap">
+                                  RENEWAL
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{reg.email}</div>
                           </div>
                         )}
-                        {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
+                        {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id, reg.collectionId) && (
                           <div className="flex items-center gap-1 mt-1 text-xs text-orange-600 dark:text-orange-400">
                             <AlertCircle className="h-3 w-3" />
                             <span>Duplicate?</span>
@@ -1546,6 +1607,40 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     {isExpanded && (
                       <tr key={`${reg.id}-expanded`} className="bg-gray-50 dark:bg-gray-800">
                         <td colSpan={13} className="px-4 py-4">
+                          {/* Changed Fields for Renewals */}
+                          {reg.renewedFromId && reg.status === 'pending' && (() => {
+                            // Fetch changes when expanded
+                            if (!renewalChanges[reg.id] && !loadingRenewalChanges[reg.id]) {
+                              fetchRenewalChanges(reg)
+                            }
+                            const changes = renewalChanges[reg.id]
+                            return (
+                              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
+                                {loadingRenewalChanges[reg.id] ? (
+                                  <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
+                                ) : changes === null ? (
+                                  <p className="text-xs text-blue-700 dark:text-blue-400 italic">Could not find original club data.</p>
+                                ) : Object.keys(changes).length === 0 ? (
+                                  <p className="text-xs text-blue-700 dark:text-blue-400 italic">No changes detected.</p>
+                                ) : (
+                                  <div className="space-y-1 text-xs">
+                                    {Object.entries(changes).map(([key, change]: [string, any]) => (
+                                      <div key={key} className="flex flex-col gap-0.5">
+                                        <span className="font-semibold text-blue-900 dark:text-blue-300">{change.label}:</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-gray-600 dark:text-gray-400 line-through">{change.old || '(empty)'}</span>
+                                          <span className="text-blue-700 dark:text-blue-400">→</span>
+                                          <span className="text-blue-900 dark:text-blue-200 font-medium">{change.new || '(empty)'}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
+                          
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="font-semibold text-gray-700 dark:text-gray-300">Full Description:</span>
@@ -1614,10 +1709,15 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                       onClick={() => setExpandedId(isExpanded ? null : reg.id)}
                     >
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2">
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2 flex items-center gap-2">
                         {reg.clubName}
+                        {reg.renewedFromId && (
+                          <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded">
+                            RENEWAL
+                          </span>
+                        )}
                       </h4>
-                      {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id) && (
+                      {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id, reg.collectionId) && (
                         <div className="flex items-center gap-1 mb-2 px-2 py-1 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded text-xs text-orange-700 dark:text-orange-400">
                           <AlertCircle className="h-3.5 w-3.5" />
                           <span className="font-medium">Possible duplicate club name detected</span>
@@ -1644,6 +1744,40 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
                         {isExpanded && (
                           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                            {/* Changed Fields for Renewals */}
+                            {reg.renewedFromId && reg.status === 'pending' && (() => {
+                              // Fetch changes when expanded
+                              if (!renewalChanges[reg.id] && !loadingRenewalChanges[reg.id]) {
+                                fetchRenewalChanges(reg)
+                              }
+                              const changes = renewalChanges[reg.id]
+                              return (
+                                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
+                                  {loadingRenewalChanges[reg.id] ? (
+                                    <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
+                                  ) : changes === null ? (
+                                    <p className="text-xs text-blue-700 dark:text-blue-400 italic">Could not find original club data.</p>
+                                  ) : Object.keys(changes).length === 0 ? (
+                                    <p className="text-xs text-blue-700 dark:text-blue-400 italic">No changes detected.</p>
+                                  ) : (
+                                    <div className="space-y-1.5 text-xs">
+                                      {Object.entries(changes).map(([key, change]: [string, any]) => (
+                                        <div key={key} className="flex flex-col gap-0.5">
+                                          <span className="font-semibold text-blue-900 dark:text-blue-300">{change.label}:</span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-gray-600 dark:text-gray-400 line-through">{change.old || '(empty)'}</span>
+                                            <span className="text-blue-700 dark:text-blue-400">→</span>
+                                            <span className="text-blue-900 dark:text-blue-200 font-medium">{change.new || '(empty)'}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                            
                             <div className="flex items-start gap-2">
                               <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Email:</span>
                               <span className="text-gray-900 dark:text-white break-all text-xs">{reg.email}</span>

@@ -66,4 +66,5 @@ export interface ClubRegistration {
   socialMedia?: string // Optional social media handle or link
   category: string // Club category
   notes?: string // Optional public notes
+  renewedFromId?: string // ID of the original club registration this was renewed from
 }
