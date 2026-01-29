@@ -346,15 +346,48 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
-      // Read collections with retry
+      // Read collections with retry for recently created collections
       log({ tag: 'collections-api', step: 'read-start', operationId })
-      const collections = await getCollections()
-      const collectionIndex = collections.findIndex(c => c.id === id)
+      let collections = await getCollections()
+      let collectionIndex = collections.findIndex(c => c.id === id)
+
+      // If not found and this might be a recent write, retry a few times
+      if (collectionIndex === -1) {
+        const timeSinceWrite = Date.now() - lastWriteTimestamp
+        const isRecentWrite = timeSinceWrite < 5000
+        
+        if (isRecentWrite) {
+          log({ 
+            tag: 'collections-api', 
+            step: 'collection-not-found-retrying',
+            operationId,
+            collectionId: id,
+            timeSinceWrite
+          })
+          
+          // Retry up to 3 times with increasing delays
+          for (let attempt = 0; attempt < 3; attempt++) {
+            await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)))
+            collections = await getCollections()
+            collectionIndex = collections.findIndex(c => c.id === id)
+            
+            if (collectionIndex !== -1) {
+              log({ 
+                tag: 'collections-api', 
+                step: 'collection-found-on-retry',
+                operationId,
+                collectionId: id,
+                attempt: attempt + 1
+              })
+              break
+            }
+          }
+        }
+      }
 
       if (collectionIndex === -1) {
-        // Provide helpful context if this might be a recent write consistency issue
         const timeSinceWrite = Date.now() - lastWriteTimestamp
-        const isRecentWrite = timeSinceWrite < 3000
+        const isRecentWrite = timeSinceWrite < 5000
         
         log({ 
           tag: 'collections-api', 
@@ -606,14 +639,6 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json(
           { error: 'Collection not found' },
           { status: 404 }
-        )
-      }
-
-      // Prevent deleting last collection
-      if (collections.length === 1) {
-        return NextResponse.json(
-          { error: 'Cannot delete the last collection' },
-          { status: 400 }
         )
       }
 

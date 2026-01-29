@@ -683,22 +683,51 @@ export function AdminPanel() {
     })
 
     try {
-      const resp = await fetch('/api/registration-collections', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-        body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
-      })
-      if (!resp.ok) {
-        let errText = 'Failed to update accepting'
-        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
-        throw new Error(errText)
+      // Try with retries for recently created collections
+      let lastError: any = null
+      let success = false
+      
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) {
+          // Wait before retry with exponential backoff
+          await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)))
+        }
+        
+        try {
+          const resp = await fetch('/api/registration-collections', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+            body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
+          })
+          
+          if (resp.ok) {
+            success = true
+            try {
+              broadcast('collections', 'update', { id: collectionId })
+              localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+            } catch {}
+            showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
+            await loadCollections()
+            break
+          } else if (resp.status === 404 && attempt < 3) {
+            // Collection not found, might be syncing - retry
+            lastError = new Error('Collection still syncing...')
+            continue
+          } else {
+            let errText = 'Failed to update accepting'
+            try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
+            lastError = new Error(errText)
+            break
+          }
+        } catch (e) {
+          lastError = e
+          if (attempt === 3) break
+        }
       }
-      try {
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
-      await loadCollections()
+      
+      if (!success && lastError) {
+        throw lastError
+      }
     } catch (err) {
       setLocalPendingCollectionChanges(prev => {
         const revert = { ...prev }
@@ -747,22 +776,51 @@ export function AdminPanel() {
     })
 
     try {
-      const resp = await fetch('/api/registration-collections', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-        body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
-      })
-      if (!resp.ok) {
-        let errText = 'Failed to update renewal'
-        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
-        throw new Error(errText)
+      // Try with retries for recently created collections
+      let lastError: any = null
+      let success = false
+      
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) {
+          // Wait before retry with exponential backoff
+          await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)))
+        }
+        
+        try {
+          const resp = await fetch('/api/registration-collections', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+            body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
+          })
+          
+          if (resp.ok) {
+            success = true
+            try {
+              broadcast('collections', 'update', { id: collectionId })
+              localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
+            } catch {}
+            showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
+            await loadCollections()
+            break
+          } else if (resp.status === 404 && attempt < 3) {
+            // Collection not found, might be syncing - retry
+            lastError = new Error('Collection still syncing...')
+            continue
+          } else {
+            let errText = 'Failed to update renewal'
+            try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
+            lastError = new Error(errText)
+            break
+          }
+        } catch (e) {
+          lastError = e
+          if (attempt === 3) break
+        }
       }
-      try {
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
-      await loadCollections()
+      
+      if (!success && lastError) {
+        throw lastError
+      }
     } catch (err) {
       setLocalPendingCollectionChanges(prev => {
         const revert = { ...prev }
@@ -4015,16 +4073,14 @@ export function AdminPanel() {
                                   <Edit3 className="h-4 w-4 inline mr-1" />
                                   Edit Collection
                                 </button>
-                                {collections.length > 1 && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); deleteCollection(collection.id) }}
-                                    className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium"
-                                    title="Delete collection"
-                                  >
-                                    <Trash2 className="h-4 w-4 inline mr-1" />
-                                    Delete Collection
-                                  </button>
-                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteCollection(collection.id) }}
+                                  className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium"
+                                  title="Delete collection"
+                                >
+                                  <Trash2 className="h-4 w-4 inline mr-1" />
+                                  Delete Collection
+                                </button>
                               </div>
                             </div>
                           </div>
