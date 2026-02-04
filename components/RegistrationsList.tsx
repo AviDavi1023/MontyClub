@@ -783,6 +783,67 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     setShowDenyModal(true)
   }
 
+  const handleDelete = async (reg: ClubRegistration) => {
+    const confirmed = await confirm({
+      title: 'Delete Registration',
+      message: `Delete "${reg.clubName}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger'
+    })
+    if (!confirmed) return
+
+    setProcessingId(reg.id)
+
+    setLocalPendingRegistrationChanges(prev => {
+      const newPending = { ...prev, [reg.id]: { deleted: true } }
+      try {
+        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+      } catch (e) {}
+      return newPending
+    })
+
+    try {
+      const response = await fetch('/api/registration-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify({
+          registrationId: reg.id,
+          collection: reg.collectionId
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete registration')
+      }
+
+      setUndoAction({ type: 'delete', data: reg, timestamp: Date.now() })
+      setTimeout(() => setUndoAction(null), 5000)
+      await loadRegistrations()
+    } catch (err: any) {
+      setLocalPendingRegistrationChanges(prev => {
+        const revertPending = { ...prev }
+        delete revertPending[reg.id]
+        try {
+          if (Object.keys(revertPending).length === 0) {
+            localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
+            localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
+          } else {
+            localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(revertPending))
+            localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
+          }
+        } catch (e) {}
+        return revertPending
+      })
+      alert(err.message || 'Failed to delete registration')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
   const confirmDeny = async () => {
     if (!currentReg) return
 
@@ -1332,7 +1393,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="w-full overflow-x-auto overflow-y-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
               <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
@@ -1482,6 +1543,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               Deny
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDelete(reg)}
+                            disabled={processingId === reg.id}
+                            className="px-1 py-0.5 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
@@ -1865,6 +1933,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             Deny
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDelete(reg)}
+                          disabled={processingId === reg.id}
+                          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2129,6 +2204,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           <span className="font-medium">
             {undoAction.type === 'approve' && `Approved "${undoAction.data.clubName}"`}
             {undoAction.type === 'deny' && `Denied "${undoAction.data.clubName}"`}
+            {undoAction.type === 'delete' && `Deleted "${undoAction.data.clubName}"`}
           </span>
           <button
             onClick={() => {
