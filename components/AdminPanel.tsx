@@ -5,7 +5,7 @@ import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3,
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
-import { ConfirmDialog } from '@/components/ui'
+import { Button, ConfirmDialog, Modal } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 import { UserManagement } from '@/components/UserManagement'
 import { RegistrationsList } from '@/components/RegistrationsList'
@@ -147,6 +147,8 @@ export function AdminPanel() {
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [importingExcel, setImportingExcel] = useState(false)
+  const [showExcelImportModal, setShowExcelImportModal] = useState(false)
+  const [pendingExcelFile, setPendingExcelFile] = useState<File | null>(null)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
   type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
@@ -3127,7 +3129,7 @@ export function AdminPanel() {
     }
   }
 
-  // Helper to handle Excel import
+  // Helper to select Excel file and prompt for import mode
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0] || !activeCollectionId) return
     
@@ -3142,16 +3144,29 @@ export function AdminPanel() {
       return
     }
 
+    setPendingExcelFile(file)
+    setShowExcelImportModal(true)
+    e.target.value = ''
+  }
+
+  const executeExcelImport = async (mode: 'append' | 'replace') => {
+    if (!pendingExcelFile || !activeCollectionId) return
+
+    const file = pendingExcelFile
+    setShowExcelImportModal(false)
+    setPendingExcelFile(null)
+
     const formData = new FormData()
     formData.append('file', file)
     formData.append('collectionId', activeCollectionId)
+    formData.append('importMode', mode)
 
     try {
       setImportingExcel(true)
       logActivity({
         type: 'import',
         action: 'Excel Import Started',
-        details: `Importing from ${file.name} into collection`,
+        details: `Importing (${mode === 'replace' ? 'Replace' : 'Append'}) from ${file.name} into collection`,
         status: 'info',
         user: currentUser || undefined,
       })
@@ -3175,8 +3190,6 @@ export function AdminPanel() {
         status: 'success',
         user: currentUser || undefined,
       })
-      
-      e.target.value = ''
       
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
@@ -3894,20 +3907,7 @@ export function AdminPanel() {
                         type="file"
                         accept=".xlsx"
                         disabled={importingExcel || activeCollectionId?.startsWith('temp-col-') || false}
-                        onChange={async (e) => {
-                          if (!e.target.files?.[0] || !activeCollectionId) return
-                          if (activeCollectionId.startsWith('temp-col-')) { showToast('Please wait for the collection to be created before importing', 'error'); return }
-                          const file = e.target.files[0]
-                          if (!file.name.endsWith('.xlsx')) { showToast('Please upload an Excel (.xlsx) file', 'error'); return }
-                          const formData = new FormData(); formData.append('file', file); formData.append('collectionId', activeCollectionId)
-                          try {
-                            setImportingExcel(true)
-                            const response = await fetch('/api/upload-excel', { method: 'POST', body: formData })
-                            if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Upload failed') }
-                            const result = await response.json(); showToast(result.message || 'Import successful!', 'success'); e.target.value = ''
-                            if (typeof window !== 'undefined' && 'BroadcastChannel' in window) { try { const bc = new window.BroadcastChannel('clubData'); bc.postMessage('changed'); bc.close() } catch {} }
-                          } catch (error) { console.error('Excel import error:', error); showToast(String(error), 'error') } finally { setImportingExcel(false) }
-                        }}
+                        onChange={handleExcelImport}
                         className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -4370,6 +4370,56 @@ export function AdminPanel() {
         </div>
       )}
       
+      {/* Excel Import Mode Modal */}
+      <Modal
+        isOpen={showExcelImportModal}
+        onClose={() => {
+          setShowExcelImportModal(false)
+          setPendingExcelFile(null)
+        }}
+        title="Import Excel"
+        size="md"
+      >
+        <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+          <p>
+            Choose how to import the Excel file into this collection.
+          </p>
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900/50">
+            <p className="font-medium text-gray-900 dark:text-white">Append</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">Keep existing registrations and add new ones from the file.</p>
+          </div>
+          <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
+            <p className="font-medium text-red-700 dark:text-red-300">Replace</p>
+            <p className="text-xs text-red-600 dark:text-red-400">Delete all existing registrations in this collection before importing.</p>
+          </div>
+        </div>
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setShowExcelImportModal(false)
+              setPendingExcelFile(null)
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => executeExcelImport('append')}
+            isLoading={importingExcel}
+          >
+            Append
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => executeExcelImport('replace')}
+            isLoading={importingExcel}
+          >
+            Replace
+          </Button>
+        </div>
+      </Modal>
+
       {/* Global Confirm Dialog */}
       {isOpen && options && (
         <ConfirmDialog

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as ExcelJS from 'exceljs'
-import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
+import { listPaths, readJSONFromStorage, removePaths, writeJSONToStorage } from '@/lib/supabase'
 import { RegistrationCollection, ClubRegistration } from '@/types/club'
 import { parseExcelToRegistrations } from '@/lib/clubs'
 import { nanoid } from 'nanoid'
@@ -10,6 +10,8 @@ export async function POST(request: Request) {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const collectionId = formData.get('collectionId') as string
+    const importModeRaw = formData.get('importMode') as string
+    const importMode: 'append' | 'replace' = importModeRaw === 'replace' ? 'replace' : 'append'
     
     if (!file) {
       return NextResponse.json(
@@ -97,6 +99,16 @@ export async function POST(request: Request) {
       )
     }
 
+    // If replace mode, clear existing registrations first
+    let removedCount = 0
+    if (importMode === 'replace') {
+      const existingPaths = await listPaths(`registrations/${collectionId}`)
+      if (existingPaths.length > 0) {
+        const removed = await removePaths(existingPaths)
+        removedCount = removed.removed || 0
+      }
+    }
+
     // Create registrations in the collection with optimized batching
     let successCount = 0
     let errorCount = 0
@@ -175,10 +187,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: `Imported ${successCount} clubs into ${collectionName}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+      message: `Imported ${successCount} clubs into ${collectionName}${importMode === 'replace' ? ` (replaced ${removedCount} existing)` : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       successCount,
       errorCount,
       totalProcessed: registrations.length,
+      importMode,
+      removedCount,
       errors: errorCount > 0 ? errors.slice(0, 5) : undefined // Include first 5 errors if any
     })
   } catch (error) {
