@@ -1332,11 +1332,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm" style={{ scrollbarGutter: 'stable', overflowY: 'visible' }}>
+            <div className="w-full overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
               <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
-                  <col style={{ width: '85px' }} />
+                  <col style={{ width: '70px' }} />
                   <col style={{ width: '100px' }} />
                   <col style={{ width: '95px' }} />
                   <col style={{ width: '150px' }} />
@@ -1364,7 +1364,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       />
                     </th>
                     <th 
-                      className="px-1.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      className="pl-1 pr-0.5 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleColumnSort('status')}
                     >
                       <div className="flex items-center gap-1">
@@ -1435,7 +1435,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           className="rounded border-gray-300 dark:border-gray-600"
                         />
                       </td>
-                      <td className="px-1.5 py-2">
+                      <td className="pl-1 pr-0.5 py-2">
                         <div className="flex items-center gap-1">
                           <span className={getStatusBadge(reg.status)} title={reg.status}>
                             {getStatusIcon(reg.status)}
@@ -1614,10 +1614,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               fetchRenewalChanges(reg)
                             }
                             const changes = renewalChanges[reg.id]
+                            const isLoadingChanges = loadingRenewalChanges[reg.id] || changes === undefined
                             return (
                               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                                 <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
-                                {loadingRenewalChanges[reg.id] ? (
+                                {isLoadingChanges ? (
                                   <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
                                 ) : changes === null ? (
                                   <p className="text-xs text-blue-700 dark:text-blue-400 italic">Could not find original club data.</p>
@@ -1751,10 +1752,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                 fetchRenewalChanges(reg)
                               }
                               const changes = renewalChanges[reg.id]
+                              const isLoadingChanges = loadingRenewalChanges[reg.id] || changes === undefined
                               return (
                                 <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                                   <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
-                                  {loadingRenewalChanges[reg.id] ? (
+                                  {isLoadingChanges ? (
                                     <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
                                   ) : changes === null ? (
                                     <p className="text-xs text-blue-700 dark:text-blue-400 italic">Could not find original club data.</p>
