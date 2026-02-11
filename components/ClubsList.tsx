@@ -52,18 +52,30 @@ export function ClubsList() {
     }
   }
   const [filters, setFilters] = useState<ClubFilters>(parseFiltersFromQuery())
+  const filtersRef = useRef<ClubFilters>(parseFiltersFromQuery())
   
   // Local search state for immediate UI updates (to avoid slow typing)
   const [searchInput, setSearchInput] = useState(filters.search)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isTypingRef = useRef(false)
+  const lastSearchRef = useRef(filters.search)
 
   // Sync filters state with URL query params
   useEffect(() => {
     const newFilters = parseFiltersFromQuery()
     setFilters(newFilters)
-    setSearchInput(newFilters.search)
+    filtersRef.current = newFilters
+    const nextSearch = newFilters.search
+    if (!isTypingRef.current || nextSearch === lastSearchRef.current) {
+      setSearchInput(nextSearch)
+      lastSearchRef.current = nextSearch
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  useEffect(() => {
+    filtersRef.current = filters
+  }, [filters])
 
   // Load view mode preference from localStorage
   useEffect(() => {
@@ -583,6 +595,9 @@ export function ClubsList() {
       sort: 'relevant',
     }
     setSearchInput('')
+    setFilters(cleared)
+    filtersRef.current = cleared
+    lastSearchRef.current = ''
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
@@ -598,6 +613,11 @@ export function ClubsList() {
   function handleSearchChange(value: string) {
     // Update local state immediately for fast UI response
     setSearchInput(value)
+    lastSearchRef.current = value
+    isTypingRef.current = true
+    const nextFilters = { ...filtersRef.current, search: value }
+    setFilters(nextFilters)
+    filtersRef.current = nextFilters
     
     // Clear existing timeout
     if (searchTimeoutRef.current) {
@@ -608,7 +628,8 @@ export function ClubsList() {
     searchTimeoutRef.current = setTimeout(() => {
       // Track only length, not the term
       track('Search', { qlen: value.trim().length })
-      setFiltersAndUpdate({ ...filters, search: value })
+      setFiltersAndUpdate(nextFilters)
+      isTypingRef.current = false
     }, 300)
   }
   
@@ -672,8 +693,12 @@ export function ClubsList() {
               aria-label="Clear search"
               onClick={() => {
                 setSearchInput('')
+                setFilters(prev => ({ ...prev, search: '' }))
+                filtersRef.current = { ...filtersRef.current, search: '' }
+                lastSearchRef.current = ''
+                isTypingRef.current = false
                 if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
-                setFiltersAndUpdate({ ...filters, search: '' })
+                setFiltersAndUpdate({ ...filtersRef.current, search: '' })
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 dark:text-primary-300 dark:hover:text-primary-100 p-1 rounded"
             >
