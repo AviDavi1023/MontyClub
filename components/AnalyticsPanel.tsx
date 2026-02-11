@@ -7,26 +7,15 @@ import { Club, RegistrationCollection } from '@/types/club'
 interface AnalyticsPanelProps {
   clubs: Club[]
   collections: RegistrationCollection[]
-  adminApiKey: string
 }
 
-export function AnalyticsPanel({ clubs, collections, adminApiKey }: AnalyticsPanelProps) {
+export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
   const [stats, setStats] = useState<any>({})
   const [categoryBreakdown, setCategoryBreakdown] = useState<Array<{ name: string; count: number }>>([])
   const [collectionStats, setCollectionStats] = useState<Array<{ name: string; count: number }>>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'all'>('month')
   
-  // Pilot testing state
-  const [analyticsPeriod, setAnalyticsPeriod] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('analytics:period') || 'pilot'
-    }
-    return 'pilot'
-  })
-  const [analyticsSummary, setAnalyticsSummary] = useState<any | null>(null)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-  const [clearingAnalytics, setClearingAnalytics] = useState(false)
 
   useEffect(() => {
     loadAnalytics()
@@ -87,68 +76,6 @@ export function AnalyticsPanel({ clubs, collections, adminApiKey }: AnalyticsPan
     }
   }
 
-  const saveAnalyticsPeriod = () => {
-    const p = analyticsPeriod.trim() || 'pilot'
-    setAnalyticsPeriod(p)
-    try { 
-      localStorage.setItem('analytics:period', p)
-    } catch {}
-  }
-
-  const fetchAnalyticsSummary = async () => {
-    if (!adminApiKey) {
-      alert('Admin API key required')
-      return
-    }
-    setLoadingSummary(true)
-    setAnalyticsSummary(null)
-    try {
-      const resp = await fetch(`/api/analytics/admin/summary?period=${encodeURIComponent(analyticsPeriod)}&max=5000`, {
-        headers: { 'x-admin-key': adminApiKey }
-      })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${resp.status}`)
-      }
-      const data = await resp.json()
-      setAnalyticsSummary(data)
-    } catch (e) {
-      console.error('Summary error', e)
-      alert(`Could not load summary: ${e instanceof Error ? e.message : 'Unknown error'}`)
-    } finally {
-      setLoadingSummary(false)
-    }
-  }
-
-  const clearAnalyticsPeriod = async () => {
-    if (!adminApiKey) {
-      alert('Admin API key required')
-      return
-    }
-    if (!confirm(`Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`)) {
-      return
-    }
-    setClearingAnalytics(true)
-    try {
-      const resp = await fetch('/api/analytics/admin/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-        body: JSON.stringify({ period: analyticsPeriod })
-      })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${resp.status}`)
-      }
-      const data = await resp.json()
-      alert(`Removed ${data.removed || 0} event files`)
-      setAnalyticsSummary(null)
-    } catch (e) {
-      console.error('Clear error', e)
-      alert(`Could not clear analytics: ${e instanceof Error ? e.message : 'Unknown error'}`)
-    } finally {
-      setClearingAnalytics(false)
-    }
-  }
 
   const exportData = () => {
     const data = {
@@ -211,94 +138,6 @@ export function AnalyticsPanel({ clubs, collections, adminApiKey }: AnalyticsPan
           <Download className="h-4 w-4" />
           Export CSV
         </button>
-      </div>
-
-      {/* Pilot Testing Controls */}
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Pilot Testing Analytics</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Track user interactions and events during pilot testing. Configure the period name, view summaries, and clear data.
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Analytics Period
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={analyticsPeriod}
-                onChange={(e) => setAnalyticsPeriod(e.target.value)}
-                placeholder="e.g., pilot, beta, 2025-spring"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              />
-              <button
-                onClick={saveAnalyticsPeriod}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
-              >
-                Save
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Current period: <strong>{analyticsPeriod}</strong>
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={fetchAnalyticsSummary}
-              disabled={loadingSummary || !adminApiKey}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingSummary ? 'Loading...' : 'Fetch Summary'}
-            </button>
-            <button
-              onClick={clearAnalyticsPeriod}
-              disabled={clearingAnalytics || !adminApiKey}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {clearingAnalytics ? 'Clearing...' : 'Clear Period Data'}
-            </button>
-          </div>
-        </div>
-
-        {analyticsSummary && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Summary for "{analyticsSummary.period}"</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Total Events</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{analyticsSummary.totalEvents}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Club Opens</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{Object.keys(analyticsSummary.clubOpens || {}).length}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Shares</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{Object.keys(analyticsSummary.shares || {}).length}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Event Types</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{Object.keys(analyticsSummary.byType || {}).length}</div>
-              </div>
-            </div>
-            {analyticsSummary.byType && Object.keys(analyticsSummary.byType).length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event Breakdown</div>
-                <div className="space-y-1">
-                  {Object.entries(analyticsSummary.byType).map(([type, count]: [string, any]) => (
-                    <div key={type} className="flex justify-between text-xs">
-                      <span className="text-gray-600 dark:text-gray-400">{type}</span>
-                      <span className="font-semibold text-gray-900 dark:text-white">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {loading ? (

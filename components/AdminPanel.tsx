@@ -126,12 +126,6 @@ export function AdminPanel() {
   const [refreshingCache, setRefreshingCache] = useState(false)
   const [publishingCatalog, setPublishingCatalog] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState<{ exists: boolean; generatedAt?: string; clubCount?: number } | null>(null)
-  // Analytics Pilot State
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(true)
-  const [analyticsPeriod, setAnalyticsPeriod] = useState('pilot')
-  const [analyticsSummary, setAnalyticsSummary] = useState<any | null>(null)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-  const [clearingAnalytics, setClearingAnalytics] = useState(false)
   const [adminApiKey, setAdminApiKey] = useState('')
   const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false)
   const [apiKeyPromptInput, setApiKeyPromptInput] = useState('')
@@ -183,7 +177,6 @@ export function AdminPanel() {
     announcements: false,
     registrationCollections: false,
     registrations: false,
-    analytics: false,
     adminUsers: false,
   })
   const [clearingData, setClearingData] = useState(false)
@@ -199,13 +192,9 @@ export function AdminPanel() {
   // Registration collections panel collapsed state
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
 
-  // Load analytics settings from localStorage
+  // Load admin API key from localStorage
   useEffect(() => {
     try {
-      const enabled = localStorage.getItem('analytics:enabled')
-      if (enabled === 'false') setAnalyticsEnabled(false)
-      const period = localStorage.getItem('analytics:period')
-      if (period) setAnalyticsPeriod(period)
       const key = localStorage.getItem('analytics:adminKey')
       if (key) setAdminApiKey(key)
     } catch {}
@@ -1145,20 +1134,6 @@ export function AdminPanel() {
     }
   }
 
-  const toggleAnalyticsEnabled = () => {
-    const next = !analyticsEnabled
-    setAnalyticsEnabled(next)
-    try { localStorage.setItem('analytics:enabled', String(next)) } catch {}
-    showToast(`Analytics ${next ? 'enabled' : 'disabled'}`)
-  }
-
-  const saveAnalyticsPeriod = () => {
-    const p = analyticsPeriod.trim() || 'pilot'
-    setAnalyticsPeriod(p)
-    try { localStorage.setItem('analytics:period', p) } catch {}
-    showToast(`Period set to '${p}'`)
-  }
-
   const saveAdminApiKey = () => {
     const k = adminApiKey.trim()
     setAdminApiKey(k)
@@ -1180,69 +1155,6 @@ export function AdminPanel() {
   const skipApiKeyPrompt = () => {
     setShowApiKeyPrompt(false)
     setApiKeyPromptInput('')
-  }
-
-  const fetchAnalyticsSummary = async () => {
-    if (!adminApiKey) {
-      showToast('Set admin API key first', 'error')
-      return
-    }
-    setLoadingSummary(true)
-    setAnalyticsSummary(null)
-    try {
-      const resp = await fetch(`/api/analytics/admin/summary?period=${encodeURIComponent(analyticsPeriod)}&max=5000`, {
-        headers: { 'x-admin-key': adminApiKey }
-      })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${resp.status}`)
-      }
-      const data = await resp.json()
-      setAnalyticsSummary(data)
-      showToast('Analytics summary loaded', 'info')
-    } catch (e) {
-      console.error('Summary error', e)
-      showToast(`Could not load summary: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
-    } finally {
-      setLoadingSummary(false)
-    }
-  }
-
-  const clearAnalyticsPeriod = async () => {
-    if (!adminApiKey) {
-      showToast('Set admin API key first', 'error')
-      return
-    }
-    {
-      const ok = await confirm({
-        title: 'Clear Analytics Data',
-        message: `Clear ALL analytics data for period '${analyticsPeriod}'? This cannot be undone.`,
-        confirmText: 'Clear',
-        cancelText: 'Cancel',
-        variant: 'danger',
-      })
-      if (!ok) return
-    }
-    setClearingAnalytics(true)
-    try {
-      const resp = await fetch('/api/analytics/admin/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-        body: JSON.stringify({ period: analyticsPeriod })
-      })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${resp.status}`)
-      }
-      const data = await resp.json()
-      showToast(`Removed ${data.removed || 0} event files`)  
-      setAnalyticsSummary(null)
-    } catch (e) {
-      console.error('Clear error', e)
-      showToast(`Could not clear analytics: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
-    } finally {
-      setClearingAnalytics(false)
-    }
   }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -1448,7 +1360,6 @@ export function AdminPanel() {
         announcements: false,
         registrationCollections: false,
         registrations: false,
-        analytics: false,
         adminUsers: false,
       })
       setShowClearDataModal(false)
@@ -3224,21 +3135,7 @@ export function AdminPanel() {
       
       {/* Main Content Area */}
       <div className="flex-1">
-        {/* In-panel page header (dashboard only) */}
-        {activeSection === 'dashboard' && (
-          <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
-            <div className="mb-4 sm:mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
-                Admin Panel
-              </h1>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                Manage club information and settings.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-8 max-w-full">
+        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8 pb-8 max-w-full">
           {/* Route to different sections based on activeSection */}
           {activeSection === 'dashboard' && (
             <DashboardOverview
@@ -3514,7 +3411,6 @@ export function AdminPanel() {
             <AnalyticsPanel
               clubs={clubs}
               collections={collections}
-              adminApiKey={adminApiKey}
             />
           )}
         </div>
@@ -4237,19 +4133,6 @@ export function AdminPanel() {
                   <div>
                     <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">All Registrations</div>
                     <div className="text-xs text-red-700 dark:text-red-300">⚠️ Delete all club registration submissions</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={clearOptions.analytics}
-                    onChange={(e) => setClearOptions({ ...clearOptions, analytics: e.target.checked })}
-                    disabled={clearingData}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">Analytics Events</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">Clear all analytics tracking data</div>
                   </div>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">

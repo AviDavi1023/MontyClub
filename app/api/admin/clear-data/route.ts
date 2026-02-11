@@ -63,7 +63,6 @@ interface ClearDataRequest {
     announcements: boolean
     registrationCollections: boolean
     registrations: boolean
-    analytics: boolean
     settings: boolean
     renewalSettings: boolean
     adminUsers: boolean
@@ -78,7 +77,6 @@ interface ClearDataResponse {
     announcements?: { count: number }
     registrationCollections?: { count: number }
     registrations?: { count: number }
-    analytics?: { filesRemoved: number }
     settings?: { count: number }
     renewalSettings?: { count: number }
     adminUsers?: { count: number }
@@ -257,27 +255,6 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         errors.push(`Failed to clear registrations: ${err}`)
         console.error('[clear-data] Error clearing registrations:', err)
-      }
-    }
-
-    // Clear Analytics
-    if (clearOptions.analytics) {
-      try {
-        const analyticsPaths = await listPaths('analytics/')
-        let filesRemoved = 0
-        
-        if (analyticsPaths.length > 0) {
-          console.log(`[clear-data] Found ${analyticsPaths.length} analytics files, removing...`)
-          const result = await removePaths(analyticsPaths)
-          filesRemoved = result.removed || analyticsPaths.length
-          console.log(`[clear-data] Removed ${filesRemoved} analytics files`)
-        }
-        
-        response.cleared.analytics = { filesRemoved }
-        console.log(`[clear-data] Cleared analytics`)
-      } catch (err) {
-        errors.push(`Failed to clear analytics: ${err}`)
-        console.error('[clear-data] Error clearing analytics:', err)
       }
     }
 

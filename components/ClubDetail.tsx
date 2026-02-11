@@ -7,7 +7,6 @@ import { Club } from '@/types/club'
 import { SimilarClubs } from '@/components/SimilarClubs'
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { track } from '@/lib/analytics'
 import { slugifyName } from '@/lib/slug'
 
 interface ClubDetailProps {
@@ -73,7 +72,6 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
           text: `Check out ${club.name} - ${club.description}`,
           url: shareUrl,
         })
-        track('ShareClick', { id: club.id, name: club.name })
       } catch (err) {
         // User cancelled share or error occurred
         console.log('Share cancelled or failed')
@@ -84,7 +82,6 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
         await navigator.clipboard.writeText(shareUrl)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
-        track('ShareClick', { id: club.id, name: club.name })
       } catch (err) {
         console.error('Failed to copy:', err)
       }

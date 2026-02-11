@@ -6,7 +6,6 @@ import { Club } from '@/types/club'
 import { Calendar, MapPin, Users } from 'lucide-react'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { Megaphone } from 'lucide-react'
-import { track } from '@/lib/analytics'
 import { slugifyName } from '@/lib/slug'
 
 interface ClubCardProps {
@@ -20,7 +19,7 @@ export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
   const slug = slugifyName(club.name)
   
   return (
-    <Link href={`/clubs/${slug}${queryString}`} className="block group animate-fadeIn" onClick={() => track('ClubOpen', { id: club.id, name: club.name })}>
+    <Link href={`/clubs/${slug}${queryString}`} className="block group animate-fadeIn">
       <div className="card hover:shadow-lg transition-all duration-300 p-4 sm:p-6 group-hover:ring-2 group-hover:ring-primary-200 dark:group-hover:ring-primary-800 group-hover:bg-gradient-to-br group-hover:from-primary-50/30 group-hover:to-transparent dark:group-hover:from-primary-900/10 hover-lift">
         <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
           <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">

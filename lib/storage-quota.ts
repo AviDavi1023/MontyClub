@@ -124,8 +124,6 @@ export function isApproachingQuota(thresholdPercent: number = 80): boolean {
  */
 export function cleanupStorageQuota(): number {
   const itemsToClean = [
-    // Analytics backup (least critical)
-    'analytics:backup',
     // Announcements backup
     'montyclub:pendingAnnouncements:backup',
     // Updates backup

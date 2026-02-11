@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
-import { track } from '@/lib/analytics'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { getClubs } from '@/lib/clubs-client'
@@ -93,7 +92,6 @@ export function ClubsList() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('montyclub:viewMode', mode)
     }
-    track('ViewChange', { mode })
   }
 
   // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
@@ -574,15 +572,6 @@ export function ClubsList() {
     const newUrl = params.toString() ? `/?${params.toString()}` : '/'
     router.replace(newUrl)
 
-    // Track summarized filter state (no PII)
-    track('FilterChange', {
-      hasSearch: !!newFilters.search,
-      categories: Array.isArray(newFilters.category) ? newFilters.category.length : (newFilters.category ? 1 : 0),
-      meetingDays: Array.isArray(newFilters.meetingDay) ? newFilters.meetingDay.length : (newFilters.meetingDay ? 1 : 0),
-      meetingFrequencies: Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency.length : (newFilters.meetingFrequency ? 1 : 0),
-      status: newFilters.status || 'any',
-      sort: newFilters.sort || 'relevant',
-    })
   }
 
   const clearFilters = () => {
@@ -626,8 +615,6 @@ export function ClubsList() {
     
     // Debounce URL update (300ms delay)
     searchTimeoutRef.current = setTimeout(() => {
-      // Track only length, not the term
-      track('Search', { qlen: value.trim().length })
       setFiltersAndUpdate(nextFilters)
       isTypingRef.current = false
     }, 300)
@@ -838,7 +825,6 @@ export function ClubsList() {
               value={filters.sort || 'relevant'}
               onChange={(e) => {
                 const v = e.target.value
-                track('SortChange', { mode: v })
                 setFiltersAndUpdate({ ...filters, sort: v })
               }}
               className="input-field text-xs sm:text-sm py-2"
