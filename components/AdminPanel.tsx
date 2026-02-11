@@ -3224,17 +3224,19 @@ export function AdminPanel() {
       
       {/* Main Content Area */}
       <div className="flex-1">
-        {/* In-panel page header (dashboard and all sections) */}
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
-          <div className="mb-4 sm:mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
-              Admin Panel
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Manage club information and settings.
-            </p>
+        {/* In-panel page header (dashboard only) */}
+        {activeSection === 'dashboard' && (
+          <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
+                Admin Panel
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                Manage club information and settings.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-8 max-w-full">
           {/* Route to different sections based on activeSection */}

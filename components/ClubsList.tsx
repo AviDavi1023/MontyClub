@@ -29,7 +29,7 @@ export function ClubsList() {
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 12 // Show 12 clubs per page
+  const ITEMS_PER_PAGE = viewMode === 'list' ? 24 : 12 // Double listings in list view
   const contentTopRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
