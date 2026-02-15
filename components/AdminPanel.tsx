@@ -152,6 +152,7 @@ export function AdminPanel() {
   const [importingExcel, setImportingExcel] = useState(false)
   const [showExcelImportModal, setShowExcelImportModal] = useState(false)
   const [pendingExcelFile, setPendingExcelFile] = useState<File | null>(null)
+  const [excelImportCollectionId, setExcelImportCollectionId] = useState<string | null>(null)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
   type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
@@ -1255,9 +1256,15 @@ export function AdminPanel() {
       
       const data = await resp.json()
       if (resp.ok) {
-        setResetToken(data.resetCode || '')
-        setResetStep('reset')
-        showToast('✅ Reset code generated. You can now set a new password.', 'success')
+        if (data.resetCode) {
+          setResetToken(data.resetCode)
+          setResetStep('reset')
+          showToast('✅ Reset code generated. You can now set a new password.', 'success')
+        } else {
+          setResetToken('')
+          setResetStep('reset')
+          showToast(data.message || 'If the username exists, a reset code has been generated.', 'info')
+        }
       } else {
         showToast(data.error || 'Failed to request password reset', 'error')
       }
@@ -3207,36 +3214,78 @@ export function AdminPanel() {
     }
   }
 
+  const getImportableCollections = () => {
+    return collections.filter(collection => {
+      if (collection.id.startsWith('temp-col-')) return false
+      if (localPendingCollectionChanges[collection.id]?.deleted) return false
+      return true
+    })
+  }
+
   // Helper to select Excel file and prompt for import mode
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0] || !activeCollectionId) return
-    
-    if (activeCollectionId.startsWith('temp-col-')) {
-      showToast('Please wait for the collection to be created before importing', 'error')
-      return
-    }
-    
+    if (!e.target.files?.[0]) return
+
     const file = e.target.files[0]
     if (!file.name.endsWith('.xlsx')) {
       showToast('Please upload an Excel (.xlsx) file', 'error')
       return
     }
 
+    const importable = getImportableCollections()
+    if (importable.length === 0) {
+      showToast('No collections available for import', 'error')
+      return
+    }
+
+    const defaultCollectionId = importable.some(col => col.id === activeCollectionId)
+      ? activeCollectionId
+      : importable[0].id
+
+    if (!defaultCollectionId) {
+      showToast('Select a collection to import into', 'error')
+      return
+    }
+
+    setExcelImportCollectionId(defaultCollectionId)
     setPendingExcelFile(file)
     setShowExcelImportModal(true)
     e.target.value = ''
   }
 
   const executeExcelImport = async (mode: 'append' | 'replace') => {
-    if (!pendingExcelFile || !activeCollectionId) return
+    if (!pendingExcelFile) return
+
+    const importable = getImportableCollections()
+    const targetCollectionId = excelImportCollectionId || importable[0]?.id || null
+    const targetCollection = importable.find(col => col.id === targetCollectionId)
+    if (!targetCollectionId || !targetCollection) {
+      showToast('Select a collection to import into', 'error')
+      return
+    }
+
+    const confirmMessage = mode === 'replace'
+      ? `Replace all existing registrations in "${targetCollection.name}" with data from "${pendingExcelFile.name}"? This cannot be undone.`
+      : `Append registrations from "${pendingExcelFile.name}" into "${targetCollection.name}"?`
+
+    const ok = await confirm({
+      title: 'Confirm Excel Import',
+      message: confirmMessage,
+      confirmText: mode === 'replace' ? 'Replace' : 'Append',
+      cancelText: 'Cancel',
+      variant: mode === 'replace' ? 'danger' : 'primary',
+    })
+
+    if (!ok) return
 
     const file = pendingExcelFile
     setShowExcelImportModal(false)
     setPendingExcelFile(null)
+    setExcelImportCollectionId(null)
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('collectionId', activeCollectionId)
+    formData.append('collectionId', targetCollectionId)
     formData.append('importMode', mode)
 
     try {
@@ -3244,7 +3293,7 @@ export function AdminPanel() {
       logActivity({
         type: 'import',
         action: 'Excel Import Started',
-        details: `Importing (${mode === 'replace' ? 'Replace' : 'Append'}) from ${file.name} into collection`,
+        details: `Importing (${mode === 'replace' ? 'Replace' : 'Append'}) from ${file.name} into ${targetCollection.name}`,
         status: 'info',
         user: currentUser || undefined,
       })
@@ -3544,9 +3593,9 @@ export function AdminPanel() {
                       </div>
                       {/* Excel Import Button */}
                       <div className="flex-shrink-0">
-                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title={`Upload an Excel file to import clubs into "${collections.find(c => c.id === activeCollectionId)?.name || 'this collection'}"`}>
+                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title="Upload an Excel file to import registrations">
                           <FileSpreadsheet className="h-4 w-4" />
-                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel to This Collection'}</span>
+                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel'}</span>
                           <input
                             type="file"
                             accept=".xlsx"
@@ -4443,11 +4492,28 @@ export function AdminPanel() {
         onClose={() => {
           setShowExcelImportModal(false)
           setPendingExcelFile(null)
+          setExcelImportCollectionId(null)
         }}
         title="Import Excel"
         size="md"
       >
         <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Import into collection
+            </label>
+            <select
+              value={excelImportCollectionId || ''}
+              onChange={(e) => setExcelImportCollectionId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            >
+              {getImportableCollections().map(collection => (
+                <option key={collection.id} value={collection.id}>
+                  {collection.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <p>
             Choose how to import the Excel file into this collection.
           </p>
@@ -4474,6 +4540,7 @@ export function AdminPanel() {
             variant="primary"
             onClick={() => executeExcelImport('append')}
             isLoading={importingExcel}
+            disabled={!excelImportCollectionId}
           >
             Append
           </Button>
@@ -4481,6 +4548,7 @@ export function AdminPanel() {
             variant="danger"
             onClick={() => executeExcelImport('replace')}
             isLoading={importingExcel}
+            disabled={!excelImportCollectionId}
           >
             Replace
           </Button>
@@ -4534,12 +4602,37 @@ export function AdminPanel() {
               </>
             ) : (
               <>
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                    Reset token (share with admin):
-                  </p>
-                  <p className="text-xs font-mono text-gray-900 dark:text-white break-all">
-                    {resetToken}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      Reset code
+                    </label>
+                    {resetToken.trim() && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(resetToken.trim())
+                            showToast('Reset code copied')
+                          } catch {
+                            showToast('Copy failed. Please select and copy manually.', 'error')
+                          }
+                        }}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Copy code
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Paste reset code"
+                    value={resetToken}
+                    onChange={(e) => setResetToken(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  />
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Use the reset code shown after request or one sent by an admin.
                   </p>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -4565,6 +4658,17 @@ export function AdminPanel() {
                   </p>
                 )}
                 <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setResetStep('request')
+                      setResetToken('')
+                      setNewPassword('')
+                      setConfirmPassword('')
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                  >
+                    Back
+                  </button>
                   <button
                     onClick={() => {
                       setShowPasswordReset(false)

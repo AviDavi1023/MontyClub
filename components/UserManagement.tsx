@@ -14,6 +14,7 @@ interface UserManagementProps {
 export function UserManagement({ currentUser, adminApiKey, showToast }: UserManagementProps) {
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingUsers, setLoadingUsers] = useState(true)
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
@@ -25,6 +26,7 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
   const USERS_BACKUP_KEY = 'montyclub:pendingUserChanges:backup'
 
   const fetchUsers = async () => {
+    setLoadingUsers(true)
     try {
       // CRITICAL: Read pending changes from localStorage directly to avoid stale closure issues
       let currentPending: Record<string, any> = {}
@@ -79,6 +81,8 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
     } catch (err) {
       console.error('Error fetching users:', err)
       showToast(getUserFriendlyError(err), 'error')
+    } finally {
+      setLoadingUsers(false)
     }
   }
 
@@ -394,7 +398,13 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
       )}
 
       <div className="space-y-2">
-        {users.length === 0 && (
+        {loadingUsers && (
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-4">
+            <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600" />
+            Loading admins...
+          </div>
+        )}
+        {!loadingUsers && users.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
             No admin users found
           </p>
