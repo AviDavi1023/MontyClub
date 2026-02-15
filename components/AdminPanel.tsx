@@ -129,6 +129,15 @@ export function AdminPanel() {
   const [adminApiKey, setAdminApiKey] = useState('')
   const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false)
   const [apiKeyPromptInput, setApiKeyPromptInput] = useState('')
+  const [validatingApiKey, setValidatingApiKey] = useState(false)
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [resetUsername, setResetUsername] = useState('')
+  const [resetToken, setResetToken] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [requestingReset, setRequestingReset] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [resetStep, setResetStep] = useState<'request' | 'reset'>('request')
   const [showRegistrations, setShowRegistrations] = useState(false)
   const registrationsRef = useRef<HTMLDivElement | null>(null)
   const [collections, setCollections] = useState<RegistrationCollection[]>([])
@@ -347,40 +356,33 @@ export function AdminPanel() {
     }
   }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
 
-  // Calculate pending registrations count across ALL collections
+  // Calculate pending registrations count across ALL collections using aggregated endpoint
+  // CRITICAL FIX: Replaced N individual API calls with single aggregated call
   useEffect(() => {
-    if (!adminApiKey || collections.length === 0) {
+    if (!adminApiKey) {
       setPendingRegistrationsCount(0)
       return
     }
     
     const fetchPendingCount = async () => {
       try {
-        let totalPending = 0
+        // Single aggregated call instead of N individual calls
+        const resp = await fetch('/api/admin/dashboard-summary', {
+          headers: { 'x-admin-key': adminApiKey }
+        })
         
-        // Fetch registrations for each collection and count pending ones
-        for (const collection of collections) {
-          // Skip deleted collections
-          if (localPendingCollectionChanges[collection.id]?.deleted) continue
-          
-          try {
-            const resp = await fetch(`/api/registrations/${collection.id}`, {
-              headers: { 'x-admin-key': adminApiKey }
-            })
-            
-            if (resp.ok) {
-              const data = await resp.json()
-              const pending = (data.registrations || []).filter((r: any) => r.status === 'pending').length
-              totalPending += pending
-            } else if (resp.status === 404) {
-              // Collection exists in metadata but registrations file deleted - this is normal
-              console.log(`Collection ${collection.id} has no registrations file`)
-            }
-          } catch (err) {
-            // Skip collections that fail to load - don't spam console for 404s
-            if (err instanceof Error && !err.message.includes('404')) {
-              console.error(`Failed to load registrations for ${collection.name}:`, err)
-            }
+        if (!resp.ok) {
+          console.error('Failed to fetch dashboard summary')
+          return
+        }
+        
+        const data = await resp.json()
+        
+        // Calculate total pending, accounting for deleted collections
+        let totalPending = 0
+        for (const collectionId in data.pendingCounts) {
+          if (!localPendingCollectionChanges[collectionId]?.deleted) {
+            totalPending += data.pendingCounts[collectionId] || 0
           }
         }
         
@@ -391,7 +393,7 @@ export function AdminPanel() {
     }
     
     fetchPendingCount()
-  }, [collections, localPendingCollectionChanges, adminApiKey])
+  }, [adminApiKey, localPendingCollectionChanges])
 
   // Debounced refresh function to batch multiple rapid toggles
   const scheduleCollectionsRefresh = () => {
@@ -985,19 +987,18 @@ export function AdminPanel() {
       showToast('Set admin API key first', 'error')
       return
     }
-    {
-      const ok = await confirm({
-        title: 'Delete Collection',
-        message: 'Are you sure you want to delete this collection? This cannot be undone.',
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        variant: 'danger',
-      })
-      if (!ok) return
-    }
 
     // If it's a temp/pending-created collection, just clear it locally
     if (collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created) {
+      const ok = await confirm({
+        title: 'Cancel Collection Creation',
+        message: 'Cancel creating this collection?',
+        confirmText: 'Yes',
+        cancelText: 'No',
+        variant: 'danger',
+      })
+      if (!ok) return
+
       setLocalPendingCollectionChanges(prev => {
         const rest = { ...prev }
         delete rest[collectionId]
@@ -1018,6 +1019,39 @@ export function AdminPanel() {
       showToast('New collection creation canceled')
       return
     }
+
+    // For real collections, check how many registrations it has
+    let registrationCount = 0
+    try {
+      const resp = await fetch(`/api/registrations/${collectionId}`, {
+        headers: { 'x-admin-key': adminApiKey }
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        registrationCount = (data.registrations || []).length
+      }
+    } catch (err) {
+      console.log('Could not check registration count')
+    }
+
+    // Build confirmation message
+    let confirmMessage = 'Are you sure you want to delete this collection?'
+    if (registrationCount > 0) {
+      confirmMessage = `⚠️ This collection has ${registrationCount} registration(s). These will also be deleted. Are you sure?`
+    }
+    confirmMessage += '\n\nThis cannot be undone.'
+
+    {
+      const ok = await confirm({
+        title: 'Delete Collection',
+        message: confirmMessage,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
+
     // Mark as deleted in local pending changes (do not mutate server snapshot yet)
     const newPending = { ...localPendingCollectionChanges, [collectionId]: { deleted: true } }
     setLocalPendingCollectionChanges(newPending)
@@ -1134,27 +1168,150 @@ export function AdminPanel() {
     }
   }
 
-  const saveAdminApiKey = () => {
+  const saveAdminApiKey = async () => {
     const k = adminApiKey.trim()
-    setAdminApiKey(k)
-    try { localStorage.setItem('analytics:adminKey', k) } catch {}
-    showToast('Admin API key saved')
+    if (!k) {
+      showToast('API key cannot be empty', 'error')
+      return
+    }
+    
+    setValidatingApiKey(true)
+    try {
+      const resp = await fetch('/api/admin/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: k })
+      })
+      
+      if (resp.ok) {
+        setAdminApiKey(k)
+        try { localStorage.setItem('analytics:adminKey', k) } catch {}
+        showToast('✅ API key validated and saved successfully')
+        // Reload collections to test the key works
+        await loadCollections()
+      } else {
+        showToast('❌ Invalid API key. Please check and try again.', 'error')
+      }
+    } catch (err) {
+      showToast('Failed to validate API key. Check your connection.', 'error')
+      console.error('API key validation error:', err)
+    } finally {
+      setValidatingApiKey(false)
+    }
   }
 
-  const saveApiKeyFromPrompt = () => {
+  const saveApiKeyFromPrompt = async () => {
     const k = apiKeyPromptInput.trim()
-    if (k) {
-      setAdminApiKey(k)
-      try { localStorage.setItem('analytics:adminKey', k) } catch {}
-      showToast('Admin API key saved')
+    if (!k) {
+      showToast('API key cannot be empty', 'error')
+      return
     }
-    setShowApiKeyPrompt(false)
-    setApiKeyPromptInput('')
+    
+    setValidatingApiKey(true)
+    try {
+      const resp = await fetch('/api/admin/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: k })
+      })
+      
+      if (resp.ok) {
+        setAdminApiKey(k)
+        try { localStorage.setItem('analytics:adminKey', k) } catch {}
+        showToast('✅ API key validated and saved')
+        setShowApiKeyPrompt(false)
+        setApiKeyPromptInput('')
+        // Reload collections to test
+        await loadCollections()
+      } else {
+        showToast('❌ Invalid API key', 'error')
+      }
+    } catch (err) {
+      showToast('Failed to validate API key', 'error')
+    } finally {
+      setValidatingApiKey(false)
+    }
   }
 
   const skipApiKeyPrompt = () => {
     setShowApiKeyPrompt(false)
     setApiKeyPromptInput('')
+  }
+
+  const requestPasswordReset = async () => {
+    const u = resetUsername.trim()
+    if (!u) {
+      showToast('Please enter your username', 'error')
+      return
+    }
+    
+    setRequestingReset(true)
+    try {
+      const resp = await fetch('/api/auth/request-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u })
+      })
+      
+      const data = await resp.json()
+      if (resp.ok) {
+        setResetToken(data.resetCode || '')
+        setResetStep('reset')
+        showToast('✅ Reset code generated. You can now set a new password.', 'success')
+      } else {
+        showToast(data.error || 'Failed to request password reset', 'error')
+      }
+    } catch (err) {
+      showToast('Failed to request password reset', 'error')
+    } finally {
+      setRequestingReset(false)
+    }
+  }
+
+  const executePasswordReset = async () => {
+    if (!resetToken.trim()) {
+      showToast('Reset code is required', 'error')
+      return
+    }
+    if (!newPassword.trim()) {
+      showToast('New password is required', 'error')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('Passwords do not match', 'error')
+      return
+    }
+    if (newPassword.length < 8) {
+      showToast('Password must be at least 8 characters', 'error')
+      return
+    }
+    
+    setResettingPassword(true)
+    try {
+      const resp = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetToken: resetToken.trim(), newPassword })
+      })
+      
+      const data = await resp.json()
+      if (resp.ok) {
+        showToast('✅ Password reset successfully! Please log in with your new password.', 'success')
+        handleLogout()
+        setShowPasswordReset(false)
+        setResetUsername('')
+        setResetToken('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setResetStep('request')
+      } else {
+        showToast(data.error || 'Failed to reset password', 'error')
+      }
+    } catch (err) {
+      showToast('Failed to reset password', 'error')
+    } finally {
+      setResettingPassword(false)
+    }
   }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -2997,6 +3154,16 @@ export function AdminPanel() {
             <Unlock className="h-4 w-4 mr-2" />
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setShowPasswordReset(true)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
         </form>
 
         {isFirstTimeSetup && (
@@ -3188,7 +3355,22 @@ export function AdminPanel() {
           
           {activeSection === 'users' && (
             <div className="card">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Admin Users</h1>
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Users</h1>
+                <button
+                  onClick={() => {
+                    setResetStep('request')
+                    setResetUsername(currentUser || '')
+                    setResetToken('')
+                    setNewPassword('')
+                    setConfirmPassword('')
+                    setShowPasswordReset(true)
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Change My Password
+                </button>
+              </div>
               <UserManagement currentUser={currentUser || ''} adminApiKey={adminApiKey} showToast={showToast} />
             </div>
           )}
@@ -4312,6 +4494,105 @@ export function AdminPanel() {
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
+      )}
+
+      {/* Password Reset Modal */}
+      {showPasswordReset && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Reset Admin Password
+            </h3>
+
+            {resetStep === 'request' ? (
+              <>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Enter the username of the admin account to reset:
+                </p>
+                <input
+                  type="text"
+                  placeholder="Admin username"
+                  value={resetUsername}
+                  onChange={(e) => setResetUsername(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4"
+                />
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowPasswordReset(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => requestPasswordReset()}
+                    disabled={requestingReset || !resetUsername.trim()}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-md transition-colors"
+                  >
+                    {requestingReset ? 'Generating...' : 'Generate Reset Token'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                    Reset token (share with admin):
+                  </p>
+                  <p className="text-xs font-mono text-gray-900 dark:text-white break-all">
+                    {resetToken}
+                  </p>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  Enter new password for <strong>{resetUsername}</strong>:
+                </p>
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-3"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4"
+                />
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-4">
+                    Passwords do not match
+                  </p>
+                )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowPasswordReset(false)
+                      setResetStep('request')
+                      setResetToken('')
+                      setNewPassword('')
+                      setConfirmPassword('')
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => executePasswordReset()}
+                    disabled={
+                      resettingPassword ||
+                      !newPassword.trim() ||
+                      newPassword !== confirmPassword
+                    }
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-md transition-colors"
+                  >
+                    {resettingPassword ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       <ToastContainer toasts={toasts} onClose={closeToast} />
