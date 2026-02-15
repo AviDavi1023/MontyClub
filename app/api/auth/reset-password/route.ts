@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyResetToken, markResetTokenAsUsed, hashPassword, invalidateUserResetTokens } from '@/lib/auth'
+import { verifyResetToken, markResetTokenAsUsed, hashPassword, invalidateUserResetTokens, AdminUser } from '@/lib/auth'
 import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
-import { AdminUser } from '@/types/club'
 
 export const dynamic = 'force-dynamic'
 
