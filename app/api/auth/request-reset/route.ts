@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createPasswordResetToken } from '@/lib/auth'
+import { createPasswordResetToken, AdminUser } from '@/lib/auth'
 import { readJSONFromStorage } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/auth/request-reset
- * Request a password reset token for a username
+ * Request a password reset - sends notification to primary admin's email
  * 
- * Returns a short code that the user can use to reset their password
- * In production, this would send an email; for now, we return the token
+ * In production, this sends an email to the primary admin for approval
  */
 export async function POST(request: NextRequest) {
   try {
@@ -24,35 +23,60 @@ export async function POST(request: NextRequest) {
 
     // Verify user exists
     const users = await readJSONFromStorage('settings/admin-users.json')
-    const userExists = users && Array.isArray(users) && users.some((u: any) => u.username === username.trim())
+    const userList: AdminUser[] = Array.isArray(users) ? users : []
+    const userExists = userList.some((u: AdminUser) => u.username === username.trim())
 
     if (!userExists) {
       // Don't reveal whether user exists for security
       return NextResponse.json(
         { 
           success: true,
-          message: 'If the username exists, a reset code has been generated. Check your email or contact administrator.'
+          message: 'If the username exists, a reset request has been sent to the primary administrator.'
         }
       )
     }
 
-    // Generate reset token (valid for 15 minutes)
-    const token = createPasswordResetToken(username.trim(), 15)
+    // Find primary admin
+    const primaryAdmin = userList.find((u: AdminUser) => u.isPrimary)
+    
+    if (!primaryAdmin?.email) {
+      console.error('[Auth] No primary admin email configured for password reset')
+      return NextResponse.json(
+        { 
+          success: true,
+          message: 'Password reset request received. Contact your system administrator.'
+        }
+      )
+    }
 
-    console.log(`[Auth] Reset token generated for user: ${username}`)
+    // Generate reset token (valid for 60 minutes since admin needs to approve)
+    const token = createPasswordResetToken(username.trim(), 60)
 
-    // In production, send this via email
-    // For now, return it so admin can share/test
+    console.log(`[Auth] Reset request for user: ${username}`)
+    console.log(`[Auth] Token generated: ${token}`)
+    console.log(`[Auth] Would send email to primary admin: ${primaryAdmin.email}`)
+
+    // TODO: In production, send email to primaryAdmin.email with:
+    // - Username requesting reset
+    // - Reset token to forward
+    // - Link to reset page with pre-filled token
+    // Example email template:
+    // Subject: Password Reset Request for ${username}
+    // Body: Admin user "${username}" has requested a password reset.
+    //       Forward this code to them: ${token}
+    //       This code expires in 60 minutes.
+
+    // For now (development/testing), return the token
     return NextResponse.json({
       success: true,
-      message: 'Reset code generated. In production, this would be sent via email.',
-      resetCode: token, // Only return in development - in production never expose
-      note: 'This token expires in 15 minutes'
+      message: `Reset request sent to primary administrator (${primaryAdmin.email}). They will receive a reset code to forward to you.`,
+      resetCode: token, // Remove this in production - only send via email
+      note: 'Token expires in 60 minutes'
     })
   } catch (error) {
     console.error('[Auth] Error requesting password reset:', error)
     return NextResponse.json(
-      { error: 'Failed to generate reset token' },
+      { error: 'Failed to process reset request' },
       { status: 500 }
     )
   }

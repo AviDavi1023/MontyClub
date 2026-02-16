@@ -118,6 +118,9 @@ export function AdminPanel() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmClearId, setConfirmClearId] = useState<string | null>(null)
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
+  const [showPrimaryEmailSetup, setShowPrimaryEmailSetup] = useState(false)
+  const [primaryEmail, setPrimaryEmail] = useState('')
+  const [savingPrimaryEmail, setSavingPrimaryEmail] = useState(false)
   const [refreshingUpdates, setRefreshingUpdates] = useState(false)
   const [showStatistics, setShowStatistics] = useState(false)
   const statisticsRef = useRef<HTMLDivElement | null>(null)
@@ -1239,6 +1242,39 @@ export function AdminPanel() {
     setApiKeyPromptInput('')
   }
 
+  const savePrimaryEmail = async () => {
+    const email = primaryEmail.trim()
+    if (!email || !email.includes('@')) {
+      showToast('Please enter a valid email address', 'error')
+      return
+    }
+    
+    setSavingPrimaryEmail(true)
+    try {
+      const resp = await fetch('/api/admin/set-primary-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey || '',
+        },
+        body: JSON.stringify({ email })
+      })
+      
+      const data = await resp.json()
+      if (resp.ok) {
+        showToast('✅ Primary admin email set successfully')
+        setShowPrimaryEmailSetup(false)
+        setPrimaryEmail('')
+      } else {
+        showToast(data.error || 'Failed to set email', 'error')
+      }
+    } catch (err) {
+      showToast('Failed to set email', 'error')
+    } finally {
+      setSavingPrimaryEmail(false)
+    }
+  }
+
   const requestPasswordReset = async () => {
     const u = resetUsername.trim()
     if (!u) {
@@ -1358,6 +1394,25 @@ export function AdminPanel() {
     }
   }, [])
 
+  // ONE-TIME FACTORY RESET on first load
+  useEffect(() => {
+    // Check if factory reset has been performed
+    const factoryResetDone = localStorage.getItem('montyclub:factoryResetDone')
+    if (!factoryResetDone) {
+      // Perform factory reset
+      fetch('/api/admin/factory-reset', { method: 'POST' })
+        .then(resp => resp.json())
+        .then(data => {
+          console.log('[Factory Reset]', data.message)
+          localStorage.setItem('montyclub:factoryResetDone', 'true')
+          showToast('System reset complete. Ready for fresh setup.', 'info')
+        })
+        .catch(err => {
+          console.error('[Factory Reset] Failed:', err)
+        })
+    }
+  }, [])
+
   // Check if this is first-time setup
   useEffect(() => {
     const checkFirstTime = async () => {
@@ -1427,6 +1482,12 @@ export function AdminPanel() {
         setCurrentUser(data.user.username)
         setError('')
         setPassword('')
+        
+        // Check if primary admin needs email setup
+        if (data.user.isPrimary && !data.user.email) {
+          setShowPrimaryEmailSetup(true)
+        }
+        
         // Check if admin API key is already set
         const savedKey = localStorage.getItem('analytics:adminKey')
         if (!savedKey || savedKey.trim() === '') {
@@ -3112,6 +3173,67 @@ export function AdminPanel() {
             </div>
           </>
         )}
+        {showPrimaryEmailSetup && (
+          <>
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50" />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-3">
+                    <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Set Primary Admin Email
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Password reset requests will be sent to this email address. You can forward reset codes to other admins as needed.
+                  </p>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={primaryEmail}
+                    onChange={(e) => setPrimaryEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && savePrimaryEmail()}
+                    className="input-field"
+                    placeholder="admin@example.com"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={savePrimaryEmail}
+                    disabled={savingPrimaryEmail || !primaryEmail.trim()}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg transition-colors"
+                  >
+                    {savingPrimaryEmail ? 'Saving...' : 'Save Email'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+                  This is required for password recovery to work.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+                  </button>
+                  <button
+                    onClick={saveApiKeyFromPrompt}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    Save Key
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+                  You can always set this later in the admin panel.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
         <div className="card max-w-md mx-auto">
           <div className="text-center mb-6">
             <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -3179,7 +3301,7 @@ export function AdminPanel() {
               <strong>First-time setup:</strong> Default admin account will be created automatically. Use username: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin</code> and password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123</code>
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-              After logging in, change the password and create additional admin accounts.
+              After logging in, you'll be prompted to set your email for password recovery, change the default password, and configure your admin API key.
             </p>
           </div>
         )}

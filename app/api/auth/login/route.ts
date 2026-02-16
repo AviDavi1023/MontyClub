@@ -37,6 +37,8 @@ export async function POST(request: Request) {
       user: {
         username: user.username,
         createdAt: user.createdAt,
+        email: user.email,
+        isPrimary: user.isPrimary,
       }
     })
   } catch (err) {

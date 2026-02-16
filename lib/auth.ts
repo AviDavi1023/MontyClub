@@ -3,6 +3,8 @@ import crypto from 'crypto'
 export interface AdminUser {
   username: string
   passwordHash: string
+  email?: string // Email for password reset notifications (required for primary admin)
+  isPrimary?: boolean // Primary admin who receives password reset requests
   createdAt: string
   createdBy?: string
   resetToken?: string // One-time password reset token
