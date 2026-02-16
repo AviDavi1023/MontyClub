@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown, AlertTriangle } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -1404,8 +1404,21 @@ export function AdminPanel() {
         .then(resp => resp.json())
         .then(data => {
           console.log('[Factory Reset]', data.message)
+          console.log('[Factory Reset] Files deleted:', data.filesDeleted)
+          
+          // Clear all localStorage to ensure clean state
+          const keys = Object.keys(localStorage)
+          keys.forEach(key => {
+            if (key.startsWith('montyclub:') || key.startsWith('analytics:') || key.startsWith('settings:')) {
+              localStorage.removeItem(key)
+            }
+          })
+          
           localStorage.setItem('montyclub:factoryResetDone', 'true')
-          showToast('System reset complete. Ready for fresh setup.', 'info')
+          showToast('✨ Complete factory reset finished. System ready for fresh setup.', 'success')
+          
+          // Force reload to clear all cached state
+          setTimeout(() => window.location.reload(), 2000)
         })
         .catch(err => {
           console.error('[Factory Reset] Failed:', err)
@@ -1601,6 +1614,49 @@ export function AdminPanel() {
 
     } catch (err: any) {
       showToast(err.message || 'Failed to clear data', 'error')
+    } finally {
+      setClearingData(false)
+    }
+  }
+
+  const handleFullFactoryReset = async () => {
+    const confirmed = await confirm({
+      title: 'Complete Factory Reset',
+      message: '⚠️ This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to start from scratch with the default admin account (admin/admin123). This CANNOT be undone. Are you absolutely sure?',
+      confirmText: 'DELETE EVERYTHING',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) return
+
+    setClearingData(true)
+    try {
+      const resp = await fetch('/api/admin/factory-reset', {
+        method: 'POST',
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Factory reset failed')
+      }
+
+      showToast(`✨ Complete factory reset successful! ${data.filesDeleted} files deleted. Reloading...`, 'success')
+      
+      // Clear all localStorage
+      localStorage.clear()
+      
+      // Close modal
+      setShowClearDataModal(false)
+      
+      // Reload after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/admin'
+      }, 2000)
+
+    } catch (err: any) {
+      showToast(err.message || 'Factory reset failed', 'error')
     } finally {
       setClearingData(false)
     }
@@ -4490,35 +4546,66 @@ export function AdminPanel() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowClearDataModal(false)
-                  setClearDataPassword('')
-                  setClearDataApiKey('')
-                }}
-                disabled={clearingData}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleClearData}
-                disabled={clearingData || !clearDataPassword || !clearDataApiKey}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {clearingData ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Clearing...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    Clear Selected Data
-                  </>
-                )}
-              </button>
+            <div className="flex flex-col gap-4">
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowClearDataModal(false)
+                    setClearDataPassword('')
+                    setClearDataApiKey('')
+                  }}
+                  disabled={clearingData}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearData}
+                  disabled={clearingData || !clearDataPassword || !clearDataApiKey}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {clearingData ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Clearing...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Clear Selected Data
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Factory Reset Option */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-red-900 dark:text-red-100 text-sm mb-1">
+                        Complete Factory Reset
+                      </h4>
+                      <p className="text-xs text-red-700 dark:text-red-300 mb-2">
+                        This will DELETE EVERYTHING including all admin users, clubs, registrations, settings, and data. 
+                        You will start from scratch with default credentials (admin/admin123).
+                      </p>
+                      <p className="text-xs text-red-800 dark:text-red-200 font-semibold">
+                        ⚠️ This action CANNOT be undone!
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleFullFactoryReset}
+                    disabled={clearingData}
+                    className="w-full px-4 py-2 text-sm font-bold text-white bg-red-700 hover:bg-red-800 rounded-md transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    FACTORY RESET - DELETE EVERYTHING
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
