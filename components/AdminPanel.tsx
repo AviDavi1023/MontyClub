@@ -3219,21 +3219,6 @@ export function AdminPanel() {
             </div>
           </>
         )}
-                  </button>
-                  <button
-                    onClick={saveApiKeyFromPrompt}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  >
-                    Save Key
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-                  You can always set this later in the admin panel.
-                </p>
-              </div>
-            </div>
-          </>
-        )}
         <div className="card max-w-md mx-auto">
           <div className="text-center mb-6">
             <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
