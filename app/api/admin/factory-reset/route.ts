@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { listPaths, removePaths } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[FACTORY RESET] Starting complete data wipe...')
 
-    // List all files to delete
-    const filesToDelete = [
+    // List of specific files to delete
+    const specificFiles = [
       'clubs-snapshot.json',
       'announcements.json',
       'updates.json',
@@ -22,28 +22,25 @@ export async function POST(request: NextRequest) {
       'settings/registration-collections.json',
     ]
 
-    // Delete all registration files
-    const { data: registrationFiles } = await supabaseAdmin.storage
-      .from('club-data')
-      .list('registrations')
-    
-    if (registrationFiles && registrationFiles.length > 0) {
-      const regPaths = registrationFiles.map(f => `registrations/${f.name}`)
-      await supabaseAdmin.storage.from('club-data').remove(regPaths)
-      console.log(`[FACTORY RESET] Deleted ${regPaths.length} registration files`)
+    // Delete specific files
+    for (const file of specificFiles) {
+      await removePaths([file])
+      console.log(`[FACTORY RESET] Deleted ${file}`)
     }
 
-    // Delete all main files
-    for (const file of filesToDelete) {
-      await supabaseAdmin.storage.from('club-data').remove([file])
-      console.log(`[FACTORY RESET] Deleted ${file}`)
+    // Delete all registration files
+    const registrationFiles = await listPaths('registrations')
+    if (registrationFiles.length > 0) {
+      await removePaths(registrationFiles)
+      console.log(`[FACTORY RESET] Deleted ${registrationFiles.length} registration files`)
     }
 
     console.log('[FACTORY RESET] Complete data wipe finished')
 
     return NextResponse.json({
       success: true,
-      message: 'Factory reset complete. All data wiped. System ready for fresh setup.'
+      message: 'Factory reset complete. All data wiped. System ready for fresh setup.',
+      filesDeleted: specificFiles.length + registrationFiles.length
     })
   } catch (error) {
     console.error('[FACTORY RESET] Error:', error)
