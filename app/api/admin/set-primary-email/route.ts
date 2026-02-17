@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
-import { AdminUser } from '@/lib/auth'
+import { getPrimaryAdmin, listAdminUsers, setPrimaryAdmin, updateAdminUser } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,48 +27,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Read admin users from runtime store
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const primaryAdmin = await getPrimaryAdmin()
 
-    // Find primary admin (or first admin if none marked as primary)
-    let primaryAdminKey: string | null = null
-    for (const [key, user] of Object.entries(users)) {
-      if (user.isPrimary) {
-        primaryAdminKey = key
-        break
-      }
-    }
-
-    // If no primary admin found, use the first one
-    if (!primaryAdminKey) {
-      const keys = Object.keys(users)
-      if (keys.length === 0) {
+    let targetUsername = primaryAdmin?.username
+    if (!targetUsername) {
+      const users = await listAdminUsers()
+      if (users.length === 0) {
         return NextResponse.json(
           { error: 'No admin users found. Complete initial setup first.' },
           { status: 404 }
         )
       }
-      primaryAdminKey = keys[0]
-      users[primaryAdminKey].isPrimary = true
+      targetUsername = users[0].username
+      await setPrimaryAdmin(targetUsername)
     }
 
-    // Update email
-    users[primaryAdminKey].email = email.trim().toLowerCase()
-
-    // Save updated users to runtime store
-    const result = await writeData('admin-users', users)
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Failed to update email' },
-        { status: 500 }
-      )
-    }
+    const normalizedEmail = email.trim().toLowerCase()
+    await updateAdminUser(targetUsername, { email: normalizedEmail })
 
     console.log(`[Admin] Primary admin email set to: ${email}`)
 
     return NextResponse.json({
       success: true,
       message: 'Primary admin email updated successfully',
-      email: users[primaryAdminKey].email,
+      email: normalizedEmail,
     })
   } catch (error) {
     console.error('[Admin] Error setting primary email:', error)

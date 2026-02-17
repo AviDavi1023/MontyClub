@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
 import { AdminUser, hashPassword, generatePassword } from '@/lib/auth'
+import { countAdminUsers, createAdminUser, deleteAdminUser, getAdminUserByUsername, listAdminUsers } from '@/lib/admin-users-db'
 
 // Get all admin users (requires authentication in real app - simplified for now)
 export async function GET() {
   try {
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-    
+    const users = await listAdminUsers()
+
     // Return users without password hashes
-    const safeUsers = Object.values(users).map(user => ({
+    const safeUsers = users.map(user => ({
       username: user.username,
       email: user.email || undefined,
       isPrimary: user.isPrimary || false,
@@ -46,12 +46,8 @@ export async function POST(request: Request) {
     const { username, password, createdBy } = body
     
     // Get existing users
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-
-    // Check if username already exists (case-insensitive)
-    const existingUser = Object.keys(users).find(
-      key => key.toLowerCase() === username.toLowerCase()
-    )
+    const normalizedUsername = username.trim().toLowerCase()
+    const existingUser = await getAdminUserByUsername(normalizedUsername)
 
     if (existingUser) {
       return NextResponse.json({ error: 'Username already exists' }, { status: 400 })
@@ -63,15 +59,14 @@ export async function POST(request: Request) {
 
     // Create new user
     const newUser: AdminUser = {
-      username: username.trim(),
+      username: normalizedUsername,
       passwordHash,
       createdAt: new Date().toISOString(),
       createdBy: createdBy || 'system',
     }
 
     // Save user
-    users[username.toLowerCase()] = newUser
-    await writeData('admin-users', users)
+    await createAdminUser(newUser)
 
     // Return success with generated password (only shown once!)
     return NextResponse.json({
@@ -110,23 +105,20 @@ export async function DELETE(request: Request) {
 
     const { username } = body
     
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const userCount = await countAdminUsers()
 
     // Check if this is the last admin
-    if (Object.keys(users).length <= 1) {
+    if (userCount <= 1) {
       return NextResponse.json({ error: 'Cannot delete the last admin user' }, { status: 400 })
     }
 
-    const userKey = Object.keys(users).find(
-      key => key.toLowerCase() === username.toLowerCase()
-    )
+    const existingUser = await getAdminUserByUsername(username)
 
-    if (!userKey) {
+    if (!existingUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    delete users[userKey]
-    await writeData('admin-users', users)
+    await deleteAdminUser(existingUser.username)
 
     return NextResponse.json({ success: true })
   } catch (err) {

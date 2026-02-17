@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { createPasswordResetToken, AdminUser } from '@/lib/auth'
-import { readData } from '@/lib/runtime-store'
+import { createPasswordResetToken } from '@/lib/auth'
+import { getAdminUserByUsername, getPrimaryAdmin } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,13 +25,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user exists
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-    const normalizedUsername = username.trim().toLowerCase()
-    const userKey = Object.keys(users).find(
-      key => key.toLowerCase() === normalizedUsername
-    )
+    const existingUser = await getAdminUserByUsername(username)
 
-    if (!userKey) {
+    if (!existingUser) {
       // Don't reveal whether user exists for security
       return NextResponse.json(
         { 
@@ -42,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find primary admin
-    const primaryAdmin = Object.values(users).find((u: AdminUser) => u.isPrimary)
+    const primaryAdmin = await getPrimaryAdmin()
     
     if (!primaryAdmin?.email) {
       console.error('[Auth] No primary admin email configured for password reset')

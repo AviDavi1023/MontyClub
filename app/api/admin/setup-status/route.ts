@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readData } from '@/lib/runtime-store'
-import { AdminUser } from '@/lib/auth'
+import { countAdminUsers } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +10,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-    const hasUsers = Object.keys(users).length > 0
+    const count = await countAdminUsers()
+    const hasUsers = count > 0
 
     return NextResponse.json({
       setupComplete: hasUsers,

@@ -40,7 +40,17 @@ function dataFilePath(name: string) {
 }
 
 export async function readData(name: string, fallback: any) {
-  // Try Supabase Storage first (JSON file stored as object)
+  // Try KV first for faster consistency
+  try {
+    if (kvClient) {
+      const v = await kvClient.get(name)
+      if (typeof v !== 'undefined' && v !== null) return v
+    }
+  } catch (e: any) {
+    console.warn('KV read failed:', (e && (e as any).message) || e)
+  }
+
+  // Try Supabase Storage next (JSON file stored as object)
   try {
     if (supabaseClient && supabaseBucket) {
       const { data, error } = await supabaseClient.storage.from(supabaseBucket).download(`${name}.json`)
@@ -54,16 +64,6 @@ export async function readData(name: string, fallback: any) {
     }
   } catch (e: any) {
     console.warn('Supabase readData failed, falling back:', (e && (e as any).message) || e)
-  }
-
-  // Try KV first
-  try {
-    if (kvClient) {
-      const v = await kvClient.get(name)
-      if (typeof v !== 'undefined' && v !== null) return v
-    }
-  } catch (e: any) {
-    console.warn('KV read failed:', (e && (e as any).message) || e)
   }
 
   // Then filesystem
@@ -89,7 +89,16 @@ export async function writeData(name: string, value: any) {
       const content = JSON.stringify(value, null, 2)
       // upload as a blob
       const res = await supabaseClient.storage.from(supabaseBucket).upload(`${name}.json`, Buffer.from(content), { upsert: true })
-      if (!res.error) return { ok: true, persisted: 'supabase' }
+      if (!res.error) {
+        // Best-effort KV write to avoid stale reads from storage caches
+        try {
+          if (kvClient) await kvClient.set(name, value)
+        } catch (e: any) {
+          console.warn('KV write failed after supabase write:', (e && (e as any).message) || e)
+        }
+        memoryStore.set(name, value)
+        return { ok: true, persisted: 'supabase' }
+      }
       console.warn('Supabase writeData upload error:', res.error)
     }
   } catch (e: any) {
@@ -100,6 +109,7 @@ export async function writeData(name: string, value: any) {
   try {
     if (kvClient) {
       await kvClient.set(name, value)
+      memoryStore.set(name, value)
       return { ok: true, persisted: 'kv' }
     }
   } catch (e: any) {
@@ -112,6 +122,7 @@ export async function writeData(name: string, value: any) {
     const dir = path.dirname(file)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     await fs.promises.writeFile(file, JSON.stringify(value, null, 2), 'utf-8')
+    memoryStore.set(name, value)
     return { ok: true, persisted: 'fs' }
   } catch (err: any) {
     console.warn('writeData: filesystem write failed, switching to in-memory store:', err?.code || err)

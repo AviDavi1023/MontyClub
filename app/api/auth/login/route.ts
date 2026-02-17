@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
-import { AdminUser, verifyPassword } from '@/lib/auth'
+import { verifyPassword } from '@/lib/auth'
+import { getAdminUserByUsername } from '@/lib/admin-users-db'
 
 export async function POST(request: Request) {
   try {
@@ -12,19 +12,11 @@ export async function POST(request: Request) {
 
     const { username, password } = body
 
-    // Get all admin users
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const user = await getAdminUserByUsername(username)
 
-    // Find user by username (case-insensitive)
-    const userKey = Object.keys(users).find(
-      key => key.toLowerCase() === username.toLowerCase()
-    )
-
-    if (!userKey || !users[userKey]) {
+    if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
-
-    const user = users[userKey]
 
     // Verify password
     if (!verifyPassword(password, user.passwordHash)) {

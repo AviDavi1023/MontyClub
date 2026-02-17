@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyResetToken, markResetTokenAsUsed, hashPassword, invalidateUserResetTokens, AdminUser } from '@/lib/auth'
-import { readData, writeData } from '@/lib/runtime-store'
+import { verifyResetToken, markResetTokenAsUsed, hashPassword, invalidateUserResetTokens } from '@/lib/auth'
+import { getAdminUserByUsername, updateAdminUser } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,13 +39,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Read admin users
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-    const userKey = Object.keys(users).find(
-      key => key.toLowerCase() === username.toLowerCase()
-    )
+    const existingUser = await getAdminUserByUsername(username)
 
     // Find and update user
-    if (!userKey) {
+    if (!existingUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -53,17 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Update password and mark token as used
-    users[userKey].passwordHash = hashPassword(newPassword)
-    users[userKey].lastPasswordChange = new Date().toISOString()
-
-    // Save updated users
-    const result = await writeData('admin-users', users)
-    if (!result?.ok) {
-      return NextResponse.json(
-        { error: 'Failed to update password' },
-        { status: 500 }
-      )
-    }
+    await updateAdminUser(existingUser.username, {
+      passwordHash: hashPassword(newPassword),
+      lastPasswordChange: new Date().toISOString(),
+    })
 
     // Mark token as used to prevent replay
     markResetTokenAsUsed(resetToken)

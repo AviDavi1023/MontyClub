@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
 import { AdminUser, hashPassword } from '@/lib/auth'
+import { countAdminUsers, createAdminUser } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
 // Initialize default admin account if none exists
 export async function POST(request: NextRequest) {
   try {
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const userCount = await countAdminUsers()
 
     // If any users exist, don't create default
-    if (Object.keys(users).length > 0) {
+    if (userCount > 0) {
       return NextResponse.json({ 
         exists: true, 
         message: 'Admin accounts already exist' 
@@ -36,8 +36,7 @@ export async function POST(request: NextRequest) {
       createdBy: 'system',
     }
 
-    users['admin'] = defaultAdmin
-    await writeData('admin-users', users)
+    await createAdminUser(defaultAdmin)
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
-import { AdminUser } from '@/lib/auth'
+import { getAdminUserByUsername, updateAdminUser } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,37 +33,26 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Read admin users
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const existingUser = await getAdminUserByUsername(username)
 
-    // Find the user
-    if (!users[username]) {
+    if (!existingUser) {
       return NextResponse.json(
         { error: `User ${username} not found` },
         { status: 404 }
       )
     }
 
-    // Update email
-    users[username].email = email.trim().toLowerCase()
+    const normalizedEmail = email.trim().toLowerCase()
+    await updateAdminUser(existingUser.username, { email: normalizedEmail })
 
-    // Save updated users
-    const result = await writeData('admin-users', users)
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Failed to update email' },
-        { status: 500 }
-      )
-    }
-
-    console.log(`[Admin] Updated email for user ${username} to ${email}`)
+    console.log(`[Admin] Updated email for user ${existingUser.username} to ${normalizedEmail}`)
 
     return NextResponse.json({
       success: true,
       message: 'Email updated successfully',
       user: {
-        username,
-        email: users[username].email,
+        username: existingUser.username,
+        email: normalizedEmail,
       }
     })
   } catch (error) {

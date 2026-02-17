@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listPaths, removePaths } from '@/lib/supabase'
-import { readData } from '@/lib/runtime-store'
-import { AdminUser, verifyPassword } from '@/lib/auth'
+import { verifyPassword } from '@/lib/auth'
+import { deleteAllAdminUsers, listAdminUsers } from '@/lib/admin-users-db'
 import fs from 'fs'
 import path from 'path'
 
@@ -29,10 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify admin password (check against any admin user)
-    const users: Record<string, AdminUser> = await readData('admin-users', {})
-    const userEntries = Object.entries(users)
-    
-    if (userEntries.length === 0) {
+    const users = await listAdminUsers()
+
+    if (users.length === 0) {
       return NextResponse.json(
         { error: 'No admin users found' },
         { status: 401 }
@@ -40,9 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the password matches any admin user
-    const isValidPassword = userEntries.some(([_, user]) => 
-      verifyPassword(password, user.passwordHash)
-    )
+    const isValidPassword = users.some(user => verifyPassword(password, user.passwordHash))
 
     if (!isValidPassword) {
       return NextResponse.json(
@@ -91,7 +88,14 @@ export async function POST(request: NextRequest) {
       console.log(`[FACTORY RESET] Deleted ${settingsFiles.length} settings files`)
     }
 
-    // 4. Clear runtime store data directory if it exists
+    // 4. Clear admin users from database
+    try {
+      await deleteAllAdminUsers()
+    } catch (err) {
+      console.warn('[FACTORY RESET] Failed to clear admin users table:', err)
+    }
+
+    // 5. Clear runtime store data directory if it exists
     try {
       const dataDir = path.join(process.cwd(), 'data')
       if (fs.existsSync(dataDir)) {

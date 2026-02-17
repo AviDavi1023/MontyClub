@@ -3,6 +3,7 @@ import { writeData, readData, readMemory } from '@/lib/runtime-store'
 import { writeJSONToStorage, readJSONFromStorage, listPaths, removePaths } from '@/lib/supabase'
 import { updatesCache, announcementsCache, registrationActionsCache, registrationsCache, usersCache, collectionsCache } from '@/lib/caches'
 import { verifyPassword } from '@/lib/auth'
+import { deleteAllAdminUsers, listAdminUsers } from '@/lib/admin-users-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,33 +108,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Verify admin password by checking against stored users
-    const usersData = await readData('admin-users', {})
-    const users: Record<string, any> = typeof usersData === 'object' && usersData !== null ? usersData : {}
-    
+    const users = await listAdminUsers()
+
     // Special case: if no admin users exist, require API key + password match (security measure)
     // This allows re-authentication after admin-users have been cleared
-    if (Object.keys(users).length === 0) {
+    if (users.length === 0) {
       // When admin-users is empty, any password can be used as long as API key is valid
       // This is intentional to allow recovery after factory reset
       console.log('[clear-data] No admin users found - allowing reset with API key only')
     } else {
-      // Find user by username matching the provided password
-      let adminUser: any = null
-      let matchedUsername: string | null = null
-      
-      // Try to find any user whose password matches
-      for (const [username, user] of Object.entries(users)) {
-        if (user && user.passwordHash) {
-          // Use the verifyPassword utility from lib/auth.ts
-          if (verifyPassword(password, user.passwordHash)) {
-            adminUser = user
-            matchedUsername = username
-            break
-          }
+      let passwordMatched = false
+      for (const user of users) {
+        if (user?.passwordHash && verifyPassword(password, user.passwordHash)) {
+          passwordMatched = true
+          break
         }
       }
-      
-      if (!adminUser) {
+
+      if (!passwordMatched) {
         return NextResponse.json(
           { error: 'Invalid password' },
           { status: 401 }
@@ -293,9 +285,10 @@ export async function POST(request: NextRequest) {
     // Clear Admin Users
     if (clearOptions.adminUsers) {
       try {
-        const currentUsers = await readData('admin-users', {})
-        const currentCount = Object.keys(currentUsers).length
-        // Reset to empty - users will need to be recreated
+        const currentUsers = await listAdminUsers()
+        const currentCount = currentUsers.length
+        // Clear DB users and legacy storage data
+        await deleteAllAdminUsers()
         await writeData('admin-users', {})
         usersCache.clear()
         // Clear KV if configured
