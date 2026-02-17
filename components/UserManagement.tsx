@@ -20,6 +20,9 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [createdUsername, setCreatedUsername] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingEmail, setEditingEmail] = useState<string | null>(null)
+  const [editEmailInput, setEditEmailInput] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
   const [pendingUserChanges, setPendingUserChanges] = useState<Record<string, { deleted?: boolean; created?: boolean; username?: string }>>({})
   
   const USERS_PENDING_KEY = 'montyclub:pendingUserChanges'
@@ -211,6 +214,46 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
       showToast(getUserFriendlyError(err), 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveEmail = async (username: string) => {
+    if (!editEmailInput || !editEmailInput.includes('@')) {
+      showToast('Please enter a valid email address', 'error')
+      return
+    }
+
+    setSavingEmail(true)
+    try {
+      const resp = await fetch('/api/admin/users/email', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminApiKey
+        },
+        body: JSON.stringify({
+          username,
+          email: editEmailInput.trim().toLowerCase()
+        })
+      })
+
+      const data = await resp.json()
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to save email')
+      }
+
+      // Update local state
+      setUsers(prevUsers => prevUsers.map(u => 
+        u.username === username ? { ...u, email: editEmailInput.trim().toLowerCase() } : u
+      ))
+
+      showToast('✅ Email updated successfully', 'success')
+      setEditingEmail(null)
+      setEditEmailInput('')
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save email', 'error')
+    } finally {
+      setSavingEmail(false)
     }
   }
 
@@ -412,29 +455,80 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
         {users.map((user) => (
           <div
             key={user.username}
-            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2"
           >
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {user.username}
-                {user.username === currentUser && (
-                  <span className="ml-2 text-xs text-primary-600 dark:text-primary-400">
-                    (You)
-                  </span>
-                )}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Created: {new Date(user.createdAt).toLocaleDateString()}
-                {user.createdBy && ` by ${user.createdBy}`}
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  {user.username}
+                  {user.username === currentUser && (
+                    <span className="text-xs text-primary-600 dark:text-primary-400">
+                      (You)
+                    </span>
+                  )}
+                  {user.isPrimary && (
+                    <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded">
+                      Primary
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Created: {new Date(user.createdAt).toLocaleDateString()}
+                  {user.createdBy && ` by ${user.createdBy}`}
+                </p>
+              </div>
+              {user.username !== currentUser && (
+                <button
+                  onClick={() => handleDeleteUser(user.username)}
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                >
+                  Delete
+                </button>
+              )}
             </div>
-            {user.username !== currentUser && (
-              <button
-                onClick={() => handleDeleteUser(user.username)}
-                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm"
-              >
-                Delete
-              </button>
+            
+            {editingEmail === user.username ? (
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <input
+                  type="email"
+                  value={editEmailInput}
+                  onChange={(e) => setEditEmailInput(e.target.value)}
+                  placeholder="user@example.com"
+                  className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleSaveEmail(user.username)}
+                  disabled={savingEmail}
+                  className="px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded transition-colors"
+                >
+                  {savingEmail ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingEmail(null)
+                    setEditEmailInput('')
+                  }}
+                  className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  <span className="font-medium">Email:</span> {user.email ? user.email : <span className="italic text-gray-400">Not set</span>}
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingEmail(user.username)
+                    setEditEmailInput(user.email || '')
+                  }}
+                  className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                >
+                  Edit
+                </button>
+              </div>
             )}
           </div>
         ))}
