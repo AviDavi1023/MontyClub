@@ -131,8 +131,14 @@ async function getCollections(): Promise<RegistrationCollection[]> {
   const data = await withRetry(
     async () => {
       const result = await readJSONFromStorage(COLLECTIONS_PATH, true)
-      if (!result || !Array.isArray(result)) {
-        throw new Error('Collections data not found or invalid')
+      // After factory reset, collections file won't exist - that's a valid state
+      // Return empty array if file doesn't exist or is invalid
+      if (!result) {
+        return []
+      }
+      if (!Array.isArray(result)) {
+        console.warn('[getCollections] Collections data is not an array, resetting to empty', { result })
+        return []
       }
       return result
     },
