@@ -1642,6 +1642,12 @@ export function AdminPanel() {
   }
 
   const refreshData = async () => {
+    // Skip if not authenticated yet
+    if (!isAuthenticated) {
+      console.log('Skipping refreshData: not authenticated')
+      return
+    }
+    
     setLoading(true)
     try {
       const data = await getClubs()
@@ -1654,6 +1660,16 @@ export function AdminPanel() {
   }
 
   const fetchUpdates = async (forceFresh: boolean = false, retryCount: number = 0) => {
+    // Skip fetch if not authenticated or API key not set
+    if (!isAuthenticated || !adminApiKey) {
+      console.log(JSON.stringify({ 
+        tag: 'fetch-updates', 
+        step: 'skipped', 
+        reason: !isAuthenticated ? 'not-authenticated' : 'no-api-key'
+      }))
+      return
+    }
+
     const fetchId = `fetch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     console.log(JSON.stringify({ 
       tag: 'fetch-updates', 
@@ -2707,6 +2723,12 @@ export function AdminPanel() {
   }, [showRegistrations])
 
   const fetchAnnouncements = async () => {
+    // Skip if not authenticated yet
+    if (!isAuthenticated) {
+      console.log('Skipping fetchAnnouncements: not authenticated')
+      return
+    }
+
     try {
       console.group('[FETCH] Getting fresh announcements from server')
       console.log(`Timestamp: ${new Date().toISOString()}`)
@@ -2728,7 +2750,6 @@ export function AdminPanel() {
       console.error('Error fetching announcements:', err)
       console.groupEnd()
     }
-
   }
 
   const saveAnnouncement = async (id: string, text: string) => {
