@@ -4416,7 +4416,7 @@ export function AdminPanel() {
             {/* Info note */}
             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-800 dark:text-blue-300">
-                <strong>Tip:</strong> If you authenticated with your admin API key on the dashboard, it will be pre-filled below. Otherwise, enter it manually.
+                <strong>Note:</strong> Both your admin password and API key must be entered for security verification. These will not be saved.
               </p>
             </div>
 
@@ -4436,14 +4436,9 @@ export function AdminPanel() {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Admin API Key *
-                  </label>
-                  {clearDataApiKey && (
-                    <span className="text-xs text-green-600 dark:text-green-400">✓ Pre-filled</span>
-                  )}
-                </div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Admin API Key *
+                </label>
                 <input
                   type="password"
                   value={clearDataApiKey}
