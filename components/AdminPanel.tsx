@@ -103,6 +103,7 @@ export function AdminPanel() {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [loginApiKey, setLoginApiKey] = useState('')
   const [activeSection, setActiveSection] = useState('dashboard')
   const [showUserManagement, setShowUserManagement] = useState(false)
   const [clubs, setClubs] = useState<Club[]>([])
@@ -205,11 +206,17 @@ export function AdminPanel() {
   // Registration collections panel collapsed state
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
 
-  // Load admin API key from localStorage
+  // Load admin API key from localStorage and pre-fill login form
   useEffect(() => {
     try {
       const key = localStorage.getItem('analytics:adminKey')
-      if (key) setAdminApiKey(key)
+      if (key) {
+        setAdminApiKey(key)
+        // Pre-fill login form if not yet authenticated
+        if (!isAuthenticated) {
+          setLoginApiKey(key)
+        }
+      }
     } catch {}
     // Announcements enabled: load from localStorage first, then server
     try {
@@ -1464,14 +1471,22 @@ export function AdminPanel() {
         setError('')
         setPassword('')
         
+        // Save API key if provided in login form
+        if (loginApiKey && loginApiKey.trim()) {
+          try {
+            localStorage.setItem('analytics:adminKey', loginApiKey)
+            setAdminApiKey(loginApiKey)
+          } catch {}
+        }
+        
         // Check if primary admin needs email setup
         if (data.user.isPrimary && !data.user.email) {
           setShowPrimaryEmailSetup(true)
         }
         
-        // Check if admin API key is already set
-        const savedKey = localStorage.getItem('analytics:adminKey')
-        if (!savedKey || savedKey.trim() === '') {
+        // Check if admin API key is now set (either from login form or already saved)
+        const apiKey = loginApiKey?.trim() || localStorage.getItem('analytics:adminKey')
+        if (!apiKey) {
           setShowApiKeyPrompt(true)
         }
       } else {
@@ -1490,6 +1505,7 @@ export function AdminPanel() {
     setCurrentUser(null)
     setUsername('')
     setPassword('')
+    setLoginApiKey('')
   }
 
   const toggleUserManagement = () => {
@@ -3314,6 +3330,24 @@ export function AdminPanel() {
               required
               autoComplete="current-password"
             />
+          </div>
+
+          <div>
+            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Admin API Key
+            </label>
+            <input
+              type="password"
+              id="apiKey"
+              value={loginApiKey}
+              onChange={(e) => setLoginApiKey(e.target.value)}
+              className="input-field"
+              placeholder="Enter admin API key (optional)"
+              autoComplete="off"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Required for most admin operations. You can set this now or promptly after login.
+            </p>
           </div>
 
           {error && (
