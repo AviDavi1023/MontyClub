@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeJSONToStorage, readJSONFromStorage } from '@/lib/supabase'
-import { ClubRegistration, RegistrationCollection } from '@/types/club'
+import { ClubRegistration } from '@/types/club'
+import { getCollectionById, listCollections } from '@/lib/collections-db'
+import { createRegistration, listRegistrations } from '@/lib/registrations-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,30 +20,11 @@ export async function POST(request: NextRequest) {
     // Import slugifyName for consistent slug comparison
     const { slugifyName } = await import('@/lib/slug')
     
-    // Get collections and find by name slug with retry for eventual consistency
-    let collection: RegistrationCollection | undefined
-    const maxRetries = 5
-    const baseDelay = 300 // ms - increased from 200
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-      const collections: RegistrationCollection[] = collectionsData || []
-      collection = collections.find(c => 
-        slugifyName(c.name) === slugifyName(collectionSlug)
-      )
-      
-      if (collection) {
-        console.log(`[Club Registration] Found collection on attempt ${attempt + 1}/${maxRetries}`)
-        break
-      }
-      
-      // If not found and not last attempt, wait before retry with exponential backoff
-      if (attempt < maxRetries - 1) {
-        const delay = baseDelay * Math.pow(1.5, attempt) // Exponential backoff: 300ms, 450ms, 675ms, etc.
-        console.log(`[Club Registration] Collection not found (attempt ${attempt + 1}), retrying in ${delay}ms...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
+    // Get collections and find by name slug (instantly consistent from Postgres)
+    const collections = await listCollections()
+    const collection = collections.find(c => 
+      slugifyName(c.name) === slugifyName(collectionSlug)
+    )
     
     if (!collection) {
       return NextResponse.json(
@@ -111,16 +93,8 @@ export async function POST(request: NextRequest) {
       notes
     }
 
-    // Store in Supabase under collection folder
-    const path = `registrations/${collection.id}/${id}.json`
-    const success = await writeJSONToStorage(path, registration)
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to save registration' },
-        { status: 500 }
-      )
-    }
+    // Store in Postgres
+    await createRegistration(registration)
 
     return NextResponse.json({ 
       success: true, 
@@ -161,28 +135,11 @@ export async function GET(request: NextRequest) {
     // Import slugifyName for consistent slug comparison
     const { slugifyName } = await import('@/lib/slug')
     
-    // Get collections and find by name slug with retry for eventual consistency
-    // NEW COLLECTIONS: Need more aggressive retrying since they may have just been written
-    const { listPaths } = await import('@/lib/supabase')
-    let collection: RegistrationCollection | undefined
-    const maxRetries = 8  // Increased from 3 to handle newly created collections
-    const retryDelay = 300 // Increased from 200 to 300ms
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-      const collections: RegistrationCollection[] = collectionsData || []
-      collection = collections.find(c => 
-        slugifyName(c.name) === slugifyName(collectionSlug)
-      )
-      
-      if (collection) break
-      
-      // If not found and not last attempt, wait before retry with exponential backoff
-      if (attempt < maxRetries - 1) {
-        const delayMs = retryDelay * Math.pow(1.5, attempt)
-        await new Promise(resolve => setTimeout(resolve, delayMs))
-      }
-    }
+    // Get collections and find by name slug
+    const collections = await listCollections()
+    const collection = collections.find(c => 
+      slugifyName(c.name) === slugifyName(collectionSlug)
+    )
     
     if (!collection) {
       return NextResponse.json(
@@ -191,16 +148,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all registrations from storage for this collection
-    const paths = await listPaths(`registrations/${collection.id}`)
-    const jsonPaths = paths.filter(p => p.endsWith('.json'))
-    
-    // Read all registrations in parallel for performance
-    const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
-    const allRegs = await Promise.all(registrationPromises)
-    const registrations: ClubRegistration[] = allRegs.filter(
-      data => data && data.collectionId === collection.id
-    )
+    // Get all registrations from Postgres for this collection
+    const registrations = await listRegistrations({ collectionId: collection.id })
 
     // Sort by submission date (newest first)
     registrations.sort((a, b) => 

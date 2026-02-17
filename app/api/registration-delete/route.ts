@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { removePaths } from '@/lib/supabase'
 import { withRegistrationLock } from '@/lib/registration-lock'
+import { deleteRegistration } from '@/lib/registrations-db'
 
 export const dynamic = 'force-dynamic'
 
 async function handler(request: NextRequest, body: any) {
   try {
-    const { registrationId, collection } = body
+    const { registrationId } = body
 
-    if (!registrationId || !collection) {
+    if (!registrationId) {
       return NextResponse.json(
-        { error: 'Missing registration ID or collection ID' },
+        { error: 'Missing registration ID' },
         { status: 400 }
       )
     }
 
-    // Delete using collection ID as folder
-    const path = `registrations/${collection}/${registrationId}.json`
-    const result = await removePaths([path])
+    // Delete from Postgres
+    await deleteRegistration(registrationId)
 
     return NextResponse.json({ 
-      success: result.removed > 0, 
-      removed: result.removed 
+      success: true
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -50,16 +48,14 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { registrationId, collection } = body
-  if (!registrationId || !collection) {
+  const { registrationId } = body
+  if (!registrationId) {
     return NextResponse.json(
-      { error: 'Missing registration ID or collection ID' },
+      { error: 'Missing registration ID' },
       { status: 400 }
     )
   }
-
-  const path = `registrations/${collection}/${registrationId}.json`
   
   // Wrap with registration-level lock, passing parsed body to handler
-  return withRegistrationLock(path, () => handler(request, body))
+  return withRegistrationLock(`registration-${registrationId}`, () => handler(request, body))
 }

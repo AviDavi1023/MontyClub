@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
-import { readJSONFromStorage } from '@/lib/supabase'
+import { listCollections } from '@/lib/collections-db'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const COLLECTIONS_PATH = 'settings/registration-collections.json'
 
 /**
  * PUBLIC endpoint - Returns minimal collection info for public forms (no auth required)
@@ -13,13 +11,8 @@ const COLLECTIONS_PATH = 'settings/registration-collections.json'
 export async function GET() {
   try {
     console.log('[Collections Public API] GET /api/collections-public called')
-    const collections = await readJSONFromStorage(COLLECTIONS_PATH)
-    console.log('[Collections Public API] Read from storage:', Array.isArray(collections) ? collections.length + ' collections' : 'not an array')
-    
-    if (!Array.isArray(collections)) {
-      console.log('[Collections Public API] Collections is not an array, returning empty')
-      return NextResponse.json({ collections: [] })
-    }
+    const collections = await listCollections()
+    console.log('[Collections Public API] Read from Postgres:', collections.length + ' collections')
 
     // Sort by creation date (newest first)
     const sorted = [...collections]

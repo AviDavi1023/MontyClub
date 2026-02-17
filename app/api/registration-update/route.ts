@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
 import { ClubRegistration } from '@/types/club'
 import { withRegistrationLock } from '@/lib/registration-lock'
+import { getRegistrationById, updateRegistration } from '@/lib/registrations-db'
 
 export const dynamic = 'force-dynamic'
 
 async function handler(request: NextRequest, body: any) {
   try {
-    const { registrationId, collection, updates } = body
-    if (!registrationId || !collection || !updates) {
+    const { registrationId, updates } = body
+    if (!registrationId || !updates) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
     }
-    const path = `registrations/${collection}/${registrationId}.json`
-    const registration: ClubRegistration | null = await readJSONFromStorage(path)
+    
+    const registration = await getRegistrationById(registrationId)
     if (!registration) {
       return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
     }
-    // Update all fields provided in updates
-    Object.assign(registration, updates)
-    const success = await writeJSONToStorage(path, registration)
-    if (!success) {
-      return NextResponse.json({ error: 'Failed to update registration' }, { status: 500 })
-    }
+    
+    // Update registration in Postgres
+    await updateRegistration(registrationId, updates)
+    
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Registration update error:', error)
@@ -37,12 +35,11 @@ export async function POST(request: NextRequest) {
   }
   
   const body = await request.json()
-  const { registrationId, collection } = body
-  if (!registrationId || !collection) {
+  const { registrationId } = body
+  if (!registrationId) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
   }
-  const path = `registrations/${collection}/${registrationId}.json`
   
   // Wrap with registration-level lock, passing parsed body to handler
-  return withRegistrationLock(path, () => handler(request, body))
+  return withRegistrationLock(`registration-${registrationId}`, () => handler(request, body))
 }
