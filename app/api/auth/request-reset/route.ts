@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Resend } from 'resend'
 import { createPasswordResetToken, AdminUser } from '@/lib/auth'
-import { readJSONFromStorage } from '@/lib/supabase'
+import { readData } from '@/lib/runtime-store'
 
 export const dynamic = 'force-dynamic'
+
+const resend = new Resend(process.env.RESEND_API_KEY || '')
 
 /**
  * POST /api/auth/request-reset
@@ -22,11 +25,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user exists
-    const users = await readJSONFromStorage('settings/admin-users.json')
-    const userList: AdminUser[] = Array.isArray(users) ? users : []
-    const userExists = userList.some((u: AdminUser) => u.username === username.trim())
+    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const normalizedUsername = username.trim().toLowerCase()
+    const userKey = Object.keys(users).find(
+      key => key.toLowerCase() === normalizedUsername
+    )
 
-    if (!userExists) {
+    if (!userKey) {
       // Don't reveal whether user exists for security
       return NextResponse.json(
         { 
@@ -37,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find primary admin
-    const primaryAdmin = userList.find((u: AdminUser) => u.isPrimary)
+    const primaryAdmin = Object.values(users).find((u: AdminUser) => u.isPrimary)
     
     if (!primaryAdmin?.email) {
       console.error('[Auth] No primary admin email configured for password reset')
@@ -54,23 +59,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Auth] Reset request for user: ${username}`)
     console.log(`[Auth] Token generated: ${token}`)
-    console.log(`[Auth] Would send email to primary admin: ${primaryAdmin.email}`)
+    console.log(`[Auth] Sending reset email to primary admin: ${primaryAdmin.email}`)
 
-    // TODO: In production, send email to primaryAdmin.email with:
-    // - Username requesting reset
-    // - Reset token to forward
-    // - Link to reset page with pre-filled token
-    // Example email template:
-    // Subject: Password Reset Request for ${username}
-    // Body: Admin user "${username}" has requested a password reset.
-    //       Forward this code to them: ${token}
-    //       This code expires in 60 minutes.
+    if (!process.env.RESEND_API_KEY) {
+      console.error('[Auth] RESEND_API_KEY is not configured')
+      return NextResponse.json(
+        { error: 'Email provider is not configured' },
+        { status: 500 }
+      )
+    }
 
-    // For now (development/testing), return the token
+    const { data, error: sendError } = await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: primaryAdmin.email,
+      subject: `Password Reset Request for ${username.trim()}`,
+      html: `
+        <p>Admin user <strong>${username.trim()}</strong> has requested a password reset.</p>
+        <p>Forward this reset code to them:</p>
+        <p style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">${token}</p>
+        <p>This code expires in 60 minutes.</p>
+      `
+    })
+
+    if (sendError) {
+      console.error('[Auth] Resend failed:', sendError)
+      return NextResponse.json(
+        { error: 'Failed to send reset email' },
+        { status: 502 }
+      )
+    }
+
+    if (!data?.id) {
+      console.warn('[Auth] Resend response missing email id')
+    }
+
+    const includeToken = process.env.NODE_ENV !== 'production'
+
     return NextResponse.json({
       success: true,
       message: `Reset request sent to primary administrator (${primaryAdmin.email}). They will receive a reset code to forward to you.`,
-      resetCode: token, // Remove this in production - only send via email
+      ...(includeToken ? { resetCode: token } : {}),
       note: 'Token expires in 60 minutes'
     })
   } catch (error) {

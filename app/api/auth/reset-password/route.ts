@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyResetToken, markResetTokenAsUsed, hashPassword, invalidateUserResetTokens, AdminUser } from '@/lib/auth'
-import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
+import { readData, writeData } from '@/lib/runtime-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,12 +39,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Read admin users
-    const usersData = await readJSONFromStorage('settings/admin-users.json')
-    const users: AdminUser[] = Array.isArray(usersData) ? usersData : []
+    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const userKey = Object.keys(users).find(
+      key => key.toLowerCase() === username.toLowerCase()
+    )
 
     // Find and update user
-    const userIndex = users.findIndex(u => u.username === username)
-    if (userIndex === -1) {
+    if (!userKey) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -52,12 +53,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Update password and mark token as used
-    users[userIndex].passwordHash = hashPassword(newPassword)
-    users[userIndex].lastPasswordChange = new Date().toISOString()
+    users[userKey].passwordHash = hashPassword(newPassword)
+    users[userKey].lastPasswordChange = new Date().toISOString()
 
     // Save updated users
-    const success = await writeJSONToStorage('settings/admin-users.json', users)
-    if (!success) {
+    const result = await writeData('admin-users', users)
+    if (!result?.ok) {
       return NextResponse.json(
         { error: 'Failed to update password' },
         { status: 500 }
