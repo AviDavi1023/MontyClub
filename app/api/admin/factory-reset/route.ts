@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listPaths, removePaths } from '@/lib/supabase'
+import { readData } from '@/lib/runtime-store'
+import { AdminUser, verifyPassword } from '@/lib/auth'
 import fs from 'fs'
 import path from 'path'
 
@@ -9,26 +11,62 @@ export const dynamic = 'force-dynamic'
  * POST /api/admin/factory-reset
  * FULL DATABASE RESET: Wipe all data for completely fresh start
  * Deletes everything: clubs, registrations, settings, admin users, runtime data
+ * Requires admin password + API key verification before reset
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('[FACTORY RESET] Starting COMPLETE database wipe...')
+    // Parse request body for authentication
+    const body = await request.json()
+    const { password, adminApiKey } = body
+
+    // Verify admin API key
+    const expectedKey = process.env.ADMIN_API_KEY
+    if (!adminApiKey || adminApiKey !== expectedKey) {
+      return NextResponse.json(
+        { error: 'Invalid API key' },
+        { status: 401 }
+      )
+    }
+
+    // Verify admin password (check against any admin user)
+    const users: Record<string, AdminUser> = await readData('admin-users', {})
+    const userEntries = Object.entries(users)
+    
+    if (userEntries.length === 0) {
+      return NextResponse.json(
+        { error: 'No admin users found' },
+        { status: 401 }
+      )
+    }
+
+    // Check if the password matches any admin user
+    const isValidPassword = userEntries.some(([_, user]) => 
+      verifyPassword(password, user.passwordHash)
+    )
+
+    if (!isValidPassword) {
+      return NextResponse.json(
+        { error: 'Invalid admin password' },
+        { status: 401 }
+      )
+    }
+
+    console.log('[FACTORY RESET] Authentication successful, starting COMPLETE database wipe...')
 
     let deletedCount = 0
 
     // 1. Delete ALL files from Supabase Storage
     const allFiles = [
-      // Main data files
+      // Main data files (stored at root via writeData)
       'clubs-snapshot.json',
       'announcements.json',
       'updates.json',
+      'admin-users.json',
+      'settings.json',
+      'renewal-settings.json',
       
-      // Settings files
-      'settings/admin-users.json',
-      'settings/announcements-enabled.json',
-      'settings/registration-collections.json',
+      // Settings files (stored in settings/ subdirectory via writeJSONToStorage)
       'settings/registration-settings.json',
-      'settings/renewal-settings.json',
     ]
 
     for (const file of allFiles) {

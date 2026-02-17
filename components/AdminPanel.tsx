@@ -1394,38 +1394,6 @@ export function AdminPanel() {
     }
   }, [])
 
-  // ONE-TIME FACTORY RESET on first load
-  useEffect(() => {
-    // Check if factory reset has been performed
-    const factoryResetDone = localStorage.getItem('montyclub:factoryResetDone')
-    if (!factoryResetDone) {
-      // Perform factory reset
-      fetch('/api/admin/factory-reset', { method: 'POST' })
-        .then(resp => resp.json())
-        .then(data => {
-          console.log('[Factory Reset]', data.message)
-          console.log('[Factory Reset] Files deleted:', data.filesDeleted)
-          
-          // Clear all localStorage to ensure clean state
-          const keys = Object.keys(localStorage)
-          keys.forEach(key => {
-            if (key.startsWith('montyclub:') || key.startsWith('analytics:') || key.startsWith('settings:')) {
-              localStorage.removeItem(key)
-            }
-          })
-          
-          localStorage.setItem('montyclub:factoryResetDone', 'true')
-          showToast('✨ Complete factory reset finished. System ready for fresh setup.', 'success')
-          
-          // Force reload to clear all cached state
-          setTimeout(() => window.location.reload(), 2000)
-        })
-        .catch(err => {
-          console.error('[Factory Reset] Failed:', err)
-        })
-    }
-  }, [])
-
   // Check if this is first-time setup
   useEffect(() => {
     const checkFirstTime = async () => {
@@ -1620,6 +1588,12 @@ export function AdminPanel() {
   }
 
   const handleFullFactoryReset = async () => {
+    // Require both password and API key for factory reset
+    if (!clearDataPassword || !clearDataApiKey) {
+      showToast('Please enter both admin password and API key before factory reset', 'error')
+      return
+    }
+
     const confirmed = await confirm({
       title: 'Complete Factory Reset',
       message: '⚠️ This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to start from scratch with the default admin account (admin/admin123). This CANNOT be undone. Are you absolutely sure?',
@@ -1634,6 +1608,11 @@ export function AdminPanel() {
     try {
       const resp = await fetch('/api/admin/factory-reset', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: clearDataPassword,
+          adminApiKey: clearDataApiKey,
+        }),
       })
 
       const data = await resp.json()
@@ -1642,7 +1621,7 @@ export function AdminPanel() {
         throw new Error(data.error || 'Factory reset failed')
       }
 
-      showToast(`✨ Complete factory reset successful! ${data.filesDeleted} files deleted. Reloading...`, 'success')
+      showToast(`✨ Complete factory reset successful! ${data.filesDeleted} files deleted. Redirecting to setup...`, 'success')
       
       // Clear all localStorage
       localStorage.clear()
@@ -1650,9 +1629,9 @@ export function AdminPanel() {
       // Close modal
       setShowClearDataModal(false)
       
-      // Reload after 2 seconds
+      // Redirect to setup page after 2 seconds
       setTimeout(() => {
-        window.location.href = '/admin'
+        window.location.href = '/admin/setup'
       }, 2000)
 
     } catch (err: any) {
@@ -3360,10 +3339,7 @@ export function AdminPanel() {
   const handleSectionChange = (section: string) => {
     if (section === 'clear-data') {
       // Open the Clear Data modal without changing section
-      // Pre-fill the API key if already authenticated
-      if (adminApiKey) {
-        setClearDataApiKey(adminApiKey)
-      }
+      // Don't prefill API key - require manual entry for double authentication
       setShowClearDataModal(true)
       return
     }
@@ -4598,7 +4574,7 @@ export function AdminPanel() {
                   </div>
                   <button
                     onClick={handleFullFactoryReset}
-                    disabled={clearingData}
+                    disabled={clearingData || !clearDataPassword || !clearDataApiKey}
                     className="w-full px-4 py-2 text-sm font-bold text-white bg-red-700 hover:bg-red-800 rounded-md transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <AlertTriangle className="h-4 w-4" />
