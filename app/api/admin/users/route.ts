@@ -10,6 +10,8 @@ export async function GET() {
     // Return users without password hashes
     const safeUsers = Object.values(users).map(user => ({
       username: user.username,
+      email: user.email || undefined,
+      isPrimary: user.isPrimary || false,
       createdAt: user.createdAt,
       createdBy: user.createdBy,
     }))
