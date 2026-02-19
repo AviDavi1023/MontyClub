@@ -1299,15 +1299,9 @@ export function AdminPanel() {
       
       const data = await resp.json()
       if (resp.ok) {
-        if (data.resetCode) {
-          setResetToken(data.resetCode)
-          setResetStep('reset')
-          showToast('✅ Reset code generated. You can now set a new password.', 'success')
-        } else {
-          setResetToken('')
-          setResetStep('reset')
-          showToast(data.message || 'If the username exists, a reset code has been generated.', 'info')
-        }
+        setResetToken('')
+        setResetStep('reset')
+        showToast(data.message || 'If the username exists, a reset code was emailed to the primary admin.', 'info')
       } else {
         showToast(data.error || 'Failed to request password reset', 'error')
       }
@@ -3221,6 +3215,10 @@ export function AdminPanel() {
                     onKeyDown={(e) => e.key === 'Enter' && saveApiKeyFromPrompt()}
                     className="input-field"
                     placeholder="Enter your ADMIN_API_KEY"
+                    autoComplete="off"
+                    name="admin-api-key-prompt"
+                    data-lpignore="true"
+                    data-form-type="other"
                     autoFocus
                   />
                 </div>
@@ -3332,24 +3330,6 @@ export function AdminPanel() {
             />
           </div>
 
-          <div>
-            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Admin API Key
-            </label>
-            <input
-              type="password"
-              id="apiKey"
-              value={loginApiKey}
-              onChange={(e) => setLoginApiKey(e.target.value)}
-              className="input-field"
-              placeholder="Enter admin API key (optional)"
-              autoComplete="off"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Required for most admin operations. You can set this now or promptly after login.
-            </p>
-          </div>
-
           {error && (
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           )}
@@ -3362,13 +3342,41 @@ export function AdminPanel() {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => setShowPasswordReset(true)}
+              onClick={() => {
+                setShowPasswordReset(true)
+                setResetStep('request')
+                setResetUsername(username.trim())
+                setResetToken('')
+                setNewPassword('')
+                setConfirmPassword('')
+              }}
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
               Forgot password?
             </button>
           </div>
         </form>
+
+        <div className="mt-4">
+          <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Admin API Key
+          </label>
+          <input
+            type="password"
+            id="apiKey"
+            name="admin-api-key"
+            value={loginApiKey}
+            onChange={(e) => setLoginApiKey(e.target.value)}
+            className="input-field"
+            placeholder="Enter admin API key (optional)"
+            autoComplete="off"
+            data-lpignore="true"
+            data-form-type="other"
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Required for most admin operations. You can set this now or promptly after login.
+          </p>
+        </div>
 
         {isFirstTimeSetup && (
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -4795,7 +4803,8 @@ export function AdminPanel() {
             {resetStep === 'request' ? (
               <>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Enter the username of the admin account to reset:
+                  Enter the username of the admin account to reset. A reset code will be emailed to the primary admin.
+                  Keep this page open so you can paste the code.
                 </p>
                 <input
                   type="text"
@@ -4852,7 +4861,7 @@ export function AdminPanel() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                   />
                   <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Use the reset code shown after request or one sent by an admin.
+                    Paste the reset code the primary admin emails you.
                   </p>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
