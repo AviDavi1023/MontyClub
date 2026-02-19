@@ -3388,6 +3388,126 @@ export function AdminPanel() {
             </p>
           </div>
         )}
+
+        {/* Password Reset Modal (unauthenticated) */}
+        {showPasswordReset && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Reset Admin Password
+              </h3>
+
+              {resetStep === 'request' ? (
+                <>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Enter the username of the admin account to reset. A reset code will be emailed to the primary admin.
+                    Keep this page open so you can paste the code.
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Admin username"
+                    value={resetUsername}
+                    onChange={(e) => setResetUsername(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4"
+                  />
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setShowPasswordReset(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => requestPasswordReset()}
+                      disabled={requestingReset || !resetUsername.trim()}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-md transition-colors"
+                    >
+                      {requestingReset ? 'Generating...' : 'Generate Reset Token'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Reset code
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Paste reset code"
+                      value={resetToken}
+                      onChange={(e) => setResetToken(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    />
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Paste the reset code the primary admin emails you.
+                    </p>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Enter new password for <strong>{resetUsername}</strong>:
+                  </p>
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-3"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4"
+                  />
+                  {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mb-4">
+                      Passwords do not match
+                    </p>
+                  )}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => {
+                        setResetStep('request')
+                        setResetToken('')
+                        setNewPassword('')
+                        setConfirmPassword('')
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPasswordReset(false)
+                        setResetStep('request')
+                        setResetToken('')
+                        setNewPassword('')
+                        setConfirmPassword('')
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => executePasswordReset()}
+                      disabled={
+                        resettingPassword ||
+                        !newPassword.trim() ||
+                        newPassword !== confirmPassword
+                      }
+                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-md transition-colors"
+                    >
+                      {resettingPassword ? 'Resetting...' : 'Reset Password'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       </>
     )
