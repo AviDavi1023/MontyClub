@@ -159,12 +159,7 @@ export function AdminPanel() {
   const [excelImportCollectionId, setExcelImportCollectionId] = useState<string | null>(null)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
-  type PendingCollection = { deleted?: boolean; created?: boolean; enabled?: boolean; display?: boolean; accepting?: boolean; renewalEnabled?: boolean; name?: string; _timestamp?: number }
-  const [localPendingCollectionChanges, setLocalPendingCollectionChanges] = useState<Record<string, PendingCollection>>({})
-  const [collectionsStorageLoaded, setCollectionsStorageLoaded] = useState(false)
-  const COLLECTIONS_PENDING_KEY = 'montyclub:pendingCollectionChanges'
-  const COLLECTIONS_BACKUP_KEY = 'montyclub:pendingCollectionChanges:backup'
-  const collectionsRefreshTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [loadingCollections, setLoadingCollections] = useState(false)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
   const [singleProcessingId, setSingleProcessingId] = useState<string | null>(null)
@@ -239,133 +234,11 @@ export function AdminPanel() {
     }
   }, [])
 
-  // Load collections only after local pending storage is loaded to avoid flash of server-only state
+  // Load collections on auth - Postgres is instantly consistent
   useEffect(() => {
-    if (!isAuthenticated || !adminApiKey || !collectionsStorageLoaded) return
+    if (!isAuthenticated || !adminApiKey) return
     loadCollections()
-  }, [isAuthenticated, adminApiKey, collectionsStorageLoaded])
-
-  // Reload collections when localStorage changes are detected (cross-tab or after operations)
-  useEffect(() => {
-    if (!collectionsStorageLoaded || !isAuthenticated || !adminApiKey) return
-    
-    const handleStorageUpdate = (e: StorageEvent) => {
-      if (e.key === 'montyclub:collectionsUpdated') {
-        // Small delay to ensure the pending changes are updated first
-        setTimeout(() => loadCollections(), 50)
-      }
-    }
-    
-    window.addEventListener('storage', handleStorageUpdate)
-    return () => window.removeEventListener('storage', handleStorageUpdate)
-  }, [collectionsStorageLoaded, isAuthenticated, adminApiKey])
-
-  // Load pending collection changes from localStorage on mount
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return
-      const primary = localStorage.getItem(COLLECTIONS_PENDING_KEY)
-      if (primary) {
-        const parsed = JSON.parse(primary)
-        if (parsed && typeof parsed === 'object') setLocalPendingCollectionChanges(parsed)
-      } else {
-        const backup = localStorage.getItem(COLLECTIONS_BACKUP_KEY)
-        if (backup) {
-          try {
-            const bp = JSON.parse(backup)
-            if (bp && bp.data) setLocalPendingCollectionChanges(bp.data)
-          } catch {}
-        }
-      }
-    } catch {}
-    finally {
-      setCollectionsStorageLoaded(true)
-    }
-  }, [])
-
-  // Redundant persistence for collection changes
-  useEffect(() => {
-    if (!collectionsStorageLoaded) return
-    try {
-      if (Object.keys(localPendingCollectionChanges).length === 0) {
-        localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-        localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-      } else {
-        const serialized = JSON.stringify(localPendingCollectionChanges)
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, serialized)
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingCollectionChanges }))
-      }
-    } catch (e) {}
-  }, [localPendingCollectionChanges, collectionsStorageLoaded])
-
-  // Auto-clear pending collection changes that now match database state
-  // CONSERVATIVE: Only clear if state matches AND pending change is at least 3 seconds old
-  useEffect(() => {
-    if (!collectionsStorageLoaded) return
-    if (Object.keys(localPendingCollectionChanges).length === 0) return
-
-    const now = Date.now()
-    const MIN_AGE_BEFORE_CLEAR = 3000 // 3 seconds - gives Supabase time to propagate
-
-    const newPending = { ...localPendingCollectionChanges }
-    let hasChanges = false
-
-    for (const collectionId in newPending) {
-      const pending = newPending[collectionId]
-      const pendingTimestamp = pending._timestamp || 0
-      const age = now - pendingTimestamp
-      
-      // Skip if too recent - still propagating to Supabase
-      if (pendingTimestamp > 0 && age < MIN_AGE_BEFORE_CLEAR) {
-        continue
-      }
-      
-      const found = collections.find(c => c.id === collectionId)
-      // If marked deleted locally but no longer exists in DB, clear it
-      if (pending.deleted && !found) {
-        delete newPending[collectionId]
-        hasChanges = true
-        continue
-      }
-      if (found) {
-        // If enabled matches DB, clear enabled flag
-        if (pending.enabled !== undefined && found.enabled === pending.enabled) {
-          delete newPending[collectionId].enabled
-          hasChanges = true
-        }
-        // If display matches DB, clear display flag
-        if (pending.display !== undefined && found.display === pending.display) {
-          delete newPending[collectionId].display
-          hasChanges = true
-        }
-        // If accepting matches DB, clear accepting flag
-        if (pending.accepting !== undefined && found.accepting === pending.accepting) {
-          delete newPending[collectionId].accepting
-          hasChanges = true
-        }
-        // If renewalEnabled matches DB, clear renewalEnabled flag
-        if (pending.renewalEnabled !== undefined && found.renewalEnabled === pending.renewalEnabled) {
-          delete newPending[collectionId].renewalEnabled
-          hasChanges = true
-        }
-        // If name matches DB, clear name flag
-        if (pending.name && found.name === pending.name) {
-          delete newPending[collectionId].name
-          hasChanges = true
-        }
-        // If no remaining flags, remove entry
-        const entry = newPending[collectionId]
-        if (entry && !entry.deleted && entry.enabled === undefined && entry.display === undefined && entry.accepting === undefined && entry.renewalEnabled === undefined && !entry.name && !entry.created) {
-          delete newPending[collectionId]
-          hasChanges = true
-        }
-      }
-    }
-
-    if (hasChanges) {
-      setLocalPendingCollectionChanges(newPending)
-    }
-  }, [collections, localPendingCollectionChanges, collectionsStorageLoaded])
+  }, [isAuthenticated, adminApiKey])
 
   // Calculate pending registrations count across ALL collections using aggregated endpoint
   // CRITICAL FIX: Replaced N individual API calls with single aggregated call
@@ -384,19 +257,12 @@ export function AdminPanel() {
         
         if (!resp.ok) {
           console.error('Failed to fetch dashboard summary')
-          return
         }
         
         const data = await resp.json()
         
-        // Calculate total pending, accounting for deleted collections
-        let totalPending = 0
-        for (const collectionId in data.pendingCounts) {
-          if (!localPendingCollectionChanges[collectionId]?.deleted) {
-            totalPending += data.pendingCounts[collectionId] || 0
-          }
-        }
-        
+        // Calculate total pending across all active collections
+        const totalPending = Object.values(data.pendingCounts || {}).reduce((sum: number, count) => sum + (typeof count === 'number' ? count : 0), 0)
         setPendingRegistrationsCount(totalPending)
       } catch (err) {
         console.error('Failed to calculate pending registrations:', err)
@@ -404,87 +270,31 @@ export function AdminPanel() {
     }
     
     fetchPendingCount()
-  }, [adminApiKey, localPendingCollectionChanges])
-
-  // Debounced refresh function to batch multiple rapid toggles
-  const scheduleCollectionsRefresh = () => {
-    // Clear any existing timer
-    if (collectionsRefreshTimerRef.current) {
-      clearTimeout(collectionsRefreshTimerRef.current)
-    }
-    // Schedule a new refresh after 500ms of inactivity
-    collectionsRefreshTimerRef.current = setTimeout(() => {
-      loadCollections()
-      collectionsRefreshTimerRef.current = null
-    }, 500)
-  }
+  }, [adminApiKey])
 
   const loadCollections = async () => {
     if (!adminApiKey) return
-    // Debug logging removed
     try {
+      setLoadingCollections(true)
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      // Debug logging removed
       setCollections(data.collections || [])
-      // Choose active collection using localStorage overlay precedence
-      // Build an overlay that prioritizes locally pending created/enabled state
-      try {
-        const overlayMap = new Map<string, RegistrationCollection>()
-        for (const c of (data.collections || [])) overlayMap.set(c.id, { ...c })
-        for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
-          if (change.deleted) {
-            overlayMap.delete(id)
-            continue
-          }
-          if (change.created && !overlayMap.has(id)) {
-            overlayMap.set(id, {
-              id,
-              name: change.name || 'New Collection',
-              enabled: change.enabled ?? false,
-              display: change.display ?? false,
-              accepting: change.accepting ?? false,
-              createdAt: new Date().toISOString()
-            } as RegistrationCollection)
-          }
-          const obj = overlayMap.get(id)
-          if (obj) {
-            if (typeof change.enabled !== 'undefined') obj.enabled = !!change.enabled
-            if (typeof change.display !== 'undefined') obj.display = !!change.display
-            if (typeof change.accepting !== 'undefined') obj.accepting = !!change.accepting
-            if (change.name) obj.name = change.name
-          }
-        }
-        const overlayList = Array.from(overlayMap.values())
-        if (overlayList.length > 0) {
-          // Prefer previously active if it still exists
-          if (activeCollectionId && overlayMap.has(activeCollectionId)) {
-            setActiveCollectionId(activeCollectionId)
-          } else {
-            // Prioritize display collection, then enabled, then first
-            const displayFirst = overlayList.find(c => c.display)
-            const enabledFirst = overlayList.find(c => c.enabled)
-            setActiveCollectionId((displayFirst || enabledFirst || overlayList[0]).id)
-          }
-        } else {
-          setActiveCollectionId(null)
-        }
-      } catch {
-        // Fallback to server-only selection
-        if (data.collections && data.collections.length > 0) {
-          // Prioritize display collection, then enabled, then first
-          const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
-          const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-          setActiveCollectionId(displayCol?.id || enabledCol?.id || data.collections[0].id)
-        } else {
-          setActiveCollectionId(null)
-        }
+      
+      // Auto-select: prefer display → enabled → first
+      if (data.collections && data.collections.length > 0) {
+        const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
+        const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
+        setActiveCollectionId(displayCol?.id || enabledCol?.id || data.collections[0].id)
+      } else {
+        setActiveCollectionId(null)
       }
     } catch (err) {
-      console.error('Failed to load collections:', err)
+      showToast(`Failed to load collections: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+    } finally {
+      setLoadingCollections(false)
     }
   }
 
@@ -499,19 +309,8 @@ export function AdminPanel() {
     }
     setCreatingCollection(true)
     const name = newCollectionName.trim()
-    const tempId = `temp-col-${Date.now()}-${Math.random().toString(36).substring(2,7)}`
-    // Add local pending created collection so it shows immediately
-    setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [tempId]: { created: true, name, enabled: false } }
-      try {
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-      } catch {}
-      return next
-    })
-    // Select it right away
-    setActiveCollectionId(tempId)
     setNewCollectionName('')
+    
     try {
       const resp = await fetch('/api/registration-collections', {
         method: 'POST',
@@ -526,53 +325,10 @@ export function AdminPanel() {
         throw new Error(err.error || 'Failed to create collection')
       }
       const data = await resp.json()
-      // Add the server-created collection to server snapshot
-      setCollections(prev => [data.collection, ...prev])
-      // Migrate any pending created state from tempId to real id
-      setLocalPendingCollectionChanges(prev => {
-        const temp = prev[tempId]
-        if (!temp) return prev
-        const rest = { ...prev }
-        delete rest[tempId]
-        // If user toggled enabled while creating, carry it forward as pending for real id
-        if (temp.enabled !== undefined && temp.enabled !== data.collection.enabled) {
-          rest[data.collection.id] = { ...(rest[data.collection.id] || {}), enabled: temp.enabled }
-        }
-        try {
-          if (Object.keys(rest).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
-          }
-        } catch {}
-        return rest
-      })
-      // Select the real id now
-      setActiveCollectionId(data.collection.id)
-      // Broadcast creation so other tabs pick up overlay quickly
-      try {
-        broadcast('collections', 'update', { id: data.collection.id })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: data.collection.id, t: Date.now() }))
-      } catch {}
       showToast('Collection created successfully')
+      // Refetch collections - Postgres is instant
+      await loadCollections()
     } catch (err: any) {
-      // Revert local pending temp on error
-      setLocalPendingCollectionChanges(prev => {
-        const rest = { ...prev }
-        delete rest[tempId]
-        try {
-          if (Object.keys(rest).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
-          }
-        } catch {}
-        return rest
-      })
       showToast(err.message || 'Failed to create collection', 'error')
     } finally {
       setCreatingCollection(false)
@@ -588,22 +344,7 @@ export function AdminPanel() {
     if (!collection) return
 
     setTogglingCollection(collectionId)
-    const effectiveCurrentDisplay = (localPendingCollectionChanges[collectionId]?.display !== undefined)
-      ? !!localPendingCollectionChanges[collectionId]?.display
-      : !!(collection.display || (!collection.display && !collection.accepting && collection.enabled)) // back-compat: legacy enabled means display
-    const nextDisplay = !effectiveCurrentDisplay
-
-    // Optimistically update display
-    setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), display: nextDisplay, _timestamp: Date.now() } }
-      try {
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      return next
-    })
+    const nextDisplay = !collection.display
 
     try {
       const resp = await fetch('/api/registration-collections', {
@@ -612,49 +353,26 @@ export function AdminPanel() {
         body: JSON.stringify({ id: collectionId, display: nextDisplay })
       })
       if (!resp.ok) {
-        let errText = 'Failed to update display'
-        try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
-        throw new Error(errText)
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to update display')
       }
-      try {
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
       await loadCollections()
       
-      // AUTO-REPUBLISH: If enabling display for a collection, immediately republish the catalog
+      // Auto-republish if enabling display
       if (nextDisplay) {
-        console.log('[Display Toggle] Auto-republishing catalog with new display collection...')
         try {
           setPublishingCatalog(true)
           await publishSnapshotNow()
-          showToast('Catalog republished with new collection', 'success')
+          showToast('Catalog republished', 'success')
         } catch (publishErr) {
-          console.error('[Display Toggle] Auto-republish failed:', publishErr)
+          console.error('Auto-republish failed:', publishErr)
           showToast('Display updated but catalog republish failed', 'error')
         } finally {
           setPublishingCatalog(false)
         }
       }
-      
-      try { broadcast('clubs', 'refresh', { reason: 'collection-display-toggled' }) } catch {}
     } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.display
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
-      })
       showToast('Failed to update display', 'error')
     } finally {
       setTogglingCollection(null)
@@ -670,85 +388,23 @@ export function AdminPanel() {
     if (!collection) return
 
     setTogglingCollection(collectionId)
-    const effectiveCurrentAccepting = (localPendingCollectionChanges[collectionId]?.accepting !== undefined)
-      ? !!localPendingCollectionChanges[collectionId]?.accepting
-      : (collection.accepting ?? collection.enabled ?? false) // back-compat
-    const nextAccepting = !effectiveCurrentAccepting
-
-    setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), accepting: nextAccepting, _timestamp: Date.now() } }
-      try {
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      return next
-    })
+    const nextAccepting = !collection.accepting
 
     try {
-      // Try with retries for recently created collections
-      let lastError: any = null
-      let success = false
-      
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) {
-          // Wait before retry with exponential backoff
-          await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)))
-        }
-        
-        try {
-          const resp = await fetch('/api/registration-collections', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-            body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
-          })
-          
-          if (resp.ok) {
-            success = true
-            try {
-              broadcast('collections', 'update', { id: collectionId })
-              localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-            } catch {}
-            showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
-            await loadCollections()
-            break
-          } else if (resp.status === 404 && attempt < 3) {
-            // Collection not found, might be syncing - retry
-            lastError = new Error('Collection still syncing...')
-            continue
-          } else {
-            let errText = 'Failed to update accepting'
-            try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
-            lastError = new Error(errText)
-            break
-          }
-        } catch (e) {
-          lastError = e
-          if (attempt === 3) break
-        }
-      }
-      
-      if (!success && lastError) {
-        throw lastError
-      }
-    } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.accepting
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
       })
-      showToast('Failed to update accepting', 'error')
+      
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to update accepting')
+      }
+      showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
+      await loadCollections()
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update accepting', 'error')
     } finally {
       setTogglingCollection(null)
     }
@@ -763,165 +419,43 @@ export function AdminPanel() {
     if (!collection) return
 
     setTogglingCollection(collectionId)
-    const effectiveCurrentRenewal = (localPendingCollectionChanges[collectionId]?.renewalEnabled !== undefined)
-      ? !!localPendingCollectionChanges[collectionId]?.renewalEnabled
-      : (collection.renewalEnabled ?? false)
-    const nextRenewal = !effectiveCurrentRenewal
-
-    setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), renewalEnabled: nextRenewal, _timestamp: Date.now() } }
-      try {
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      return next
-    })
+    const nextRenewal = !collection.renewalEnabled
 
     try {
-      // Try with retries for recently created collections
-      let lastError: any = null
-      let success = false
-      
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) {
-          // Wait before retry with exponential backoff
-          await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)))
-        }
-        
-        try {
-          const resp = await fetch('/api/registration-collections', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
-            body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
-          })
-          
-          if (resp.ok) {
-            success = true
-            try {
-              broadcast('collections', 'update', { id: collectionId })
-              localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-            } catch {}
-            showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
-            await loadCollections()
-            break
-          } else if (resp.status === 404 && attempt < 3) {
-            // Collection not found, might be syncing - retry
-            lastError = new Error('Collection still syncing...')
-            continue
-          } else {
-            let errText = 'Failed to update renewal'
-            try { const j = await resp.json(); if (j?.error) errText = j.error } catch {}
-            lastError = new Error(errText)
-            break
-          }
-        } catch (e) {
-          lastError = e
-          if (attempt === 3) break
-        }
-      }
-      
-      if (!success && lastError) {
-        throw lastError
-      }
-    } catch (err) {
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]?.renewalEnabled
-        if (Object.keys(revert[collectionId] || {}).length === 0) delete revert[collectionId]
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-        } catch {}
-        return revert
+      const resp = await fetch('/api/registration-collections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
       })
-      showToast('Failed to update renewal', 'error')
+      
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to update renewal')
+      }
+      showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
+      await loadCollections()
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update renewal', 'error')
     } finally {
       setTogglingCollection(null)
     }
   }
 
   const toggleCollectionEnabled = async (collectionId: string) => {
-    const toggleId = `TOGGLE-${collectionId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    console.log(JSON.stringify({ tag: 'collection-toggle', step: 'start', toggleId, collectionId }))
-    
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) {
+      showToast('Collection not found', 'error')
+      return
+    }
     if (!adminApiKey) {
       showToast('Set admin API key first', 'error')
       return
     }
-    // If it's a temp ID or the collection hasn't been confirmed by server yet, toggle locally only
-    const collection = collections.find(c => c.id === collectionId)
-    const isTemp = collectionId.startsWith('temp-col-') || (!collection && localPendingCollectionChanges[collectionId]?.created)
-    if (isTemp) {
-      const current = localPendingCollectionChanges[collectionId]?.enabled ?? false
-      const nextEnabled = !current
-      setLocalPendingCollectionChanges(prev => {
-        const next = { ...prev, [collectionId]: { ...(prev[collectionId]||{}), created: true, enabled: nextEnabled } }
-        try {
-          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-          broadcast('collections', 'update', { id: collectionId })
-          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        } catch {}
-        return next
-      })
-      showToast(`Collection will be ${nextEnabled ? 'enabled' : 'disabled'} once saved`) 
-      return
-    }
-    if (!collection) {
-      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'error', toggleId, message: 'collection-not-found', collectionId }))
-      return
-    }
 
     setTogglingCollection(collectionId)
-    // Determine effective current enabled state (prefer pending override over server snapshot)
-    const effectiveCurrentEnabled = (localPendingCollectionChanges[collectionId]?.enabled !== undefined)
-      ? !!localPendingCollectionChanges[collectionId]?.enabled
-      : !!collection.enabled
-    const nextEnabled = !effectiveCurrentEnabled
-    
-    console.log(JSON.stringify({ 
-      tag: 'collection-toggle', 
-      step: 'calc', 
-      toggleId, 
-      dbEnabled: !!collection.enabled, 
-      pendingEnabled: localPendingCollectionChanges[collectionId]?.enabled, 
-      effective: effectiveCurrentEnabled, 
-      next: nextEnabled 
-    }))
-
-    // Optimistically update localStorage immediately using functional updater to avoid stale closure
-    setLocalPendingCollectionChanges(prev => {
-      const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), enabled: nextEnabled } }
-      console.log(JSON.stringify({ 
-        tag: 'collection-toggle', 
-        step: 'local-save', 
-        toggleId, 
-        pending: next[collectionId],
-        allPendingIds: Object.keys(next)
-      }))
-      try {
-        localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-        localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-save-ok', toggleId }))
-      } catch (e) {
-        console.error(JSON.stringify({ tag: 'collection-toggle', step: 'local-save-fail', toggleId, error: String(e) }))
-      }
-      return next
-    })
-    
-    console.log(JSON.stringify({ tag: 'collection-toggle', step: 'patch-send', toggleId, nextEnabled }))
     try {
-      const apiStartTime = Date.now()
-      const resp = await fetch('/api/registration-collections', {
+      const nextEnabled = !collection.enabled
+      await fetch('/api/registration-collections', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -929,67 +463,12 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ id: collectionId, enabled: nextEnabled })
       })
-      const apiDuration = Date.now() - apiStartTime
-      console.log(JSON.stringify({ 
-        tag: 'collection-toggle', 
-        step: 'patch-response', 
-        toggleId, 
-        status: resp.status, 
-        duration: apiDuration 
-      }))
-      
-      if (!resp.ok) {
-        let errText = 'Failed to update collection'
-        try { const j = await resp.json(); if (j && j.error) errText = `${j.error}${j.detail ? ` (${j.detail})` : ''}` } catch {}
-        throw new Error(errText)
-      }
-      const data = await resp.json()
-      console.log(JSON.stringify({ 
-        tag: 'collection-toggle', 
-        step: 'patch-ok', 
-        toggleId, 
-        collection: { id: data.collection.id, enabled: data.collection.enabled } 
-      }))
-      // Do NOT immediately update collections state to avoid premature auto-clear
-      // Keep pending change in localStorage until a subsequent GET confirms the DB state matches
-      // This prevents showing stale DB state on reload due to eventual consistency
-      try {
-        broadcast('collections', 'update', { id: collectionId })
-        localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-      } catch {}
-      showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
-      // Immediately refresh collections to ensure auto-clear runs with fresh DB state
-      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'refresh-now', toggleId }))
       await loadCollections()
-      
-      // Broadcast to ClubsList to refresh if in Collection mode
-      try {
-        broadcast('clubs', 'refresh', { reason: 'collection-toggled' })
-      } catch {}
-    } catch (err) {
-      console.error(JSON.stringify({ tag: 'collection-toggle', step: 'patch-fail', toggleId, error: String(err) }))
-      // Revert on error using functional update to avoid clobbering subsequent rapid toggles
-      setLocalPendingCollectionChanges(prev => {
-        const revert = { ...prev }
-        delete revert[collectionId]
-        console.log(JSON.stringify({ tag: 'collection-toggle', step: 'local-revert', toggleId }))
-        try {
-          if (Object.keys(revert).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revert))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revert }))
-          }
-          broadcast('collections', 'update', { id: collectionId })
-          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        } catch {}
-        return revert
-      })
-      showToast('Failed to update collection', 'error')
+      showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update collection', 'error')
     } finally {
       setTogglingCollection(null)
-      console.log(JSON.stringify({ tag: 'collection-toggle', step: 'complete', toggleId }))
     }
   }
 
@@ -999,39 +478,7 @@ export function AdminPanel() {
       return
     }
 
-    // If it's a temp/pending-created collection, just clear it locally
-    if (collectionId.startsWith('temp-col-') || localPendingCollectionChanges[collectionId]?.created) {
-      const ok = await confirm({
-        title: 'Cancel Collection Creation',
-        message: 'Cancel creating this collection?',
-        confirmText: 'Yes',
-        cancelText: 'No',
-        variant: 'danger',
-      })
-      if (!ok) return
-
-      setLocalPendingCollectionChanges(prev => {
-        const rest = { ...prev }
-        delete rest[collectionId]
-        try {
-          if (Object.keys(rest).length === 0) {
-            localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-            localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-          } else {
-            localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(rest))
-            localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: rest }))
-          }
-          broadcast('collections', 'update', { id: collectionId })
-          localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-        } catch {}
-        return rest
-      })
-      if (activeCollectionId === collectionId) setActiveCollectionId(null)
-      showToast('New collection creation canceled')
-      return
-    }
-
-    // For real collections, check how many registrations it has
+    // Check registration count
     let registrationCount = 0
     try {
       const resp = await fetch(`/api/registrations/${collectionId}`, {
@@ -1052,33 +499,14 @@ export function AdminPanel() {
     }
     confirmMessage += '\n\nThis cannot be undone.'
 
-    {
-      const ok = await confirm({
-        title: 'Delete Collection',
-        message: confirmMessage,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        variant: 'danger',
-      })
-      if (!ok) return
-    }
-
-    // Mark as deleted in local pending changes (do not mutate server snapshot yet)
-    const newPending = { ...localPendingCollectionChanges, [collectionId]: { deleted: true } }
-    setLocalPendingCollectionChanges(newPending)
-    try {
-      localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(newPending))
-      localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      broadcast('collections', 'update', { id: collectionId })
-      localStorage.setItem('montyclub:collectionsUpdated', JSON.stringify({ id: collectionId, t: Date.now() }))
-    } catch {}
-
-    // Adjust active collection immediately if needed (choose an enabled non-deleted replacement)
-    if (activeCollectionId === collectionId) {
-      const replacement = collections.find(c => c.id !== collectionId && !newPending[c.id]?.deleted && c.enabled) ||
-        collections.find(c => c.id !== collectionId && !newPending[c.id]?.deleted) || null
-      setActiveCollectionId(replacement ? replacement.id : null)
-    }
+    const ok = await confirm({
+      title: 'Delete Collection',
+      message: confirmMessage,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+    if (!ok) return
 
     try {
       const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=false`, {
@@ -1089,33 +517,17 @@ export function AdminPanel() {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to delete collection')
       }
-      showToast('Deletion requested. Syncing…', 'info')
-      // Poll until collection disappears from server snapshot (eventual consistency)
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise(r => setTimeout(r, 200 * (attempt + 1)))
-        await loadCollections()
-        const stillExists = collections.some(c => c.id === collectionId)
-        if (!stillExists) {
-          showToast('Collection deleted')
-          break
-        } else if (attempt === 4) {
-          showToast('Still pending deletion; will clear automatically when server updates', 'info')
-        }
+
+      // Adjust active collection immediately if needed
+      if (activeCollectionId === collectionId) {
+        const replacement = collections.find(c => c.id !== collectionId && c.enabled) ||
+          collections.find(c => c.id !== collectionId) || null
+        setActiveCollectionId(replacement ? replacement.id : null)
       }
+
+      showToast('Collection deleted')
+      await loadCollections()
     } catch (err: any) {
-      // Revert local pending deletion
-      const revertPending = { ...localPendingCollectionChanges }
-      delete revertPending[collectionId]
-      setLocalPendingCollectionChanges(revertPending)
-      try {
-        if (Object.keys(revertPending).length === 0) {
-          localStorage.removeItem(COLLECTIONS_PENDING_KEY)
-          localStorage.removeItem(COLLECTIONS_BACKUP_KEY)
-        } else {
-          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(revertPending))
-          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: revertPending }))
-        }
-      } catch {}
       showToast(err.message || 'Failed to delete collection', 'error')
     }
   }
@@ -1157,16 +569,6 @@ export function AdminPanel() {
       const data = await resp.json()
       showToast(`Collection renamed to "${data.collection.name}"`)
       
-      // Optimistically update pending changes
-      setLocalPendingCollectionChanges(prev => {
-        const next = { ...prev, [collectionId]: { ...(prev[collectionId] || {}), name: data.collection.name } }
-        try {
-          localStorage.setItem(COLLECTIONS_PENDING_KEY, JSON.stringify(next))
-          localStorage.setItem(COLLECTIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: next }))
-        } catch {}
-        return next
-      })
-
       setEditingCollectionId(null)
       setEditingCollectionName('')
       
@@ -1389,9 +791,6 @@ export function AdminPanel() {
 
     return () => {
       cleanup()
-      if (collectionsRefreshTimerRef.current) {
-        clearTimeout(collectionsRefreshTimerRef.current)
-      }
     }
   }, [])
 
@@ -3530,18 +2929,14 @@ export function AdminPanel() {
     setActiveSection(section)
     if (section === 'registrations' && !activeCollectionId && collections.length > 0) {
       // Prioritize display collection when navigating to registrations
-      const displayCol = collections.find(c => c.display && !localPendingCollectionChanges[c.id]?.deleted)
-      const enabledCol = collections.find(c => c.enabled && !localPendingCollectionChanges[c.id]?.deleted)
+      const displayCol = collections.find(c => c.display)
+      const enabledCol = collections.find(c => c.enabled)
       setActiveCollectionId(displayCol?.id || enabledCol?.id || collections[0].id)
     }
   }
 
   const getImportableCollections = () => {
-    return collections.filter(collection => {
-      if (collection.id.startsWith('temp-col-')) return false
-      if (localPendingCollectionChanges[collection.id]?.deleted) return false
-      return true
-    })
+    return collections.filter(collection => !collection.id.startsWith('temp-col-'))
   }
 
   // Helper to select Excel file and prompt for import mode
@@ -3788,18 +3183,16 @@ export function AdminPanel() {
 
                 {/* Collections List */}
                 <div className="space-y-3">
-                  {collections.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
+                  {collections.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
                       No collections yet. Create one above to get started.
                     </p>
                   ) : (
                     collections
-                      .filter(c => !localPendingCollectionChanges[c.id]?.deleted)
                       .map((collection) => {
                         const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
                         const isAccepting = collection.accepting ?? collection.enabled ?? false
                         const isRenewal = collection.renewalEnabled ?? false
-                        const isPending = localPendingCollectionChanges[collection.id]
                         
                         return (
                           <div
@@ -3831,9 +3224,6 @@ export function AdminPanel() {
                                     <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                       Renewal
                                     </span>
-                                  )}
-                                  {isPending && (
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 italic">Syncing...</span>
                                   )}
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -3934,13 +3324,10 @@ export function AdminPanel() {
                     collections={collections}
                     adminApiKey={adminApiKey}
                     collectionSlug={(() => {
-                      const pending = localPendingCollectionChanges[activeCollectionId]
-                      const baseName = pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
-                      return slugifyName(baseName)
+                      return slugifyName(collections.find(c => c.id === activeCollectionId)?.name || '')
                     })()}
                     collectionName={(() => {
-                      const pending = localPendingCollectionChanges[activeCollectionId]
-                      return pending?.name || (collections.find(c => c.id === activeCollectionId)?.name || '')
+                      return collections.find(c => c.id === activeCollectionId)?.name || ''
                     })()}
                     onActionComplete={handleRegistrationActionComplete}
                   />
@@ -4271,11 +3658,9 @@ export function AdminPanel() {
                     {(() => {
                       const colId = activeCollectionId!
                       const collection = collections.find(c => c.id === colId)
-                      const pending = localPendingCollectionChanges[colId]
-                      const isAccepting = pending?.accepting !== undefined ? pending.accepting : (collection?.accepting ?? collection?.enabled ?? false)
+                      const isAccepting = collection?.accepting ?? collection?.enabled ?? false
                       const isRenewalEnabled = collection?.renewalEnabled ?? false
-                      const baseName = pending?.name || (collection?.name || '')
-                      const slug = slugifyName(baseName)
+                      const slug = slugifyName(collection?.name || '')
                       const origin = typeof window !== 'undefined' ? window.location.origin : ''
                       
                       return (
@@ -4367,35 +3752,10 @@ export function AdminPanel() {
                   {/* Collections List */}
                   <div className="space-y-2 mb-4">
                     {(() => {
-                      const overlayed = (() => {
-                        const map = new Map<string, RegistrationCollection>()
-                        for (const c of collections) map.set(c.id, { ...c })
-                        for (const [id, change] of Object.entries(localPendingCollectionChanges)) {
-                          if (change.deleted) { map.delete(id); continue }
-                          if (change.created) {
-                            if (!map.has(id)) {
-                              map.set(id, {
-                                id,
-                                name: change.name || 'New Collection',
-                                enabled: change.enabled ?? false,
-                                display: change.display ?? false,
-                                accepting: change.accepting ?? false,
-                                createdAt: new Date().toISOString()
-                              })
-                            }
-                          }
-                          const obj = map.get(id)!
-                          if (obj && change.enabled !== undefined) obj.enabled = Boolean(change.enabled)
-                          if (obj && change.display !== undefined) obj.display = Boolean(change.display)
-                          if (obj && change.accepting !== undefined) obj.accepting = Boolean(change.accepting)
-                          if (obj && change.name) obj.name = String(change.name)
-                        }
-                        return Array.from(map.values())
-                      })()
-                      return overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).length === 0 ? (
+                      return collections.length === 0 ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400 italic">No collections yet. Create one above.</p>
                       ) : (
-                        <>{overlayed.filter(c => !localPendingCollectionChanges[c.id]?.deleted).map((collection) => (
+                        <>{collections.map((collection) => (
                           <div
                             key={collection.id}
                             onClick={() => setActiveCollectionId(collection.id)}
@@ -4423,9 +3783,6 @@ export function AdminPanel() {
                                       </>
                                     )
                                   })()}
-                                  {(localPendingCollectionChanges[collection.id]?.created || localPendingCollectionChanges[collection.id]?.enabled !== undefined || localPendingCollectionChanges[collection.id]?.display !== undefined || localPendingCollectionChanges[collection.id]?.accepting !== undefined || localPendingCollectionChanges[collection.id]?.deleted) && (
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 italic ml-1">Syncing...</span>
-                                  )}
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Created {new Date(collection.createdAt).toLocaleDateString()}</p>
                                 {(() => {
@@ -4474,11 +3831,7 @@ export function AdminPanel() {
                                     <input
                                       type="radio"
                                       name="displayCollection"
-                                      checked={(() => {
-                                        const pending = localPendingCollectionChanges[collection.id]?.display
-                                        if (pending !== undefined) return pending
-                                        return collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                                      })()}
+                                      checked={collection.display || (!collection.display && !collection.accepting && collection.enabled)}
                                       onChange={() => toggleCollectionDisplay(collection.id)}
                                       disabled={togglingCollection === collection.id}
                                       className="w-3.5 h-3.5"
@@ -4491,11 +3844,7 @@ export function AdminPanel() {
                                   <div className="flex items-center gap-2 text-xs">
                                     <span className="text-gray-700 dark:text-gray-300">Enable</span>
                                     <Toggle
-                                      checked={(() => {
-                                        const pending = localPendingCollectionChanges[collection.id]?.accepting
-                                        if (pending !== undefined) return pending
-                                        return collection.accepting ?? collection.enabled ?? false
-                                      })()}
+                                      checked={collection.accepting ?? collection.enabled ?? false}
                                       onChange={() => toggleCollectionAccepting(collection.id)}
                                       disabled={togglingCollection === collection.id}
                                     />
@@ -4506,11 +3855,7 @@ export function AdminPanel() {
                                   <div className="flex items-center gap-2 text-xs">
                                     <span className="text-gray-700 dark:text-gray-300">Enable</span>
                                     <Toggle
-                                      checked={(() => {
-                                        const pending = localPendingCollectionChanges[collection.id]?.renewalEnabled
-                                        if (pending !== undefined) return pending
-                                        return collection.renewalEnabled ?? false
-                                      })()}
+                                      checked={collection.renewalEnabled ?? false}
                                       onChange={() => toggleCollectionRenewal(collection.id)}
                                       disabled={togglingCollection === collection.id}
                                     />
@@ -4543,17 +3888,14 @@ export function AdminPanel() {
 
                 <RegistrationsList 
                 adminApiKey={adminApiKey} 
-                collectionSlug={( (() => {
-                  const colId = activeCollectionId!
-                  const pending = localPendingCollectionChanges[colId]
-                  const baseName = pending?.name || (collections.find(c => c.id === colId)?.name || '')
-                  return slugifyName(baseName)
-                })() )}
-                collectionName={( (() => {
-                  const colId = activeCollectionId!
-                  const pending = localPendingCollectionChanges[colId]
-                  return pending?.name || (collections.find(c => c.id === colId)?.name || '')
-                })() )}
+                collectionSlug={(() => {
+                  const collection = collections.find(c => c.id === activeCollectionId)
+                  return collection ? slugifyName(collection.name) : ''
+                })()}
+                collectionName={(() => {
+                  const collection = collections.find(c => c.id === activeCollectionId)
+                  return collection?.name || ''
+                })()}
                 collectionId={activeCollectionId || ''}
                 collections={collections}
                 onActionComplete={handleRegistrationActionComplete}

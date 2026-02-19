@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import * as ExcelJS from 'exceljs'
-import { listPaths, readJSONFromStorage, removePaths, writeJSONToStorage } from '@/lib/supabase'
-import { RegistrationCollection, ClubRegistration } from '@/types/club'
+import { listCollections } from '@/lib/collections-db'
+import { createRegistration, listRegistrations, deleteRegistration } from '@/lib/registrations-db'
+import { ClubRegistration } from '@/types/club'
 import { parseExcelToRegistrations } from '@/lib/clubs'
 import { nanoid } from 'nanoid'
 
@@ -35,31 +36,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // OPTIMISTIC: Don't wait for collection verification
-    // The collectionId comes from the admin panel (trusted client state)
-    // Registrations are stored under registrations/{collectionId}/* 
-    // Once the collection syncs to the server, its registrations will be visible
-    // This provides instant feedback even if database hasn't caught up yet
-    let collectionName = 'Unknown Collection'
-    
-    // Fetch collection name asynchronously (don't block on this)
-    readJSONFromStorage('settings/registration-collections.json')
-      .then(collectionsData => {
-        const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
-        const found = collections.find((c: RegistrationCollection) => c.id === collectionId)
-        if (found) collectionName = found.name
-      })
-      .catch(() => {
-        // Silently ignore errors - we'll use the default name
-      })
+    // Get collection to verify it exists and get its name
+    const collections = await listCollections()
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection) {
+      return NextResponse.json(
+        { error: 'Collection not found' },
+        { status: 404 }
+      )
+    }
 
-    // Parse Excel file with streaming for large files
+    // Parse Excel file
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const workbook = new ExcelJS.Workbook()
     
-    // Use memory-efficient streaming for large files
-    // Set maxRowCount to prevent unbounded memory usage
     await workbook.xlsx.load(buffer as any)
     
     const worksheet = workbook.worksheets[0]
@@ -71,7 +62,6 @@ export async function POST(request: Request) {
     }
 
     // Convert worksheet to array of rows
-    // For large files, this chunks processing to avoid memory spikes
     const rows: any[][] = []
     worksheet.eachRow((row, rowNumber) => {
       const rowData: any[] = []
@@ -99,52 +89,36 @@ export async function POST(request: Request) {
       )
     }
 
-    // If replace mode, clear existing registrations first
+    // If replace mode, delete existing registrations for this collection
     let removedCount = 0
     if (importMode === 'replace') {
-      const existingPaths = await listPaths(`registrations/${collectionId}`)
-      if (existingPaths.length > 0) {
-        const removed = await removePaths(existingPaths)
-        removedCount = removed.removed || 0
+      try {
+        const existingRegs = await listRegistrations({ collectionId })
+        removedCount = existingRegs.length
+        
+        // Delete all existing registrations for this collection
+        for (const reg of existingRegs) {
+          await deleteRegistration(reg.id)
+        }
+      } catch (err) {
+        console.error('Error deleting existing registrations:', err)
+        // Continue anyway - the new ones will be added
       }
     }
 
-    // Create registrations in the collection with optimized batching
+    // Insert registrations into Postgres
     let successCount = 0
     let errorCount = 0
     const errors: string[] = []
     
-    // Helper function to write with retry logic and exponential backoff
-    const writeWithRetry = async (path: string, data: any, retries = 3): Promise<boolean> => {
-      for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-          await writeJSONToStorage(path, data)
-          return true
-        } catch (err: any) {
-          const is502 = err?.originalError?.status === 502 || err?.message?.includes('502')
-          const isRateLimit = err?.originalError?.status === 429 || err?.message?.includes('429')
-          
-          if ((is502 || isRateLimit) && attempt < retries) {
-            // Exponential backoff: 1s, 2s, 3s
-            const delayMs = Math.min(1000 * attempt, 3000)
-            await new Promise(resolve => setTimeout(resolve, delayMs))
-            continue
-          }
-          throw err
-        }
-      }
-      return false
-    }
-    
     // Process in optimized batches based on file size
-    // Larger batches for smaller files, smaller batches for larger files
     const batchSize = Math.max(3, Math.min(10, Math.ceil(100 / Math.sqrt(registrations.length))))
     const interBatchDelayMs = registrations.length > 100 ? 300 : 100
     
     for (let i = 0; i < registrations.length; i += batchSize) {
       const batch = registrations.slice(i, i + batchSize)
       
-      // Process batch in parallel but with controlled concurrency
+      // Process batch in parallel
       const batchPromises = batch.map(async (regData) => {
         try {
           const registration: ClubRegistration = {
@@ -169,7 +143,7 @@ export async function POST(request: Request) {
             approvedAt: new Date().toISOString(),
           }
 
-          await writeWithRetry(`registrations/${collectionId}/${registration.id}.json`, registration)
+          await createRegistration(registration)
           successCount++
         } catch (err) {
           console.error('Error creating registration:', err)
@@ -187,7 +161,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: `Imported ${successCount} clubs into ${collectionName}${importMode === 'replace' ? ` (replaced ${removedCount} existing)` : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+      message: `Imported ${successCount} clubs into ${collection.name}${importMode === 'replace' ? ` (replaced ${removedCount} existing)` : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       successCount,
       errorCount,
       totalProcessed: registrations.length,

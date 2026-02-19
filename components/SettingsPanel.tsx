@@ -6,7 +6,6 @@ import { RegistrationCollection } from '@/types/club'
 
 interface SettingsPanelProps {
   collections: RegistrationCollection[]
-  localPendingCollectionChanges: Record<string, any>
   toggleCollectionDisplay: (id: string) => void
   toggleCollectionAccepting: (id: string) => void
   toggleCollectionRenewal: (id: string) => void
@@ -25,7 +24,6 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({
   collections,
-  localPendingCollectionChanges,
   toggleCollectionDisplay,
   toggleCollectionAccepting,
   toggleCollectionRenewal,
