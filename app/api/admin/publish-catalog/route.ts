@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeJSONToStorage, readJSONFromStorage, listPaths } from '@/lib/supabase'
-import { ClubRegistration, RegistrationCollection, Club } from '@/types/club'
+import { writeJSONToStorage, readJSONFromStorage } from '@/lib/supabase'
+import { Club } from '@/types/club'
 import { invalidateClubsCache } from '@/lib/cache-utils'
 import { withSnapshotLock } from '@/lib/snapshot-lock'
+import { listCollections, ensureSingleDisplay } from '@/lib/collections-db'
+import { listRegistrations } from '@/lib/registrations-db'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Admin endpoint to publish a static catalog snapshot
- * Generates clubs-snapshot.json from approved registrations
+ * Generates clubs-snapshot.json from approved registrations in Postgres
  * This provides instant loading without scanning 100+ registration files
  */
 export async function POST(request: NextRequest) {
@@ -36,29 +38,31 @@ export async function POST(request: NextRequest) {
 
     // Wrap entire publish in snapshot lock to prevent concurrent publishes
     return await withSnapshotLock(async () => {
-      // 1. Get the display collection
-      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-      const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
-      const displayCollection = collections.find(c => c.display) || collections.find(c => c.enabled)
+      // 1. Get collections from Postgres
+      const collections = await listCollections()
+      console.log(`[Publish Catalog] Found ${collections.length} collections`, collections.map(c => ({ id: c.id, name: c.name, display: c.display })))
+      
+      let displayCollection = collections.find(c => c.display)
+      
+      // If no collection marked as display, auto-set the first one
+      if (!displayCollection && collections.length > 0) {
+        console.log(`[Publish Catalog] No display collection found. Auto-setting first collection as display.`)
+        await ensureSingleDisplay(collections[0].id)
+        displayCollection = collections[0]
+        displayCollection.display = true
+      }
       
       if (!displayCollection) {
-        throw new Error('No display collection found')
+        throw new Error('No collections found. Create a collection first.')
       }
 
       console.log(`[Publish Catalog] Using collection: ${displayCollection.name}`)
 
-      // 2. List and read all registrations (same logic as fetchClubsFromCollection)
-      const regPaths = await listPaths(`registrations/${displayCollection.id}`)
-      const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
-      
-      console.log(`[Publish Catalog] Found ${jsonPaths.length} registration files`)
-
-      const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
-      const allRegs = await Promise.all(registrationPromises)
-      
-      const registrations: ClubRegistration[] = allRegs.filter(
-        reg => reg && typeof reg === 'object' && reg.status === 'approved'
-      )
+      // 2. Get approved registrations from Postgres for this collection
+      const registrations = await listRegistrations({ 
+        collectionId: displayCollection.id,
+        status: 'approved'
+      })
 
       console.log(`[Publish Catalog] Found ${registrations.length} approved registrations`)
 
@@ -166,3 +170,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
