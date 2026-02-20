@@ -59,12 +59,25 @@ export async function POST(request: NextRequest) {
       console.log(`[Publish Catalog] Using collection: ${displayCollection.name}`)
 
       // 2. Get approved registrations from Postgres for this collection
+      console.log(`[Publish Catalog] Querying registrations with collectionId: ${displayCollection.id} (type: ${typeof displayCollection.id})`)
       const registrations = await listRegistrations({ 
         collectionId: displayCollection.id,
         status: 'approved'
       })
 
       console.log(`[Publish Catalog] Found ${registrations.length} approved registrations`)
+      if (registrations.length === 0) {
+        // Debug: fetch ALL registrations to see what's in the DB
+        const allRegs = await listRegistrations({})
+        console.log(`[Publish Catalog] DEBUG: Total registrations in DB: ${allRegs.length}`)
+        const otherCollectionRegs = allRegs.filter(r => r.collectionId !== displayCollection.id)
+        console.log(`[Publish Catalog] DEBUG: Registrations in other collections: ${otherCollectionRegs.length}`)
+        const thisCollectionRegs = allRegs.filter(r => r.collectionId === displayCollection.id)
+        console.log(`[Publish Catalog] DEBUG: Registrations in THIS collection: ${thisCollectionRegs.length}`)
+        if (thisCollectionRegs.length > 0) {
+          console.log(`[Publish Catalog] DEBUG: Statuses in this collection: ${JSON.stringify(thisCollectionRegs.map(r => r.status))}`)
+        }
+      }
 
       // 3. Sort by approvedAt (newest first)
       registrations.sort((a, b) => {

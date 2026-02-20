@@ -38,13 +38,17 @@ export async function POST(request: Request) {
 
     // Get collection to verify it exists and get its name
     const collections = await listCollections()
+    console.log(`[Upload Excel] Found ${collections.length} collections`)
     const collection = collections.find(c => c.id === collectionId)
     if (!collection) {
+      console.error(`[Upload Excel] Collection not found with ID: "${collectionId}". Available IDs:`, collections.map(c => c.id))
       return NextResponse.json(
         { error: 'Collection not found' },
         { status: 404 }
       )
     }
+
+    console.log(`[Upload Excel] Using collection: ${collection.name} (ID: ${collection.id})`)
 
     // Parse Excel file
     const bytes = await file.arrayBuffer()
@@ -111,9 +115,13 @@ export async function POST(request: Request) {
     let errorCount = 0
     const errors: string[] = []
     
+    console.log(`[Upload Excel] Starting import of ${registrations.length} registrations in batches`)
+    
     // Process in optimized batches based on file size
     const batchSize = Math.max(3, Math.min(10, Math.ceil(100 / Math.sqrt(registrations.length))))
     const interBatchDelayMs = registrations.length > 100 ? 300 : 100
+    
+    console.log(`[Upload Excel] Batch size: ${batchSize}, inter-batch delay: ${interBatchDelayMs}ms`)
     
     for (let i = 0; i < registrations.length; i += batchSize) {
       const batch = registrations.slice(i, i + batchSize)
@@ -154,12 +162,25 @@ export async function POST(request: Request) {
       
       await Promise.all(batchPromises)
       
+      console.log(`[Upload Excel] Batch complete: success=${successCount}, errors=${errorCount}`)
+      
       // Delay between batches to avoid rate limiting (but not after last batch)
       if (i + batchSize < registrations.length) {
         await new Promise(resolve => setTimeout(resolve, interBatchDelayMs))
       }
     }
 
+    // Verify registrations were actually saved
+    let verifyRegs: typeof registrations = []
+    let verifyError: string | null = null
+    try {
+      verifyRegs = await listRegistrations({ collectionId })
+      console.log(`[Upload Excel] Verification: found ${verifyRegs.length} total registrations in collection (${verifyRegs.filter(r => r.status === 'approved').length} approved)`)
+    } catch (err) {
+      verifyError = String(err)
+      console.error('[Upload Excel] Failed to verify registrations:', err)
+    }
+    
     return NextResponse.json({
       message: `Imported ${successCount} clubs into ${collection.name}${importMode === 'replace' ? ` (replaced ${removedCount} existing)` : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
       successCount,
@@ -167,7 +188,14 @@ export async function POST(request: Request) {
       totalProcessed: registrations.length,
       importMode,
       removedCount,
-      errors: errorCount > 0 ? errors.slice(0, 5) : undefined // Include first 5 errors if any
+      errors: errorCount > 0 ? errors.slice(0, 5) : undefined, // Include first 5 errors if any
+      verification: {
+        totalInCollection: verifyRegs.length,
+        approvedInCollection: verifyRegs.filter(r => r.status === 'approved').length,
+        regsWithoutCollectionId: successCount > 0 ? registrations.slice(0, 1).map(r => r.collectionId) : [], // Debug: show collection ID
+        verifyError: verifyError || undefined,
+        searchedCollectionId: collectionId, // Let user see what collection ID we searched for
+      }
     })
   } catch (error) {
     console.error('Error importing Excel file:', error)
