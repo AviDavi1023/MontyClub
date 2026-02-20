@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readJSONFromStorage, writeJSONToStorage, listPaths } from '@/lib/supabase'
-import { ClubRegistration, RegistrationCollection, Club } from '@/types/club'
+import { readJSONFromStorage, writeJSONToStorage } from '@/lib/supabase'
+import { Club } from '@/types/club'
+import { listCollections } from '@/lib/collections-db'
+import { listRegistrations } from '@/lib/registrations-db'
 import { withSnapshotLock } from '@/lib/snapshot-lock'
 import { invalidateClubsCache } from '@/lib/cache-utils'
 
@@ -8,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET: Check snapshot status (exists, timestamp, club count)
- * POST: Manually trigger snapshot publish
+ * POST: Manually trigger snapshot publish using Postgres data
  */
 
 export async function GET(request: NextRequest) {
@@ -68,34 +70,24 @@ export async function POST(request: NextRequest) {
 
     // Wrap entire publish in snapshot lock to prevent concurrent publishes
     return await withSnapshotLock(async () => {
-      // Get the display collection - read directly from Supabase for consistency
-      const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-      const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
-      // IMPORTANT: Only use the explicitly selected display collection.
-      // Do not fall back to an enabled/accepting collection, which can cause publishing from the wrong source.
+      // Get display collection from Postgres
+      const collections = await listCollections()
       const displayCollection = collections.find(c => c.display)
 
       if (!displayCollection) {
-        console.warn('[Snapshot] No display collection found for snapshot. Collections state:', collections.map(c => ({ id: c.id, name: c.name, display: c.display, enabled: (c as any).enabled, accepting: (c as any).accepting })))
+        console.warn('[Snapshot] No display collection found for snapshot')
         throw new Error('No display collection configured. Please select a collection as "Public Catalog" in Settings.')
       }
 
       console.log(`[Snapshot] Publishing from collection: ${displayCollection.name} (${displayCollection.id})`)
 
-      // List and read all registrations
-      const regPaths = await listPaths(`registrations/${displayCollection.id}`)
-      const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+      // Get approved registrations from Postgres
+      const registrations = await listRegistrations({ 
+        collectionId: displayCollection.id,
+        status: 'approved'
+      })
 
-      console.log(`[Snapshot] Found ${jsonPaths.length} registration files to process`)
-
-      const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
-      const allRegs = await Promise.all(registrationPromises)
-
-      const registrations: ClubRegistration[] = allRegs.filter(
-        reg => reg && typeof reg === 'object' && reg.status === 'approved'
-      )
-
-      console.log(`[Snapshot] Filtered to ${registrations.length} approved registrations`)
+      console.log(`[Snapshot] Found ${registrations.length} approved registrations`)
 
       // Sort by approvedAt (newest first)
       registrations.sort((a, b) => {
@@ -123,7 +115,7 @@ export async function POST(request: NextRequest) {
         keywords: [],
       }))
 
-      // Merge admin-managed announcements (if enabled) - read directly from Supabase for fresh data
+      // Merge admin-managed announcements (if enabled)
       try {
         const settingsData = await readJSONFromStorage('settings/settings.json')
         const settings = settingsData || { announcementsEnabled: true }
@@ -146,8 +138,6 @@ export async function POST(request: NextRequest) {
           }
 
           console.log(`[Snapshot] Merging ${Object.keys(map).length} announcements into snapshot`)
-          
-          // Merge announcements where club id matches
           // IMPORTANT: Only try exact string match, not numeric conversion
           // Club IDs are always strings, and converting "ABC123" to Number yields NaN
           clubs.forEach((c) => {

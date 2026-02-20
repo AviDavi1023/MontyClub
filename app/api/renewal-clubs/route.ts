@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { listPaths, readJSONFromStorage } from '@/lib/supabase'
-import { ClubRegistration } from '@/types/club'
+import { listRegistrations } from '@/lib/registrations-db'
 import { readData } from '@/lib/runtime-store'
 
 export const dynamic = 'force-dynamic'
@@ -23,8 +22,8 @@ export async function GET(request: Request) {
     const sourceCollections = collectionSettings?.sourceCollections || []
     console.log('[Renewal API] Source collections for', collectionId, ':', sourceCollections)
     
-    // Fetch approved clubs from configured source collections
-    const allClubs: ClubRegistration[] = []
+    // Fetch approved clubs from configured source collections using Postgres
+    const allClubs: any[] = []
     const MAX_CLUBS = 500 // Limit to prevent excessive loading
     
     try {
@@ -43,7 +42,7 @@ export async function GET(request: Request) {
         }
       }
 
-      // Fetch clubs from each collection
+      // Fetch approved clubs from each collection
       for (const loopCollectionId of collectionIds) {
         if (allClubs.length >= MAX_CLUBS) {
           console.log('[Renewal API] Reached MAX_CLUBS limit:', MAX_CLUBS)
@@ -52,35 +51,23 @@ export async function GET(request: Request) {
         
         try {
           console.log('[Renewal API] Fetching clubs from collection:', loopCollectionId)
-          const paths = await listPaths(`registrations/${loopCollectionId}/`)
-          console.log('[Renewal API] Found paths in', loopCollectionId, ':', paths.length)
           
-          const jsonPaths = paths.filter(p => p.endsWith('.json')).slice(0, MAX_CLUBS - allClubs.length)
-          console.log('[Renewal API] JSON files in', loopCollectionId, ':', jsonPaths.length)
+          // Query Postgres for approved registrations in this collection
+          const registrations = await listRegistrations({ 
+            collectionId: loopCollectionId,
+            status: 'approved'
+          })
           
-          // Parallel read for performance
-          const registrations = await Promise.all(
-            jsonPaths.map(path => readJSONFromStorage(path).catch(() => null))
-          )
+          console.log('[Renewal API] Approved clubs in', loopCollectionId, ':', registrations.length)
           
-          console.log('[Renewal API] Loaded registrations from', loopCollectionId, ':', registrations.length)
-          
-          // Only include approved registrations and filter out null errors
-          const approvedClubs = registrations
-            .filter((reg): reg is ClubRegistration => 
-              reg !== null && reg && reg.status === 'approved'
-            )
-          
-          console.log('[Renewal API] Approved clubs in', loopCollectionId, ':', approvedClubs.length)
-          
-          allClubs.push(...approvedClubs)
+          allClubs.push(...registrations.slice(0, MAX_CLUBS - allClubs.length))
         } catch (err) {
           console.error(`[Renewal API] Failed to load renewal clubs from collection ${loopCollectionId}:`, err)
           // Continue with other collections on error
         }
       }
     } catch (err) {
-      console.error('[Renewal API] Failed to list collection directories:', err)
+      console.error('[Renewal API] Error fetching renewal clubs:', err)
     }
 
     console.log('[Renewal API] Total clubs collected:', allClubs.length)
@@ -98,10 +85,13 @@ export async function GET(request: Request) {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0',
-      },
+      }
     })
   } catch (err) {
-    console.error('[Renewal API] Exception in GET /api/renewal-clubs:', err)
-    return NextResponse.json({ error: 'Failed to fetch renewal clubs', clubs: [] }, { status: 500 })
+    console.error('[Renewal API] Error:', err)
+    return NextResponse.json(
+      { error: 'Failed to fetch renewal clubs', detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    )
   }
 }

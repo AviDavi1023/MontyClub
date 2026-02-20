@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readJSONFromStorage } from '@/lib/supabase'
-import { RegistrationCollection, ClubRegistration } from '@/types/club'
+import { listCollections } from '@/lib/collections-db'
+import { listRegistrations } from '@/lib/registrations-db'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/admin/dashboard-summary
- * Aggregates dashboard metrics across all collections in a single call
+ * Aggregates dashboard metrics from Postgres
  * 
  * Returns: {
  *   collections: RegistrationCollection[],
@@ -18,8 +18,6 @@ export const dynamic = 'force-dynamic'
  *   totalRejected: number,
  *   timestamp: string
  * }
- * 
- * Replaces N individual API calls with a single aggregated call
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,9 +31,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch collections
-    const collectionsData = await readJSONFromStorage('settings/registration-collections.json')
-    const collections: RegistrationCollection[] = Array.isArray(collectionsData) ? collectionsData : []
+    // Fetch all collections and registrations from Postgres
+    const collections = await listCollections()
+    const allRegistrations = await listRegistrations({})
 
     const pendingCounts: Record<string, number> = {}
     const approvedCounts: Record<string, number> = {}
@@ -47,34 +45,25 @@ export async function GET(request: NextRequest) {
 
     // Count registrations for each collection
     for (const collection of collections) {
-      try {
-        const registrationsData = await readJSONFromStorage(`registrations/${collection.id}/index.json`)
-        
-        let pending = 0
-        let approved = 0
-        let rejected = 0
+      const colRegs = allRegistrations.filter(r => r.collectionId === collection.id)
+      
+      let pending = 0
+      let approved = 0
+      let rejected = 0
 
-        if (registrationsData && Array.isArray(registrationsData)) {
-          for (const reg of registrationsData) {
-            if (reg.status === 'pending') pending++
-            else if (reg.status === 'approved') approved++
-            else if (reg.status === 'rejected') rejected++
-          }
-        }
-
-        pendingCounts[collection.id] = pending
-        approvedCounts[collection.id] = approved
-        rejectedCounts[collection.id] = rejected
-
-        totalPending += pending
-        totalApproved += approved
-        totalRejected += rejected
-      } catch (err) {
-        // Collection has no registrations file yet
-        pendingCounts[collection.id] = 0
-        approvedCounts[collection.id] = 0
-        rejectedCounts[collection.id] = 0
+      for (const reg of colRegs) {
+        if (reg.status === 'pending') pending++
+        else if (reg.status === 'approved') approved++
+        else if (reg.status === 'rejected') rejected++
       }
+
+      pendingCounts[collection.id] = pending
+      approvedCounts[collection.id] = approved
+      rejectedCounts[collection.id] = rejected
+
+      totalPending += pending
+      totalApproved += approved
+      totalRejected += rejected
     }
 
     return NextResponse.json(
@@ -99,7 +88,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[DashboardSummary] Error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard summary' },
+      { error: 'Internal server error', detail: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
