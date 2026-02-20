@@ -201,6 +201,16 @@ export function AdminPanel() {
   // Registration collections panel collapsed state
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
 
+  // Helper to handle 401 (Unauthorized) responses
+  const handle401Error = (context: string) => {
+    console.error(`[${context}] Received 401 - API key is invalid or stale`)
+    try { localStorage.removeItem('analytics:adminKey') } catch {}
+    setAdminApiKey('')
+    setIsAuthenticated(false)
+    setShowApiKeyPrompt(true)
+    showToast('Your API key expired or is invalid. Please re-enter it.', 'error')
+  }
+
   // Load admin API key from localStorage and pre-fill login form
   useEffect(() => {
     try {
@@ -255,12 +265,17 @@ export function AdminPanel() {
           headers: { 'x-admin-key': adminApiKey }
         })
         
+        if (resp.status === 401) {
+          handle401Error('DashboardSummary')
+          return
+        }
+        
         if (!resp.ok) {
           console.error('Failed to fetch dashboard summary')
+          return
         }
         
         const data = await resp.json()
-        
         // Calculate total pending across all active collections
         const totalPending = Object.values(data.pendingCounts || {}).reduce((sum: number, count) => sum + (typeof count === 'number' ? count : 0), 0)
         setPendingRegistrationsCount(totalPending)
@@ -279,6 +294,10 @@ export function AdminPanel() {
       const resp = await fetch('/api/registration-collections', {
         headers: { 'x-admin-key': adminApiKey }
       })
+      if (resp.status === 401) {
+        handle401Error('LoadCollections')
+        return
+      }
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
       setCollections(data.collections || [])
@@ -320,6 +339,10 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ name, enabled: false })
       })
+      if (resp.status === 401) {
+        handle401Error('CreateCollection')
+        return
+      }
       if (!resp.ok) {
         const err = await resp.json()
         throw new Error(err.error || 'Failed to create collection')
@@ -352,6 +375,10 @@ export function AdminPanel() {
         headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
         body: JSON.stringify({ id: collectionId, display: nextDisplay })
       })
+      if (resp.status === 401) {
+        handle401Error('ToggleCollectionDisplay')
+        return
+      }
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to update display')
@@ -397,6 +424,11 @@ export function AdminPanel() {
         body: JSON.stringify({ id: collectionId, accepting: nextAccepting })
       })
       
+      if (resp.status === 401) {
+        handle401Error('ToggleCollectionAccepting')
+        return
+      }
+      
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to update accepting')
@@ -428,6 +460,11 @@ export function AdminPanel() {
         body: JSON.stringify({ id: collectionId, renewalEnabled: nextRenewal })
       })
       
+      if (resp.status === 401) {
+        handle401Error('ToggleCollectionRenewal')
+        return
+      }
+      
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err.error || 'Failed to update renewal')
@@ -455,7 +492,7 @@ export function AdminPanel() {
     setTogglingCollection(collectionId)
     try {
       const nextEnabled = !collection.enabled
-      await fetch('/api/registration-collections', {
+      const resp = await fetch('/api/registration-collections', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -463,6 +500,14 @@ export function AdminPanel() {
         },
         body: JSON.stringify({ id: collectionId, enabled: nextEnabled })
       })
+      
+      if (resp.status === 401) {
+        handle401Error('ToggleCollectionEnabled')
+        return
+      }
+      
+      if (!resp.ok) throw new Error('Failed to update collection')
+      
       await loadCollections()
       showToast(`Collection ${nextEnabled ? 'enabled' : 'disabled'}`)
     } catch (err: any) {
@@ -1114,6 +1159,11 @@ export function AdminPanel() {
         status: resp.status, 
         duration: fetchDuration 
       }))
+      
+      if (resp.status === 401) {
+        handle401Error('FetchUpdates')
+        return
+      }
       
       if (!resp.ok) throw new Error(`Failed to fetch updates: ${resp.status}`)
       const data = await resp.json()
