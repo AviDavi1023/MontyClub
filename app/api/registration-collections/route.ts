@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       enabled: Boolean(enabled),
       createdAt: new Date().toISOString(),
       display: false,
-      accepting: Boolean(enabled),
+      accepting: false,
       renewalEnabled: false,
     }
 

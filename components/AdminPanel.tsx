@@ -3035,6 +3035,9 @@ export function AdminPanel() {
         user: currentUser || undefined,
       })
       
+      // Refresh collections and registrations immediately after successful import
+      await loadCollections()
+      
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
           const bc = new window.BroadcastChannel('clubData')
@@ -3191,8 +3194,8 @@ export function AdminPanel() {
                     collections
                       .map((collection) => {
                         const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                        const isAccepting = collection.accepting ?? collection.enabled ?? false
-                        const isRenewal = collection.renewalEnabled ?? false
+                        const isAccepting = Boolean(collection.accepting)
+                        const isRenewal = Boolean(collection.renewalEnabled)
                         
                         return (
                           <div
@@ -3771,7 +3774,7 @@ export function AdminPanel() {
                                   <h5 className="font-medium text-gray-900 dark:text-white truncate">{collection.name}</h5>
                                   {(() => {
                                     const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                                    const isAccepting = collection.accepting ?? collection.enabled ?? false
+                                    const isAccepting = Boolean(collection.accepting)
                                     return (
                                       <>
                                         {isDisplay && (
@@ -3786,8 +3789,8 @@ export function AdminPanel() {
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Created {new Date(collection.createdAt).toLocaleDateString()}</p>
                                 {(() => {
-                                  const isAccepting = collection.accepting ?? collection.enabled ?? false
-                                  const isRenewalEnabled = collection.renewalEnabled ?? false
+                                  const isAccepting = Boolean(collection.accepting)
+                                  const isRenewalEnabled = Boolean(collection.renewalEnabled)
                                   return (
                                     <>
                                       {isAccepting && (
@@ -3844,7 +3847,7 @@ export function AdminPanel() {
                                   <div className="flex items-center gap-2 text-xs">
                                     <span className="text-gray-700 dark:text-gray-300">Enable</span>
                                     <Toggle
-                                      checked={collection.accepting ?? collection.enabled ?? false}
+                                      checked={Boolean(collection.accepting)}
                                       onChange={() => toggleCollectionAccepting(collection.id)}
                                       disabled={togglingCollection === collection.id}
                                     />
