@@ -904,28 +904,35 @@ export function AdminPanel() {
 
       const data = await resp.json()
       if (data.success) {
-        setIsAuthenticated(true)
         setCurrentUser(data.user.username)
         setError('')
         setPassword('')
         
-        // Save API key if provided in login form
-        if (loginApiKey && loginApiKey.trim()) {
+        // CRITICAL: Set API key BEFORE authentication to prevent premature collection fetches
+        let finalApiKey = loginApiKey?.trim()
+        if (!finalApiKey) {
+          finalApiKey = localStorage.getItem('analytics:adminKey') || ''
+        }
+
+        if (finalApiKey) {
+          // Save API key and set it in state
           try {
-            localStorage.setItem('analytics:adminKey', loginApiKey)
-            setAdminApiKey(loginApiKey)
+            localStorage.setItem('analytics:adminKey', finalApiKey)
+            setAdminApiKey(finalApiKey)
+            // NOW set authenticated - collection fetch will have valid API key
+            setIsAuthenticated(true)
           } catch {}
+        } else {
+          // No API key - set authenticated but disable collection fetch
+          setAdminApiKey('')
+          setIsAuthenticated(true)
+          // Show API key prompt after login succeeds
+          setShowApiKeyPrompt(true)
         }
         
         // Check if primary admin needs email setup
         if (data.user.isPrimary && !data.user.email) {
           setShowPrimaryEmailSetup(true)
-        }
-        
-        // Check if admin API key is now set (either from login form or already saved)
-        const apiKey = loginApiKey?.trim() || localStorage.getItem('analytics:adminKey')
-        if (!apiKey) {
-          setShowApiKeyPrompt(true)
         }
       } else {
         setError('Invalid credentials')

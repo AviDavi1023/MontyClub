@@ -16,9 +16,18 @@ export async function POST(request: NextRequest) {
     const adminKey = request.headers.get('x-admin-key')
     const expectedKey = process.env.ADMIN_API_KEY
 
-    if (!adminKey || adminKey !== expectedKey) {
+    if (!expectedKey) {
+      console.error('[RegistrationDeny] CRITICAL: ADMIN_API_KEY not configured')
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Server not configured: ADMIN_API_KEY not set' },
+        { status: 500 }
+      )
+    }
+
+    if (!adminKey || adminKey !== expectedKey) {
+      console.warn('[RegistrationDeny] Unauthorized request - invalid or missing API key')
+      return NextResponse.json(
+        { error: 'Unauthorized. Please re-enter your API key after factory reset.' },
         { status: 401 }
       )
     }

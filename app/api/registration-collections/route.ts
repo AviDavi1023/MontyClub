@@ -14,8 +14,14 @@ export async function GET(request: NextRequest) {
     const adminKey = request.headers.get('x-admin-key')
     const expectedKey = process.env.ADMIN_API_KEY
 
+    if (!expectedKey) {
+      console.error('[Collections GET] CRITICAL: ADMIN_API_KEY not configured')
+      return NextResponse.json({ error: 'Server not configured: ADMIN_API_KEY not set' }, { status: 500 })
+    }
+
     if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.warn('[Collections GET] Unauthorized request - invalid or missing API key')
+      return NextResponse.json({ error: 'Unauthorized. Please re-enter your API key after factory reset.' }, { status: 401 })
     }
 
     const collections = await listCollections()
@@ -37,8 +43,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const adminKey = request.headers.get('x-admin-key')
-    if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const expectedKey = process.env.ADMIN_API_KEY
+
+    if (!expectedKey) {
+      console.error('[Collections POST] CRITICAL: ADMIN_API_KEY not configured')
+      return NextResponse.json({ error: 'Server not configured: ADMIN_API_KEY not set' }, { status: 500 })
+    }
+
+    if (!adminKey || adminKey !== expectedKey) {
+      console.warn('[Collections POST] Unauthorized request - invalid or missing API key')
+      return NextResponse.json({ error: 'Unauthorized. Please re-enter your API key after factory reset.' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -87,8 +101,16 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const adminKey = request.headers.get('x-admin-key')
-    if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const expectedKey = process.env.ADMIN_API_KEY
+
+    if (!expectedKey) {
+      console.error('[Collections PATCH] CRITICAL: ADMIN_API_KEY not configured')
+      return NextResponse.json({ error: 'Server not configured: ADMIN_API_KEY not set' }, { status: 500 })
+    }
+
+    if (!adminKey || adminKey !== expectedKey) {
+      console.warn('[Collections PATCH] Unauthorized request - invalid or missing API key')
+      return NextResponse.json({ error: 'Unauthorized. Please re-enter your API key after factory reset.' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -149,8 +171,16 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const adminKey = request.headers.get('x-admin-key')
-    if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const expectedKey = process.env.ADMIN_API_KEY
+
+    if (!expectedKey) {
+      console.error('[Collections DELETE] CRITICAL: ADMIN_API_KEY not configured')
+      return NextResponse.json({ error: 'Server not configured: ADMIN_API_KEY not set' }, { status: 500 })
+    }
+
+    if (!adminKey || adminKey !== expectedKey) {
+      console.warn('[Collections DELETE] Unauthorized request - invalid or missing API key')
+      return NextResponse.json({ error: 'Unauthorized. Please re-enter your API key after factory reset.' }, { status: 401 })
     }
 
     const url = new URL(request.url)
