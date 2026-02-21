@@ -11,7 +11,7 @@ interface RegistrationsListProps {
   collectionSlug: string
   collectionName: string
   collectionId: string
-  collections: Array<{ id: string; name: string; createdAt: string; renewalEnabled?: boolean }>
+  collections: Array<{ id: string; name: string; createdAt: string; accepting?: boolean; renewalEnabled?: boolean }>
   onActionComplete?: () => void
 }
 
@@ -1046,8 +1046,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     )
   }
 
-  // Get renewalEnabled status from collections
+  // Get accepting/renewal status from collections
   const currentCollection = collections.find(c => c.id === collectionId)
+  const accepting = currentCollection?.accepting ?? false
   const renewalEnabled = currentCollection?.renewalEnabled ?? false
 
   return (
@@ -1076,15 +1077,21 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             </select>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <a
-              href={`/register-club?collection=${collectionSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap justify-center"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Registration Form
-            </a>
+            {accepting ? (
+              <a
+                href={`/register-club?collection=${collectionSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap justify-center"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Registration Form
+              </a>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 italic px-3 py-2">
+                Registration disabled for this collection
+              </div>
+            )}
             {renewalEnabled && (
               <a
                 href={`/renew-club/${collectionSlug}`}
