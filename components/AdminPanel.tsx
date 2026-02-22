@@ -3124,6 +3124,11 @@ export function AdminPanel() {
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
         pendingRegistrationsCount={pendingRegistrationsCount}
+        refreshCache={refreshCache}
+        refreshingCache={refreshingCache}
+        publishSnapshotNow={publishSnapshotNow}
+        publishingCatalog={publishingCatalog}
+        catalogStatus={catalogStatus}
       />
       
       {/* Main Content Area */}

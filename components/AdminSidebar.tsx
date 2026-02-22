@@ -8,19 +8,31 @@ import {
   BarChart3,
   ClipboardList,
   Activity,
-  Trash2
+  Trash2,
+  RefreshCw,
+  Upload
 } from 'lucide-react'
 
 interface AdminSidebarProps {
   activeSection: string
   onSectionChange: (section: string) => void
   pendingRegistrationsCount?: number
+  refreshCache?: () => void
+  refreshingCache?: boolean
+  publishSnapshotNow?: () => void
+  publishingCatalog?: boolean
+  catalogStatus?: { exists: boolean; generatedAt?: string; clubCount?: number } | null
 }
 
 export function AdminSidebar({ 
   activeSection, 
   onSectionChange,
-  pendingRegistrationsCount = 0 
+  pendingRegistrationsCount = 0,
+  refreshCache,
+  refreshingCache = false,
+  publishSnapshotNow,
+  publishingCatalog = false,
+  catalogStatus
 }: AdminSidebarProps) {
   const menuItems = [
     { 
@@ -113,6 +125,56 @@ export function AdminSidebar({
           })}
         </div>
       </nav>
+      
+      {/* Quick Actions Section */}
+      {(refreshCache || publishSnapshotNow) && (
+        <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 space-y-2">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Quick Actions</p>
+          
+          {/* Publish Catalog Button */}
+          {publishSnapshotNow && (
+            <div>
+              <button
+                onClick={publishSnapshotNow}
+                disabled={publishingCatalog}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 rounded-lg transition-colors shadow-sm"
+                title="Publish changes to public catalog (also refreshes cache)"
+              >
+                <Upload className={`h-4 w-4 ${publishingCatalog ? 'animate-pulse' : ''}`} />
+                {publishingCatalog ? 'Publishing...' : 'Publish Catalog'}
+              </button>
+              {catalogStatus?.exists && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
+                  ✓ {catalogStatus.clubCount} clubs published
+                </p>
+              )}
+              {!catalogStatus?.exists && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 px-1">
+                  ⚠ Not yet published
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Refresh Cache Button - Secondary/Less Prominent */}
+          {refreshCache && (
+            <div className="pt-1">
+              <button
+                onClick={refreshCache}
+                disabled={refreshingCache}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700/50 disabled:opacity-50 rounded transition-colors"
+                title="Clear cache to see latest data in admin panel. Note: Publish Catalog automatically refreshes cache, so this is rarely needed separately."
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingCache ? 'animate-spin' : ''}`} />
+                {refreshingCache ? 'Refreshing...' : 'Refresh Cache Only'}
+              </button>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-0.5 px-1 leading-tight">
+                Advanced: Use only if you need to refresh admin view without publishing
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
         <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">

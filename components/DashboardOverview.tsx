@@ -1,6 +1,6 @@
 'use client'
 
-import { ClipboardList, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Lock, RefreshCw } from 'lucide-react'
+import { ClipboardList, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Lock, RefreshCw, Upload } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { InfoTooltip } from '@/components/ui'
 
@@ -264,47 +264,65 @@ export function DashboardOverview({
           </div>
         </div>
 
-        {/* Cache Management */}
-        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Cache Management</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Force fresh data after updates. Cache refreshes automatically every 24 hours.
-          </p>
-          <button
-            onClick={refreshCache}
-            disabled={refreshingCache}
-            className="btn-primary flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
-            {refreshingCache ? 'Refreshing...' : 'Refresh Cache Now'}
-          </button>
-        </div>
-
-        {/* Snapshot Publishing */}
-        <div className={`p-4 rounded-lg ${catalogStatus?.exists ? 'bg-white dark:bg-gray-800' : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'}`}>
-          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Catalog Snapshot</h3>
+        {/* Snapshot Publishing - PRIMARY ACTION */}
+        <div className={`p-5 rounded-lg mb-6 ${catalogStatus?.exists ? 'bg-white dark:bg-gray-800 border-2 border-primary-200 dark:border-primary-800' : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'}`}>
+          <div className="flex items-start justify-between mb-2">
+            <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Publish Catalog</h3>
+            {catalogStatus?.exists && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                Published
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             {!catalogStatus ? 'Loading...' : catalogStatus.exists 
-              ? `✅ Published: ${catalogStatus.clubCount} clubs` 
+              ? `${catalogStatus.clubCount} clubs live on the public catalog` 
               : '⚠️ No catalog published yet. Clubs won\'t be visible to the public until you publish.'}
           </p>
           {catalogStatus?.exists && catalogStatus.generatedAt && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              Last updated: {new Date(catalogStatus.generatedAt).toLocaleString()}
+              Last published: {new Date(catalogStatus.generatedAt).toLocaleString()}
             </p>
           )}
           {!catalogStatus?.exists && (
-            <p className="text-xs text-amber-700 dark:text-amber-300 mb-4">
-              <strong>Important:</strong> After making changes (approving registrations, editing clubs, etc.), click "Publish Catalog" to make them visible to the public.
-            </p>
+            <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-md p-3 mb-4">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>⚠️ Action Required:</strong> After making changes (approving registrations, editing clubs, etc.), click "Publish Catalog" to make them visible to the public.
+              </p>
+            </div>
           )}
           <button
             onClick={publishSnapshotNow}
             disabled={publishingCatalog}
-            className="btn-primary flex items-center gap-2"
+            className="w-full sm:w-auto px-6 py-3 text-base font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 rounded-lg transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${publishingCatalog ? 'animate-spin' : ''}`} />
-            {publishingCatalog ? 'Publishing...' : 'Publish Catalog Now'}
+            <Upload className={`h-5 w-5 ${publishingCatalog ? 'animate-pulse' : ''}`} />
+            {publishingCatalog ? 'Publishing Changes...' : 'Publish Catalog Now'}
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            💡 Publishing also refreshes the cache automatically
+          </p>
+        </div>
+
+        {/* Cache Management - SECONDARY/ADVANCED */}
+        <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            Refresh Cache Only
+            <span className="text-xs font-normal px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Advanced</span>
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Clear admin panel cache to see the latest data. Use if another admin made changes or data appears stale.
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 italic">
+            Note: Publishing catalog automatically refreshes cache, so this is rarely needed separately. Cache also auto-refreshes every 24 hours.
+          </p>
+          <button
+            onClick={refreshCache}
+            disabled={refreshingCache}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 border border-gray-300 dark:border-gray-600 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshingCache ? 'animate-spin' : ''}`} />
+            {refreshingCache ? 'Refreshing...' : 'Refresh Cache'}
           </button>
         </div>
       </div>
