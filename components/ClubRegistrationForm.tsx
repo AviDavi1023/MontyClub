@@ -8,6 +8,7 @@ import { Button, Input, Textarea } from '@/components/ui'
 import BackButton from '@/components/BackButton'
 import { useToast } from '@/lib/use-toast'
 import { ToastContainer } from '@/components/Toast'
+import { slugifyName } from '@/lib/slug'
 
 interface ClubRegistrationFormProps {
   collectionSlug?: string
@@ -20,6 +21,7 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
   const [collection, setCollection] = useState<RegistrationCollection | null>(null)
   const [loading, setLoading] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [collectionClosed, setCollectionClosed] = useState(false)
   const { toasts, removeToast, showSuccess } = useToast()
 
   // Form state
@@ -58,8 +60,26 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
       }
 
       try {
-        // We'll validate the collection when submitting
-        setCollection({ id: collectionSlug, name: collectionSlug, enabled: true, createdAt: '' })
+        const resp = await fetch('/api/collections-public', { cache: 'no-store' })
+        const data = await resp.json().catch(() => ({ collections: [] }))
+        const collections = Array.isArray(data.collections) ? data.collections : []
+        const match = collections.find((c: any) => slugifyName(String(c?.name || '')) === slugifyName(collectionSlug))
+
+        if (!match) {
+          setError('Collection not found or not accepting registrations.')
+          setCollection(null)
+          return
+        }
+
+        const accepting = typeof match.accepting === 'boolean' ? match.accepting : Boolean(match.enabled)
+        if (!accepting) {
+          setCollectionClosed(true)
+          setCollection(match)
+          return
+        }
+
+        setCollectionClosed(false)
+        setCollection(match)
       } catch (err) {
         console.error('Error checking collection status:', err)
         setError('Unable to verify collection status.')
@@ -202,6 +222,24 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center">
           <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      </div>
+    )
+  }
+
+  if (collectionClosed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="h-10 w-10 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Registrations Closed
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            This collection is not accepting registrations right now. Please check back later.
+          </p>
         </div>
       </div>
     )

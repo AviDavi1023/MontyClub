@@ -23,8 +23,10 @@ export async function GET() {
       })
       .map((c: any) => ({
         ...c,
+        accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
         renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
       }))
+      .filter(c => c.accepting)
       .sort((a, b) => 
         new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
       )
