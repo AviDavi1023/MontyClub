@@ -2003,16 +2003,42 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                  <select
-                    value={editFields.category || ''}
-                    onChange={(e) => handleEditField('category', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select a category</option>
-                    {CATEGORY_OPTIONS.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                  {!editFields.category || CATEGORY_OPTIONS.includes(editFields.category) ? (
+                    <select
+                      value={editFields.category || ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (val === '__custom__') {
+                          // User wants to enter custom, show the field differently
+                          handleEditField('category', '')
+                        } else {
+                          handleEditField('category', val)
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select a category</option>
+                      {CATEGORY_OPTIONS.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      {editFields.category && !CATEGORY_OPTIONS.includes(editFields.category) && (
+                        <option key="current" value={editFields.category}>{editFields.category} (custom)</option>
+                      )}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editFields.category || ''}
+                      onChange={(e) => handleEditField('category', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                      placeholder="Custom category"
+                    />
+                  )}
+                  {editFields.category && !CATEGORY_OPTIONS.includes(editFields.category) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Custom category. Click the select to choose a predefined one or keep this custom value.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Advisor Name</label>
