@@ -63,10 +63,17 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
         const resp = await fetch('/api/collections-public', { cache: 'no-store' })
         const data = await resp.json().catch(() => ({ collections: [] }))
         const collections = Array.isArray(data.collections) ? data.collections : []
-        const match = collections.find((c: any) => slugifyName(String(c?.name || '')) === slugifyName(collectionSlug))
+        
+        // Try matching by ID first (preferred), then by slugified name (legacy)
+        let match = collections.find((c: any) => c?.id === collectionSlug)
+        if (!match) {
+          match = collections.find((c: any) => slugifyName(String(c?.name || '')) === slugifyName(collectionSlug))
+        }
 
         if (!match) {
-          setError('Collection not found or not accepting registrations.')
+          console.error('[Registration Form] Collection not found. Slug:', collectionSlug)
+          console.error('[Registration Form] Available collections:', collections.map((c: any) => ({ id: c.id, name: c.name, accepting: c.accepting })))
+          setError('Collection not found or not accepting registrations. Please use a valid registration link.')
           setCollection(null)
           return
         }

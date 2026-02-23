@@ -21,12 +21,22 @@ export async function GET() {
         if (!valid) console.log('[Collections Public API] Filtering out invalid collection')
         return valid
       })
-      .map((c: any) => ({
-        ...c,
-        accepting: typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled),
-        renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
-      }))
-      .filter(c => c.accepting)
+      .map((c: any) => {
+        // IMPORTANT: For backwards compatibility, if accepting is undefined, check enabled
+        const isAccepting = typeof c.accepting === 'boolean' ? c.accepting : Boolean(c.enabled)
+        return {
+          ...c,
+          accepting: isAccepting,
+          renewalEnabled: typeof c.renewalEnabled === 'boolean' ? c.renewalEnabled : false,
+        }
+      })
+      .filter(c => {
+        const accepted = c.accepting
+        if (!accepted) {
+          console.log('[Collections Public API] Filtering out non-accepting collection:', c.name)
+        }
+        return accepted
+      })
       .sort((a, b) => 
         new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
       )

@@ -26,6 +26,7 @@ function getAdminClient() {
 
 // Ensure collections migration happens on first call
 let collectionsMigrationChecked = false
+let collectionsDefaultsFixed = false // Flag to run one-time fix for migrated collections
 
 async function ensureCollectionsMigrated(): Promise<void> {
   if (collectionsMigrationChecked) return
@@ -70,14 +71,16 @@ async function ensureCollectionsMigrated(): Promise<void> {
     console.log(`[collections-db] Found ${legacyCollections.length} legacy collections, migrating...`)
 
     // Insert all collections into Postgres
+    // IMPORTANT: For legacy collections, default enabled and accepting to true
+    // to maintain backwards compatibility (old collections should work)
     for (const col of legacyCollections) {
       await (client.from('registration_collections') as any)
         .insert({
           id: col.id,
           name: col.name,
-          enabled: col.enabled || false,
+          enabled: col.enabled !== false, // Default to true for legacy collections
           display: col.display || false,
-          accepting: col.accepting || false,
+          accepting: col.accepting !== false, // Default to true for legacy collections
           renewal_enabled: col.renewalEnabled || false,
         })
     }

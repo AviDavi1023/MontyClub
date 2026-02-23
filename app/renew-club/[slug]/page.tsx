@@ -98,19 +98,26 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       const collectionsData = await collectionsRes.json()
       console.log('[Renewal Form] Received collections:', collectionsData.collections?.length)
       
-      // Try matching by ID first, then by name slug (to support both formats)
+      // Try matching by ID first (preferred), then by name slug (legacy compatibility)
       let targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionSlug)
       
       if (!targetCollection) {
-        // Fallback: try matching by name slug (for backward compatibility with name-based URLs)
+        // Fallback: try matching by slugified name (for backward compatibility with name-based URLs)
         const { slugifyName } = await import('@/lib/slug')
-        targetCollection = collectionsData.collections?.find((c: any) => slugifyName(c.name) === slugifyName(collectionSlug))
+        targetCollection = collectionsData.collections?.find((c: any) => 
+          slugifyName(c.name) === slugifyName(collectionSlug)
+        )
       }
       
       if (!targetCollection) {
         console.error('[Renewal Form] Target collection not found. Looking for:', collectionSlug)
-        console.error('[Renewal Form] Available collections:', collectionsData.collections?.map((c: any) => ({ id: c.id, name: c.name })))
-        setError('Collection not found')
+        console.error('[Renewal Form] Available collections:', collectionsData.collections?.map((c: any) => ({ 
+          id: c.id, 
+          name: c.name, 
+          renewalEnabled: c.renewalEnabled,
+          accepting: c.accepting 
+        })))
+        setError('Collection not found. Please check the renewal link and try again.')
         return
       }
       
