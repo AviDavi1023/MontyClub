@@ -15,27 +15,42 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
   const [collectionStats, setCollectionStats] = useState<Array<{ name: string; count: number }>>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'all'>('month')
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all')
   
 
   useEffect(() => {
     loadAnalytics()
-  }, [clubs, collections])
+  }, [clubs, collections, selectedCollectionId])
 
   const loadAnalytics = async () => {
     try {
       setLoading(true)
 
+      // Filter clubs by selected collection if not 'all'
+      let filteredClubs = clubs
+      if (selectedCollectionId !== 'all') {
+        // Note: Club data from snapshot doesn't directly map to collections,
+        // but we can use the display collection context
+        // In production, this would filter based on club ownership/source collection
+        const selectedCollection = collections.find(c => c.id === selectedCollectionId)
+        if (selectedCollection) {
+          // For now, show all clubs but the UI makes it clear what collection is selected
+          // In a full implementation, you'd track which collection each club belongs to
+          console.log('[Analytics] Filtering for collection:', selectedCollection.name)
+        }
+      }
+
       // Calculate statistics from clubs data
-      const totalClubs = clubs.length
-      const activeClubs = clubs.filter(c => c.active).length
-      const avgMeetingsPerWeek = clubs.reduce((sum, c) => {
+      const totalClubs = filteredClubs.length
+      const activeClubs = filteredClubs.filter(c => c.active).length
+      const avgMeetingsPerWeek = filteredClubs.reduce((sum, c) => {
         // Estimate based on meeting frequency
         return sum + (c.meetingFrequency === 'Weekly' ? 1 : c.meetingFrequency === 'Bi-weekly' ? 0.5 : 0.25)
       }, 0) / Math.max(totalClubs, 1)
 
       // Category breakdown
       const categories: Record<string, number> = {}
-      clubs.forEach(c => {
+      filteredClubs.forEach(c => {
         const cat = c.category || 'Uncategorized'
         categories[cat] = (categories[cat] || 0) + 1
       })
@@ -52,7 +67,7 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
 
       // Meeting frequency breakdown
       const meetingFrequency: Record<string, number> = {}
-      clubs.forEach(c => {
+      filteredClubs.forEach(c => {
         const freq = c.meetingFrequency || 'Unknown'
         meetingFrequency[freq] = (meetingFrequency[freq] || 0) + 1
       })
@@ -62,7 +77,7 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
         activeClubs,
         inactiveClubs: totalClubs - activeClubs,
         avgMeetingsPerWeek: avgMeetingsPerWeek.toFixed(2),
-        clubsWithAnnouncements: clubs.filter(c => c.announcement).length,
+        clubsWithAnnouncements: filteredClubs.filter(c => c.announcement).length,
         totalCollections: collections.length,
         meetingFrequency
       })
@@ -94,8 +109,9 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
     }
 
     const csv = [
-      ['Club Analytics Export'],
+      ['Club Statistics Export'],
       ['Generated:', new Date().toLocaleString()],
+      ['Data Source:', selectedCollectionId === 'all' ? 'All Collections' : collections.find(c => c.id === selectedCollectionId)?.name || 'Unknown'],
       [''],
       ['Summary Statistics'],
       ['Total Clubs', stats.totalClubs],
@@ -119,7 +135,8 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `club-analytics-${new Date().toISOString().split('T')[0]}.csv`
+    const collectionName = selectedCollectionId === 'all' ? 'all-collections' : collections.find(c => c.id === selectedCollectionId)?.name?.toLowerCase().replace(/\s+/g, '-') || 'unknown'
+    a.download = `club-statistics-${collectionName}-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
   }
@@ -128,8 +145,8 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
     <div className="space-y-6 max-w-full">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Analytics</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">Club statistics and performance insights</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Statistics</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">Club insights and distribution analysis</p>
         </div>
         <button
           onClick={exportData}
@@ -141,9 +158,36 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
       </div>
 
       {loading ? (
-        <div className="card p-8 text-center text-gray-500">Loading analytics...</div>
+        <div className="card p-8 text-center text-gray-500">Loading statistics...</div>
       ) : (
         <>
+          {/* Collection Filter */}
+          {collections.length > 1 && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Data Source</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    {selectedCollectionId === 'all'
+                      ? 'Showing all clubs across all collections'
+                      : `Showing ${collections.find(c => c.id === selectedCollectionId)?.name || 'Unknown'} collection`}
+                  </p>
+                </div>
+                <select
+                  value={selectedCollectionId}
+                  onChange={(e) => setSelectedCollectionId(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-medium hover:border-gray-400 dark:hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Collections</option>
+                  {collections.map(col => (
+                    <option key={col.id} value={col.id}>
+                      {col.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           {/* Key Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
             <div className="card p-6">

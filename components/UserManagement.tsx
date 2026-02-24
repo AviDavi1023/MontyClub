@@ -143,7 +143,7 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
         },
         body: JSON.stringify({
           username: newUsername,
-          password: newPassword || undefined,
+          password: newPassword,
           createdBy: currentUser,
         }),
       })
@@ -371,14 +371,15 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Password (leave empty to auto-generate)
+              Password <span className="text-red-600 dark:text-red-400">*</span>
             </label>
             <div className="flex gap-2">
               <Input
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="flex-1"
-                placeholder="Auto-generated if empty"
+                placeholder="Enter password or click Generate"
+                type="password"
               />
               <Button
                 type="button"
@@ -389,13 +390,14 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
                 Generate
               </Button>
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Password must be set for security</p>
           </div>
 
           <div className="flex gap-2">
             <Button
               type="submit"
               variant="primary"
-              disabled={loading || !newUsername}
+              disabled={loading || !newUsername || !newPassword}
               isLoading={loading}
             >
               {loading ? 'Creating...' : 'Create User'}
