@@ -13,6 +13,7 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
   const [stats, setStats] = useState<any>({})
   const [categoryBreakdown, setCategoryBreakdown] = useState<Array<{ name: string; count: number }>>([])
   const [collectionStats, setCollectionStats] = useState<Array<{ name: string; count: number }>>([])
+  const [allCollectionsData, setAllCollectionsData] = useState<Array<{ collection: RegistrationCollection; clubs: Club[] }>>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'all'>('month')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all')
@@ -20,37 +21,48 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
 
   useEffect(() => {
     loadAnalytics()
-  }, [clubs, collections, selectedCollectionId])
+  }, [selectedCollectionId])
 
   const loadAnalytics = async () => {
     try {
       setLoading(true)
 
+      // Fetch all collections' clubs for accurate stats
+      const response = await fetch('/api/admin/all-collections-clubs')
+      if (!response.ok) {
+        throw new Error('Failed to fetch collections clubs')
+      }
+      
+      const data = await response.json()
+      const collectionsData = data.data || []
+      setAllCollectionsData(collectionsData)
+
+      // Flatten all clubs from all collections
+      const allClubs = collectionsData.flatMap((item: any) => item.clubs)
+
       // Filter clubs by selected collection if not 'all'
-      let filteredClubs = clubs
+      let filteredClubs = allClubs
+      let displayCollectionName = 'All Collections'
+      
       if (selectedCollectionId !== 'all') {
-        // Note: Club data from snapshot doesn't directly map to collections,
-        // but we can use the display collection context
-        // In production, this would filter based on club ownership/source collection
-        const selectedCollection = collections.find(c => c.id === selectedCollectionId)
-        if (selectedCollection) {
-          // For now, show all clubs but the UI makes it clear what collection is selected
-          // In a full implementation, you'd track which collection each club belongs to
-          console.log('[Analytics] Filtering for collection:', selectedCollection.name)
+        const selectedData = collectionsData.find((item: any) => item.collection.id === selectedCollectionId)
+        if (selectedData) {
+          filteredClubs = selectedData.clubs
+          displayCollectionName = selectedData.collection.name
         }
       }
 
-      // Calculate statistics from clubs data
+      // Calculate statistics from filtered clubs
       const totalClubs = filteredClubs.length
-      const activeClubs = filteredClubs.filter(c => c.active).length
-      const avgMeetingsPerWeek = filteredClubs.reduce((sum, c) => {
+      const activeClubs = filteredClubs.filter((c: Club) => c.active).length
+      const avgMeetingsPerWeek = filteredClubs.reduce((sum: number, c: Club) => {
         // Estimate based on meeting frequency
         return sum + (c.meetingFrequency === 'Weekly' ? 1 : c.meetingFrequency === 'Bi-weekly' ? 0.5 : 0.25)
       }, 0) / Math.max(totalClubs, 1)
 
       // Category breakdown
       const categories: Record<string, number> = {}
-      filteredClubs.forEach(c => {
+      filteredClubs.forEach((c: Club) => {
         const cat = c.category || 'Uncategorized'
         categories[cat] = (categories[cat] || 0) + 1
       })
@@ -59,15 +71,15 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
         .sort((a, b) => b.count - a.count)
         .slice(0, 8)
 
-      // Collection statistics
-      const collectionData = collections.map(col => ({
-        name: col.name,
-        count: clubs.filter(c => c.id?.includes(col.id)).length || 0
+      // Collection statistics - count clubs per collection
+      const collectionData = collectionsData.map((item: any) => ({
+        name: item.collection.name,
+        count: item.clubs.length
       }))
 
       // Meeting frequency breakdown
       const meetingFrequency: Record<string, number> = {}
-      filteredClubs.forEach(c => {
+      filteredClubs.forEach((c: Club) => {
         const freq = c.meetingFrequency || 'Unknown'
         meetingFrequency[freq] = (meetingFrequency[freq] || 0) + 1
       })
@@ -77,9 +89,10 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
         activeClubs,
         inactiveClubs: totalClubs - activeClubs,
         avgMeetingsPerWeek: avgMeetingsPerWeek.toFixed(2),
-        clubsWithAnnouncements: filteredClubs.filter(c => c.announcement).length,
+        clubsWithAnnouncements: filteredClubs.filter((c: Club) => c.announcement).length,
         totalCollections: collections.length,
-        meetingFrequency
+        meetingFrequency,
+        displayCollectionName
       })
 
       setCategoryBreakdown(categoryData)
@@ -93,25 +106,19 @@ export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
 
 
   const exportData = () => {
+    const displayCollectionName = selectedCollectionId === 'all' ? 'All Collections' : collections.find(c => c.id === selectedCollectionId)?.name || 'Unknown'
+    
     const data = {
       exportDate: new Date().toISOString(),
       stats,
       categoryBreakdown,
       collectionStats,
-      clubs: clubs.map(c => ({
-        id: c.id,
-        name: c.name,
-        category: c.category,
-        advisor: c.advisor,
-        active: c.active,
-        meetingFrequency: c.meetingFrequency
-      }))
     }
 
     const csv = [
       ['Club Statistics Export'],
       ['Generated:', new Date().toLocaleString()],
-      ['Data Source:', selectedCollectionId === 'all' ? 'All Collections' : collections.find(c => c.id === selectedCollectionId)?.name || 'Unknown'],
+      ['Data Source:', displayCollectionName],
       [''],
       ['Summary Statistics'],
       ['Total Clubs', stats.totalClubs],

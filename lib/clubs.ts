@@ -1,5 +1,5 @@
 import { readData } from '@/lib/runtime-store'
-import { ClubRegistration, RegistrationCollection } from '@/types/club'
+import { Club, ClubRegistration, RegistrationCollection } from '@/types/club'
 import { slugifyName } from '@/lib/slug'
 
 import { listPaths, readJSONFromStorage } from '@/lib/supabase'
@@ -118,7 +118,6 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   return clubs
 }
 
-import { Club } from '@/types/club'
 import * as ExcelJS from 'exceljs'
 import fs from 'fs'
 import path from 'path'
@@ -130,6 +129,70 @@ export async function fetchClubs(): Promise<Club[]> {
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return getMockClubs()
+  }
+}
+
+/**
+ * Fetch clubs from ALL collections with collection metadata.
+ * Used for admin analytics to show stats across all collections.
+ */
+export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: RegistrationCollection; clubs: Club[] }>> {
+  try {
+    // Get all collections
+    const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+    
+    if (!collections.length) {
+      console.warn('[fetchAllCollectionsClubs] No collections found')
+      return []
+    }
+
+    // Fetch clubs for each collection in parallel
+    const results = await Promise.all(
+      collections.map(async (collection) => {
+        try {
+          // List registration files for this collection
+          const regPaths = await listPaths(`registrations/${collection.id}`)
+          const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
+          
+          // Read all registrations in parallel
+          const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+          const allRegs = await Promise.all(registrationPromises)
+          
+          const registrations: ClubRegistration[] = allRegs.filter(
+            reg => reg && typeof reg === 'object' && reg.status === 'approved'
+          )
+
+          // Convert to Club objects
+          const clubs = registrations.map((r) => ({
+            id: r.id,
+            name: r.clubName,
+            category: r.category || '',
+            description: r.statementOfPurpose,
+            advisor: r.advisorName,
+            studentLeader: r.studentContactName,
+            meetingTime: r.meetingDay,
+            meetingFrequency: r.meetingFrequency,
+            location: r.location,
+            contact: r.studentContactEmail,
+            socialMedia: r.socialMedia || '',
+            active: true,
+            notes: r.notes || '',
+            announcement: '',
+            keywords: [],
+          }))
+
+          return { collection, clubs }
+        } catch (error) {
+          console.warn(`[fetchAllCollectionsClubs] Failed to fetch clubs for collection ${collection.name}:`, error)
+          return { collection, clubs: [] }
+        }
+      })
+    )
+
+    return results
+  } catch (error) {
+    console.error('[fetchAllCollectionsClubs] Error fetching all collections clubs:', error)
+    return []
   }
 }
 
