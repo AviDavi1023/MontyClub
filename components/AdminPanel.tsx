@@ -352,6 +352,15 @@ export function AdminPanel() {
       }
       const data = await resp.json()
       showToast('Collection created successfully')
+      
+      logActivity({
+        type: 'collection',
+        action: 'Collection Created',
+        details: `Created collection: ${name}`,
+        status: 'success',
+        user: currentUser || undefined
+      })
+      
       // Refetch collections - Postgres is instant
       await loadCollections()
     } catch (err: any) {
@@ -387,6 +396,15 @@ export function AdminPanel() {
         throw new Error(err.error || 'Failed to update display')
       }
       showToast(`Display ${nextDisplay ? 'enabled' : 'disabled'}`)
+      
+      logActivity({
+        type: 'collection',
+        action: nextDisplay ? 'Collection Display Enabled' : 'Collection Display Disabled',
+        details: `${nextDisplay ? 'Enabled' : 'Disabled'} display for collection: ${collection.name}`,
+        status: 'info',
+        user: currentUser || undefined
+      })
+      
       await loadCollections()
       
       // Auto-republish if enabling display
@@ -437,6 +455,13 @@ export function AdminPanel() {
         throw new Error(err.error || 'Failed to update accepting')
       }
       showToast(`Accepting ${nextAccepting ? 'enabled' : 'disabled'}`)
+      logActivity({
+        type: 'collection',
+        action: nextAccepting ? 'Accepting Enabled' : 'Accepting Disabled',
+        details: `${nextAccepting ? 'Enabled' : 'Disabled'} accepting registrations for: ${collection.name}`,
+        status: 'info',
+        user: currentUser || undefined
+      })
       await loadCollections()
     } catch (err: any) {
       showToast(err.message || 'Failed to update accepting', 'error')
@@ -473,6 +498,13 @@ export function AdminPanel() {
         throw new Error(err.error || 'Failed to update renewal')
       }
       showToast(`Renewal ${nextRenewal ? 'enabled' : 'disabled'}`)
+      logActivity({
+        type: 'collection',
+        action: nextRenewal ? 'Renewal Enabled' : 'Renewal Disabled',
+        details: `${nextRenewal ? 'Enabled' : 'Disabled'} renewal mode for: ${collection.name}`,
+        status: 'info',
+        user: currentUser || undefined
+      })
       await loadCollections()
     } catch (err: any) {
       showToast(err.message || 'Failed to update renewal', 'error')
@@ -574,6 +606,15 @@ export function AdminPanel() {
       }
 
       showToast('Collection deleted')
+      
+      logActivity({
+        type: 'collection',
+        action: 'Collection Deleted',
+        details: `Deleted collection (${registrationCount} registration(s) affected)`,
+        status: 'warning',
+        user: currentUser || undefined
+      })
+      
       await loadCollections()
     } catch (err: any) {
       showToast(err.message || 'Failed to delete collection', 'error')
@@ -2276,6 +2317,15 @@ export function AdminPanel() {
       
       // Success: fetch fresh data to trigger auto-clear
       showToast('Announcement saved successfully')
+      
+      // Log activity
+      logActivity({
+        type: 'announcement',
+        action: text ? 'Announcement Updated' : 'Announcement Cleared',
+        details: text ? `Set announcement for club ${id}` : `Cleared announcement for club ${id}`,
+        status: 'success',
+        user: currentUser || undefined
+      })
       
       // notify other tabs/windows
       try {

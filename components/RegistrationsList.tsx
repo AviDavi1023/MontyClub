@@ -5,6 +5,7 @@ import { ClubRegistration } from '@/types/club'
 import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList, Filter, Search, AlertCircle, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
+import { logActivity } from '@/components/ActivityLog'
 
 interface RegistrationsListProps {
   adminApiKey: string
@@ -39,6 +40,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   const [denyReason, setDenyReason] = useState('')
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [currentReg, setCurrentReg] = useState<ClubRegistration | null>(null)
+  const [bulkDenyIds, setBulkDenyIds] = useState<string[] | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('montyclub:regViewMode') as 'cards' | 'table') || 'table'
@@ -709,6 +711,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       setUndoAction({ type: 'approve', data: reg, timestamp: Date.now() })
       setTimeout(() => setUndoAction(null), 5000)
       
+      // Log activity
+      logActivity({
+        type: 'registration',
+        action: 'Registration Approved',
+        details: `Approved "${reg.clubName}" in ${collectionName}`,
+        status: 'success'
+      })
+      
       // Trigger parent callback for publish reminder
       onActionComplete?.()
       
@@ -781,6 +791,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
   const handleDeny = (reg: ClubRegistration) => {
     setCurrentReg(reg)
+    setBulkDenyIds(null)
     setDenyReason('')
     setShowDenyModal(true)
   }
@@ -824,6 +835,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
       setUndoAction({ type: 'delete', data: reg, timestamp: Date.now() })
       setTimeout(() => setUndoAction(null), 5000)
+      
+      logActivity({
+        type: 'registration',
+        action: 'Registration Deleted',
+        details: `Deleted "${reg.clubName}" from ${collectionName}`,
+        status: 'info'
+      })
+      
       await loadRegistrations()
     } catch (err: any) {
       setLocalPendingRegistrationChanges(prev => {
@@ -847,14 +866,23 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
   }
 
   const confirmDeny = async () => {
-    if (!currentReg) return
+    const ids = bulkDenyIds?.length ? bulkDenyIds : currentReg ? [currentReg.id] : []
+    if (ids.length === 0) return
 
-    setProcessingId(currentReg.id)
+    const targetRegs = ids
+      .map(id => registrations.find(r => r.id === id))
+      .filter(Boolean) as ClubRegistration[]
+    if (targetRegs.length === 0) return
+
+    const isBulk = targetRegs.length > 1
+    setProcessingId(isBulk ? 'bulk-deny' : targetRegs[0].id)
     setShowDenyModal(false)
 
-    // Use functional update to avoid stale closures
     setLocalPendingRegistrationChanges(prev => {
-      const newPending = { ...prev, [currentReg.id]: { status: 'rejected', denialReason: denyReason } }
+      const newPending = { ...prev }
+      for (const reg of targetRegs) {
+        newPending[reg.id] = { status: 'rejected', denialReason: denyReason }
+      }
       try {
         localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
         localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
@@ -865,36 +893,58 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     })
 
     try {
-      const response = await fetch('/api/registration-deny', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': adminApiKey
-        },
-        body: JSON.stringify({
-          registrationId: currentReg.id,
-          collection: currentReg.collectionId,
-          reason: denyReason
-        })
-      })
+      for (const reg of targetRegs) {
+        try {
+          const response = await fetch('/api/registration-deny', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-key': adminApiKey
+            },
+            body: JSON.stringify({
+              registrationId: reg.id,
+              collection: reg.collectionId,
+              reason: denyReason
+            })
+          })
 
-      if (!response.ok) {
-        throw new Error('Failed to deny registration')
+          if (!response.ok) {
+            throw new Error('Failed to deny registration')
+          }
+        } catch (err) {
+          console.error('Failed to deny', reg.id, err)
+        }
       }
 
-      // Success: show undo toast
-      setUndoAction({ type: 'deny', data: currentReg, timestamp: Date.now() })
-      setTimeout(() => setUndoAction(null), 5000)
-      
-      // Trigger parent callback for publish reminder
+      if (!isBulk && currentReg) {
+        setUndoAction({ type: 'deny', data: currentReg, timestamp: Date.now() })
+        setTimeout(() => setUndoAction(null), 5000)
+      }
+
       onActionComplete?.()
-      
+      if (isBulk) {
+        logActivity({
+          type: 'registration',
+          action: 'Bulk Deny',
+          details: `Denied ${targetRegs.length} registration(s) in ${collectionName}${denyReason ? `: ${denyReason}` : ''}`,
+          status: 'warning'
+        })
+        setSelectedIds(new Set())
+      } else if (currentReg) {
+        logActivity({
+          type: 'registration',
+          action: 'Registration Denied',
+          details: `Denied "${currentReg.clubName}" in ${collectionName}${denyReason ? `: ${denyReason}` : ''}`,
+          status: 'warning'
+        })
+      }
       await loadRegistrations()
     } catch (err: any) {
-      // Revert on error using functional update
       setLocalPendingRegistrationChanges(prev => {
         const revertPending = { ...prev }
-        delete revertPending[currentReg.id]
+        for (const reg of targetRegs) {
+          delete revertPending[reg.id]
+        }
         try {
           if (Object.keys(revertPending).length === 0) {
             localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
@@ -912,8 +962,16 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     } finally {
       setProcessingId(null)
       setCurrentReg(null)
+      setBulkDenyIds(null)
       setDenyReason('')
     }
+  }
+
+  const closeDenyModal = () => {
+    setShowDenyModal(false)
+    setCurrentReg(null)
+    setBulkDenyIds(null)
+    setDenyReason('')
   }
 
   const exportToCSV = () => {
@@ -2132,11 +2190,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         </>
       )}
 
-      {showDenyModal && currentReg && (
+      {showDenyModal && (currentReg || (bulkDenyIds && bulkDenyIds.length > 0)) && (
         <>
           <div 
             className="fixed inset-0 bg-black bg-opacity-50 z-50"
-            onClick={() => setShowDenyModal(false)}
+            onClick={closeDenyModal}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <div 
@@ -2145,17 +2203,21 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Deny Registration
+                  {bulkDenyIds && bulkDenyIds.length > 0 ? 'Deny Registrations' : 'Deny Registration'}
                 </h3>
                 <button
-                  onClick={() => setShowDenyModal(false)}
+                  onClick={closeDenyModal}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                Deny "{currentReg.clubName}" by {currentReg.advisorName}?
+                {bulkDenyIds && bulkDenyIds.length > 0
+                  ? `Deny ${bulkDenyIds.length} selected registrations?`
+                  : currentReg
+                    ? `Deny "${currentReg.clubName}" by ${currentReg.advisorName}?`
+                    : 'Deny selected registration?'}
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2171,7 +2233,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
               </div>
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => setShowDenyModal(false)}
+                  onClick={closeDenyModal}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
                   Cancel
@@ -2302,6 +2364,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           console.error('Failed to approve', id, err)
                         }
                       }
+                      
+                      logActivity({
+                        type: 'registration',
+                        action: 'Bulk Approve',
+                        details: `Approved ${idsArray.length} registration(s) in ${collectionName}`,
+                        status: 'success'
+                      })
+                      
                       setSelectedIds(new Set())
                       await loadRegistrations()
                     } finally {
@@ -2316,47 +2386,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 </button>
                 <button
                   onClick={async () => {
-                    const reason = prompt('Optional denial reason (applies to all selected):') || ''
-                    const confirmed = await confirm({
-                      title: 'Deny Registrations',
-                      message: `Deny ${selectedIds.size} selected registrations?`,
-                      confirmText: 'Deny All',
-                      variant: 'danger'
-                    })
-                    if (!confirmed) return
-                    const idsArray = Array.from(selectedIds)
-                    setProcessingId('bulk-deny')
-                    try {
-                      setLocalPendingRegistrationChanges(prev => {
-                        const newPending = { ...prev }
-                        for (const id of idsArray) {
-                          newPending[id] = { status: 'rejected', denialReason: reason }
-                        }
-                        try {
-                          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                        } catch (e) {}
-                        return newPending
-                      })
-
-                      for (const id of idsArray) {
-                        const reg = registrations.find(r => r.id === id)
-                        if (!reg) continue
-                        try {
-                          await fetch('/api/registration-deny', {
-                            method: 'POST',
-                            headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                            body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
-                          })
-                        } catch (err) {
-                          console.error('Failed to deny', id, err)
-                        }
-                      }
-                      setSelectedIds(new Set())
-                      await loadRegistrations()
-                    } finally {
-                      setProcessingId(null)
-                    }
+                    setBulkDenyIds(Array.from(selectedIds))
+                    setCurrentReg(null)
+                    setDenyReason('')
+                    setShowDenyModal(true)
                   }}
                   disabled={isBulkProcessing}
                   className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
@@ -2401,6 +2434,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           console.error('Failed to delete', id, err)
                         }
                       }
+                      
+                      logActivity({
+                        type: 'registration',
+                        action: 'Bulk Delete',
+                        details: `Deleted ${idsArray.length} registration(s) from ${collectionName}`,
+                        status: 'info'
+                      })
+                      
                       setSelectedIds(new Set())
                       await loadRegistrations()
                     } finally {

@@ -5,6 +5,7 @@ import { Search, Megaphone, Trash2, Edit2, X, Check } from 'lucide-react'
 import { Club } from '@/types/club'
 import { Toggle } from '@/components/Toggle'
 import { InfoTooltip } from '@/components/ui'
+import { logActivity } from '@/components/ActivityLog'
 
 interface AnnouncementsBoardProps {
   clubs: Club[]
@@ -61,7 +62,20 @@ export function AnnouncementsBoard({
       setEditingId(null)
       setEditText('')
       showToast('Announcement saved')
+      
+      logActivity({
+        type: 'announcement',
+        action: 'Announcement Updated',
+        details: `Updated announcement for club ${editingId}`,
+        status: 'success'
+      })
     } catch (error) {
+      logActivity({
+        type: 'announcement',
+        action: 'Announcement Save Failed',
+        details: `Failed to save announcement: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        status: 'error'
+      })
       showToast('Failed to save announcement', 'error')
     }
   }
@@ -94,7 +108,20 @@ export function AnnouncementsBoard({
       )
       setSelectedForDelete(new Set())
       showToast(`Deleted ${selectedForDelete.size} announcement(s)`)
+      
+      logActivity({
+        type: 'announcement',
+        action: 'Bulk Delete Announcements',
+        details: `Deleted ${selectedForDelete.size} announcement(s)`,
+        status: 'info'
+      })
     } catch (error) {
+      logActivity({
+        type: 'announcement',
+        action: 'Bulk Delete Failed',
+        details: `Failed to delete announcements: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        status: 'error'
+      })
       showToast('Failed to delete announcements', 'error')
     }
   }
