@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ClubRegistration } from '@/types/club'
-import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList, Filter, Search, AlertCircle } from 'lucide-react'
+import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList, Filter, Search, AlertCircle, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 
@@ -618,6 +618,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     if (statusFilter === 'rejected') return reg.status === 'rejected'
     return true
   })
+
+  const isBulkProcessing = !!processingId && processingId.startsWith('bulk-')
 
   const handleApprove = async (reg: ClubRegistration) => {
     const confirmed = await confirm({
@@ -2248,14 +2250,16 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
       {/* Sticky Action Bar (Desktop & Mobile) - Shows whenever items are selected */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-blue-600 dark:bg-blue-700 text-white shadow-2xl z-50 border-t-4 border-blue-500">
-          <div className="container mx-auto px-4 py-4">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
+          <div className="container mx-auto px-4 py-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="font-semibold text-lg">{selectedIds.size} selected</div>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-sm font-semibold">
+                  <span>{selectedIds.size} selected</span>
+                </div>
                 <button
                   onClick={() => setSelectedIds(new Set())}
-                  className="text-sm text-blue-100 hover:text-white underline"
+                  className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white underline underline-offset-2"
                 >
                   Deselect all
                 </button>
@@ -2271,35 +2275,41 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     })
                     if (!confirmed) return
                     const idsArray = Array.from(selectedIds)
-                    setLocalPendingRegistrationChanges(prev => {
-                      const newPending = { ...prev }
+                    setProcessingId('bulk-approve')
+                    try {
+                      setLocalPendingRegistrationChanges(prev => {
+                        const newPending = { ...prev }
+                        for (const id of idsArray) {
+                          newPending[id] = { status: 'approved' }
+                        }
+                        try {
+                          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                        } catch (e) {}
+                        return newPending
+                      })
+                      
                       for (const id of idsArray) {
-                        newPending[id] = { status: 'approved' }
+                        const reg = registrations.find(r => r.id === id)
+                        if (!reg) continue
+                        try {
+                          await fetch('/api/registration-approve', {
+                            method: 'POST',
+                            headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                            body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
+                          })
+                        } catch (err) {
+                          console.error('Failed to approve', id, err)
+                        }
                       }
-                      try {
-                        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                      } catch (e) {}
-                      return newPending
-                    })
-                    
-                    for (const id of idsArray) {
-                      const reg = registrations.find(r => r.id === id)
-                      if (!reg) continue
-                      try {
-                        await fetch('/api/registration-approve', {
-                          method: 'POST',
-                          headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                          body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
-                        })
-                      } catch (err) {
-                        console.error('Failed to approve', id, err)
-                      }
+                      setSelectedIds(new Set())
+                      await loadRegistrations()
+                    } finally {
+                      setProcessingId(null)
                     }
-                    setSelectedIds(new Set())
-                    await loadRegistrations()
                   }}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  disabled={isBulkProcessing}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
                 >
                   <CheckCircle2 className="h-5 w-5" />
                   Approve Selected
@@ -2315,44 +2325,98 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     })
                     if (!confirmed) return
                     const idsArray = Array.from(selectedIds)
-                    setLocalPendingRegistrationChanges(prev => {
-                      const newPending = { ...prev }
-                      for (const id of idsArray) {
-                        newPending[id] = { status: 'rejected', denialReason: reason }
-                      }
-                      try {
-                        localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
-                        localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-                      } catch (e) {}
-                      return newPending
-                    })
+                    setProcessingId('bulk-deny')
+                    try {
+                      setLocalPendingRegistrationChanges(prev => {
+                        const newPending = { ...prev }
+                        for (const id of idsArray) {
+                          newPending[id] = { status: 'rejected', denialReason: reason }
+                        }
+                        try {
+                          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                        } catch (e) {}
+                        return newPending
+                      })
 
-                    for (const id of idsArray) {
-                      const reg = registrations.find(r => r.id === id)
-                      if (!reg) continue
-                      try {
-                        await fetch('/api/registration-deny', {
-                          method: 'POST',
-                          headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
-                          body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
-                        })
-                      } catch (err) {
-                        console.error('Failed to deny', id, err)
+                      for (const id of idsArray) {
+                        const reg = registrations.find(r => r.id === id)
+                        if (!reg) continue
+                        try {
+                          await fetch('/api/registration-deny', {
+                            method: 'POST',
+                            headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                            body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId, reason })
+                          })
+                        } catch (err) {
+                          console.error('Failed to deny', id, err)
+                        }
                       }
+                      setSelectedIds(new Set())
+                      await loadRegistrations()
+                    } finally {
+                      setProcessingId(null)
                     }
-                    setSelectedIds(new Set())
-                    await loadRegistrations()
                   }}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  disabled={isBulkProcessing}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
                 >
                   <XCircle className="h-5 w-5" />
                   Deny Selected
+                </button>
+                <button
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: 'Delete Registrations',
+                      message: `Delete ${selectedIds.size} selected registrations? This cannot be undone.`,
+                      confirmText: 'Delete All',
+                      variant: 'danger'
+                    })
+                    if (!confirmed) return
+                    const idsArray = Array.from(selectedIds)
+                    setProcessingId('bulk-delete')
+                    try {
+                      setLocalPendingRegistrationChanges(prev => {
+                        const newPending = { ...prev }
+                        for (const id of idsArray) {
+                          newPending[id] = { deleted: true }
+                        }
+                        try {
+                          localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(newPending))
+                          localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
+                        } catch (e) {}
+                        return newPending
+                      })
+
+                      for (const id of idsArray) {
+                        const reg = registrations.find(r => r.id === id)
+                        if (!reg) continue
+                        try {
+                          await fetch('/api/registration-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type':'application/json', 'x-admin-key': adminApiKey },
+                            body: JSON.stringify({ registrationId: reg.id, collection: reg.collectionId })
+                          })
+                        } catch (err) {
+                          console.error('Failed to delete', id, err)
+                        }
+                      }
+                      setSelectedIds(new Set())
+                      await loadRegistrations()
+                    } finally {
+                      setProcessingId(null)
+                    }
+                  }}
+                  disabled={isBulkProcessing}
+                  className="px-4 py-2 bg-gray-900 hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="h-5 w-5" />
+                  Delete Selected
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
   )
 }
