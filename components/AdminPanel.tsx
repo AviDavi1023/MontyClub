@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown, AlertTriangle, Settings, X } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -200,6 +200,8 @@ export function AdminPanel() {
 
   // Registration collections panel collapsed state
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
+  const [showManageCollections, setShowManageCollections] = useState(false)
+  const manageCollectionsRef = useRef<HTMLDivElement | null>(null)
 
   // Helper to handle 401 (Unauthorized) responses
   const handle401Error = (context: string) => {
@@ -3208,199 +3210,135 @@ export function AdminPanel() {
           
           {activeSection === 'registrations' && (
             <div className="space-y-6">
-              {/* Registration Collection Settings - Collapsible */}
-              <div className="card p-6">
-                <button
-                  onClick={() => setIsCollectionsCollapsed(!isCollectionsCollapsed)}
-                  className="w-full flex items-center justify-between text-left hover:opacity-80 transition-opacity"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    Registration Collection Settings
-                    <InfoTooltip text="Manage multiple registration form collections (e.g., different years). Select a collection to view its registrations below." />
-                  </h2>
-                  <ChevronDown className={`h-5 w-5 text-gray-600 dark:text-gray-400 transition-transform ${isCollectionsCollapsed ? '' : 'rotate-180'}`} />
-                </button>
-
-                {!isCollectionsCollapsed && (
-                  <div className="mt-4">
-                {/* Create New Collection */}
-                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Create New Collection</h3>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newCollectionName}
-                      onChange={(e) => setNewCollectionName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && createCollection()}
-                      placeholder="e.g., 2026 Club Requests"
-                      className="input-field text-sm flex-1"
-                    />
+              {collections.length === 0 ? (
+                /* No collections yet - Show creation prompt */
+                <div className="card p-12 text-center">
+                  <div className="max-w-md mx-auto space-y-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-2">
+                      <FileSpreadsheet className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">No Registration Collections Yet</h2>
+                    <p className="text-gray-600 dark:text-gray-400">Create your first collection to start accepting club registrations. Collections let you organize registrations by year or category.</p>
                     <button
-                      onClick={createCollection}
-                      disabled={creatingCollection || !newCollectionName.trim()}
-                      className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                      onClick={() => setShowManageCollections(true)}
+                      className="btn-primary px-6 py-3 text-base mt-4"
                     >
-                      <Plus className="h-4 w-4" />
-                      {creatingCollection ? 'Creating...' : 'Create'}
+                      <Plus className="h-5 w-5 mr-2" />
+                      Create First Collection
                     </button>
                   </div>
                 </div>
-
-                {/* Collections List */}
-                <div className="space-y-3">
-                  {collections.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-8">
-                      No collections yet. Create one above to get started.
-                    </p>
-                  ) : (
-                    collections
-                      .map((collection) => {
-                        const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
-                        const isAccepting = Boolean(collection.accepting)
-                        const isRenewal = Boolean(collection.renewalEnabled)
-                        
-                        return (
-                          <div
-                            key={collection.id}
-                            onClick={() => setActiveCollectionId(collection.id)}
-                            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                              activeCollectionId === collection.id
-                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200 dark:ring-primary-800'
-                                : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                            }`}
+              ) : (
+                /* Collections exist - Show main interface */
+                <>
+                  {/* Collection Control Bar */}
+                  <div className="card p-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      {/* Left: Collection Selector & Status */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            Viewing Collection:
+                          </label>
+                          <select
+                            value={activeCollectionId || ''}
+                            onChange={(e) => setActiveCollectionId(e.target.value)}
+                            className="input-field text-sm font-medium min-w-[200px] max-w-xs"
                           >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h4 className="font-medium text-gray-900 dark:text-white truncate">
-                                    {collection.name}
-                                  </h4>
-                                  {isDisplay && (
-                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                      Displayed
-                                    </span>
-                                  )}
-                                  {isAccepting && (
-                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                      Accepting
-                                    </span>
-                                  )}
-                                  {isRenewal && (
-                                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                      Renewal
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  Created {new Date(collection.createdAt).toLocaleDateString()}
-                                </p>
-                              </div>
-                              
-                              <div className="flex flex-col gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                  <input
-                                    type="radio"
-                                    name="displayCollection"
-                                    checked={isDisplay}
-                                    onChange={() => toggleCollectionDisplay(collection.id)}
-                                    disabled={togglingCollection === collection.id}
-                                    className="w-3.5 h-3.5"
-                                  />
-                                  <span className="text-gray-700 dark:text-gray-300">Public Catalog</span>
-                                </label>
-                                
-                                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isAccepting}
-                                    onChange={() => toggleCollectionAccepting(collection.id)}
-                                    disabled={togglingCollection === collection.id}
-                                    className="w-3.5 h-3.5"
-                                  />
-                                  <span className="text-gray-700 dark:text-gray-300">Accept Registrations</span>
-                                </label>
-                                
-                                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isRenewal}
-                                    onChange={() => toggleCollectionRenewal(collection.id)}
-                                    disabled={togglingCollection === collection.id}
-                                    className="w-3.5 h-3.5"
-                                  />
-                                  <span className="text-gray-700 dark:text-gray-300">Enable Renewals</span>
-                                </label>
-                                
-                                <button
-                                  onClick={async () => {
-                                    const confirmed = await confirm({
-                                      title: 'Delete Collection',
-                                      message: `Delete collection "${collection.name}"? This cannot be undone.`,
-                                      confirmText: 'Delete',
-                                      variant: 'danger'
-                                    })
-                                    if (confirmed) {
-                                      deleteCollection(collection.id)
-                                    }
-                                  }}
-                                  disabled={togglingCollection === collection.id}
-                                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                            {!activeCollectionId && <option value="">Select a collection...</option>}
+                            {collections.map((col) => (
+                              <option key={col.id} value={col.id}>
+                                {col.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        {/* Status Badges */}
+                        {activeCollectionId && (() => {
+                          const activeCol = collections.find(c => c.id === activeCollectionId)
+                          if (!activeCol) return null
+                          const isDisplay = activeCol.display || (!activeCol.display && !activeCol.accepting && activeCol.enabled)
+                          const isAccepting = Boolean(activeCol.accepting)
+                          const isRenewal = Boolean(activeCol.renewalEnabled)
+                          
+                          return (
+                            <div className="flex items-center gap-2 mt-3">
+                              {isDisplay && (
+                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                  Public Catalog
+                                </span>
+                              )}
+                              {isAccepting ? (
+                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                  ✓ Accepting Registrations
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                  Registration Disabled
+                                </span>
+                              )}
+                              {isRenewal && (
+                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                  Renewals Enabled
+                                </span>
+                              )}
                             </div>
-                          </div>
-                        )
-                      })
-                  )}
-                </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Registrations List */}
-              {activeCollectionId ? (
-                <div>
-                  <div className="mb-6">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex-1">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Club Registrations</h1>
-                        <p className="text-gray-600 dark:text-gray-400">Review and manage club registration requests for the selected collection</p>
+                          )
+                        })()}
                       </div>
-                      {/* Excel Import Button */}
-                      <div className="flex-shrink-0">
-                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors disabled:opacity-50" title="Upload an Excel file to import registrations">
-                          <FileSpreadsheet className="h-4 w-4" />
-                          <span className="text-sm font-medium">{importingExcel ? 'Importing...' : 'Import Excel'}</span>
-                          <input
-                            type="file"
-                            accept=".xlsx"
-                            onChange={handleExcelImport}
-                            disabled={importingExcel || !activeCollectionId}
-                            className="hidden"
-                          />
-                        </label>
+
+                      {/* Right: Action Buttons */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setShowManageCollections(true)}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Manage Collections
+                        </button>
+                        
+                        {activeCollectionId && (
+                          <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors text-sm font-medium" title="Upload an Excel file to import registrations">
+                            <FileSpreadsheet className="h-4 w-4" />
+                            {importingExcel ? 'Importing...' : 'Import Excel'}
+                            <input
+                              type="file"
+                              accept=".xlsx"
+                              onChange={handleExcelImport}
+                              disabled={importingExcel || !activeCollectionId}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <RegistrationsList
-                    collectionId={activeCollectionId}
-                    collections={collections}
-                    adminApiKey={adminApiKey}
-                    collectionSlug={(() => {
-                      return slugifyName(collections.find(c => c.id === activeCollectionId)?.name || '')
-                    })()}
-                    collectionName={(() => {
-                      return collections.find(c => c.id === activeCollectionId)?.name || ''
-                    })()}
-                    onActionComplete={handleRegistrationActionComplete}
-                  />
-                </div>
-              ) : (
-                <div className="card p-8 text-center">
-                  <p className="text-gray-500 dark:text-gray-400">Select a collection above to view its registrations</p>
-                </div>
+
+                  {/* Registrations List */}
+                  {activeCollectionId ? (
+                    <RegistrationsList
+                      collectionId={activeCollectionId}
+                      collections={collections}
+                      adminApiKey={adminApiKey}
+                      collectionSlug={(() => {
+                        return slugifyName(collections.find(c => c.id === activeCollectionId)?.name || '')
+                      })()}
+                      collectionName={(() => {
+                        return collections.find(c => c.id === activeCollectionId)?.name || ''
+                      })()}
+                      onActionComplete={handleRegistrationActionComplete}
+                    />
+                  ) : (
+                    <div className="card p-12 text-center">
+                      <div className="max-w-md mx-auto">
+                        <AlertTriangle className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Select a Collection</h3>
+                        <p className="text-gray-600 dark:text-gray-400">Choose a collection from the dropdown above to view and manage its club registrations.</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -4309,6 +4247,228 @@ export function AdminPanel() {
           </Button>
         </div>
       </Modal>
+
+      {/* Manage Collections Modal */}
+      {showManageCollections && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 animate-in fade-in duration-200"
+            onClick={() => setShowManageCollections(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 pointer-events-none overflow-y-auto">
+            <div 
+              ref={manageCollectionsRef} 
+              className="card max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto pointer-events-auto animate-in zoom-in-95 fade-in duration-200 my-4 sm:my-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  Manage Collections
+                  <InfoTooltip text="Create and configure registration collections. Each collection has its own set of registrations and can be enabled/disabled independently." />
+                </h2>
+                <button
+                  onClick={() => setShowManageCollections(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Create New Collection */}
+              <div className="mb-6 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Create New Collection
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Collections let you organize registrations by year, semester, or any other grouping.
+                </p>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={newCollectionName}
+                    onChange={(e) => setNewCollectionName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !creatingCollection && createCollection()}
+                    placeholder="e.g., 2026 Club Requests"
+                    className="input-field text-sm flex-1"
+                  />
+                  <button
+                    onClick={createCollection}
+                    disabled={creatingCollection || !newCollectionName.trim()}
+                    className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {creatingCollection ? 'Creating...' : 'Create Collection'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Collections List */}
+              <div className="space-y-4">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Your Collections</h3>
+                {collections.length === 0 ? (
+                  <div className="text-center py-12 card">
+                    <FileSpreadsheet className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400">No collections yet. Create one above to get started.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {collections.map((collection) => {
+                      const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                      const isAccepting = Boolean(collection.accepting)
+                      const isRenewal = Boolean(collection.renewalEnabled)
+                      
+                      return (
+                        <div
+                          key={collection.id}
+                          className="p-5 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-all bg-white dark:bg-gray-800"
+                        >
+                          <div className="flex items-start justify-between gap-4 mb-4">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                                {collection.name}
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Created {new Date(collection.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            
+                            <button
+                              onClick={async () => {
+                                const confirmed = await confirm({
+                                  title: 'Delete Collection',
+                                  message: `Delete collection "${collection.name}"? All registrations in this collection will be permanently deleted. This cannot be undone.`,
+                                  confirmText: 'Delete',
+                                  variant: 'danger'
+                                })
+                                if (confirmed) {
+                                  deleteCollection(collection.id)
+                                }
+                              }}
+                              disabled={togglingCollection === collection.id}
+                              className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Settings Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            {/* Public Catalog */}
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                Public Catalog
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="radio"
+                                  name="displayCollection"
+                                  checked={isDisplay}
+                                  onChange={() => toggleCollectionDisplay(collection.id)}
+                                  disabled={togglingCollection === collection.id}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                                  Display this collection
+                                </span>
+                              </label>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                Shows in public club directory
+                              </p>
+                            </div>
+
+                            {/* Accept Registrations */}
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                Registration Form
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={isAccepting}
+                                  onChange={() => toggleCollectionAccepting(collection.id)}
+                                  disabled={togglingCollection === collection.id}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                                  Accept new registrations
+                                </span>
+                              </label>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                Allow clubs to register
+                              </p>
+                            </div>
+
+                            {/* Enable Renewals */}
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                Renewal Form
+                              </div>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={isRenewal}
+                                  onChange={() => toggleCollectionRenewal(collection.id)}
+                                  disabled={togglingCollection === collection.id}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                                  Enable renewals
+                                </span>
+                              </label>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                Allow clubs to renew
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Status Badges */}
+                          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <span className="text-xs text-gray-500 dark:text-gray-500">Status:</span>
+                            {isDisplay && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                Public
+                              </span>
+                            )}
+                            {isAccepting && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                Accepting
+                              </span>
+                            )}
+                            {isRenewal && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                Renewals
+                              </span>
+                            )}
+                            {!isDisplay && !isAccepting && !isRenewal && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                <button
+                  onClick={() => setShowManageCollections(false)}
+                  className="btn-secondary px-6 py-2.5"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Global Confirm Dialog */}
       {isOpen && options && (

@@ -1053,60 +1053,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
   return (
     <div className="space-y-4">
-      {/* Collection Selector and Form Links */}
-      <div className="card p-4 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 border-primary-200 dark:border-primary-800">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-              Viewing Collection:
-            </label>
-            <select
-              value={collectionId}
-              onChange={(e) => {
-                const newCollectionId = e.target.value
-                if (typeof window !== 'undefined') {
-                  // Trigger navigation to new collection (parent component handles this)
-                  window.dispatchEvent(new CustomEvent('changeCollection', { detail: newCollectionId }))
-                }
-              }}
-              className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {collections.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {accepting ? (
-              <a
-                href={`/register-club?collection=${collectionSlug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap justify-center"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Registration Form
-              </a>
-            ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400 italic px-3 py-2">
-                Registration disabled for this collection
-              </div>
-            )}
-            {renewalEnabled && (
-              <a
-                href={`/renew-club/${collectionSlug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap justify-center"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Renewal Form
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Renewal Settings Section - Only show if renewal is enabled */}
       {renewalEnabled && (
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
