@@ -9,7 +9,12 @@ import { fetchAllCollectionsClubs } from '@/lib/clubs'
  */
 export async function GET() {
   try {
+    console.log('[API] /all-collections-clubs - Starting fetch')
     const result = await fetchAllCollectionsClubs()
+    console.log(`[API] /all-collections-clubs - Got ${result.length} collections with data`)
+    result.forEach((item, idx) => {
+      console.log(`[API] Collection ${idx}: ${item.collection?.name || 'Unknown'} has ${(item.clubs || []).length} clubs`)
+    })
     
     return NextResponse.json({
       success: true,
@@ -20,9 +25,9 @@ export async function GET() {
       }
     })
   } catch (error) {
-    console.error('Error fetching all collections clubs:', error)
+    console.error('[API] Error fetching all collections clubs:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch all collections clubs' },
+      { error: 'Failed to fetch all collections clubs', details: String(error) },
       { status: 500 }
     )
   }

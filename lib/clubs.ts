@@ -138,55 +138,34 @@ export async function fetchClubs(): Promise<Club[]> {
  */
 export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: RegistrationCollection; clubs: Club[] }>> {
   try {
-    // Get all collections
-    const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
+    // Import Postgres functions
+    const { listCollections } = await import('@/lib/collections-db')
+    const { listRegistrations } = await import('@/lib/registrations-db')
+
+    // Get all collections from Postgres (the source of truth)
+    console.log('[fetchAllCollectionsClubs] Fetching collections from Postgres...')
+    const collections = await listCollections()
     
     if (!collections.length) {
-      console.warn('[fetchAllCollectionsClubs] No collections found')
+      console.warn('[fetchAllCollectionsClubs] No collections found in Postgres')
       return []
     }
 
-    console.log(`[fetchAllCollectionsClubs] Processing ${collections.length} collections`)
+    console.log(`[fetchAllCollectionsClubs] ✓ Found ${collections.length} collections in Postgres`)
 
-    // Fetch clubs for each collection in parallel
+    // Fetch approved clubs for each collection in parallel from Postgres
     const results = await Promise.all(
       collections.map(async (collection) => {
         try {
-          console.log(`[fetchAllCollectionsClubs] Fetching clubs for collection: ${collection.name} (${collection.id})`)
+          console.log(`[fetchAllCollectionsClubs] Fetching approved registrations for collection: ${collection.name} (${collection.id})`)
           
-          // First try to read from collection-specific snapshot if it exists
-          const snapshotPath = `settings/clubs-snapshot-${collection.id}.json`
-          const snapshotData = await readJSONFromStorage(snapshotPath).catch(() => null)
-          
-          if (snapshotData && snapshotData.clubs && Array.isArray(snapshotData.clubs)) {
-            console.log(`[fetchAllCollectionsClubs] Found ${snapshotData.clubs.length} clubs in snapshot for ${collection.name}`)
-            return { collection, clubs: snapshotData.clubs }
-          }
+          // Get approved registrations from Postgres for this collection
+          const registrations = await listRegistrations({
+            collectionId: collection.id,
+            status: 'approved'
+          })
 
-          // Fallback: List registration files for this collection
-          const regPaths = await listPaths(`registrations/${collection.id}`)
-          const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
-          
-          console.log(`[fetchAllCollectionsClubs] Found ${jsonPaths.length} registration files for ${collection.name}`)
-          
-          if (jsonPaths.length === 0) {
-            return { collection, clubs: [] }
-          }
-          
-          // Read all registrations in parallel
-          const registrationPromises = jsonPaths.map(path => 
-            readJSONFromStorage(path).catch(err => {
-              console.warn(`[fetchAllCollectionsClubs] Failed to read ${path}:`, err)
-              return null
-            })
-          )
-          const allRegs = await Promise.all(registrationPromises)
-          
-          const registrations: ClubRegistration[] = allRegs.filter(
-            reg => reg && typeof reg === 'object' && reg.status === 'approved'
-          )
-
-          console.log(`[fetchAllCollectionsClubs] Found ${registrations.length} approved registrations for ${collection.name}`)
+          console.log(`[fetchAllCollectionsClubs] ✓ Found ${registrations.length} approved registrations in ${collection.name}`)
 
           // Convert to Club objects
           const clubs = registrations.map((r) => ({
@@ -216,11 +195,11 @@ export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: Re
     )
 
     const totalClubs = results.reduce((sum, r) => sum + r.clubs.length, 0)
-    console.log(`[fetchAllCollectionsClubs] Successfully fetched ${totalClubs} total clubs across ${results.length} collections`)
+    console.log(`[fetchAllCollectionsClubs] ✓ Successfully fetched ${totalClubs} total clubs across ${results.length} collections`)
 
     return results
   } catch (error) {
-    console.error('[fetchAllCollectionsClubs] Error fetching all collections clubs:', error)
+    console.error('[fetchAllCollectionsClubs] ✗ Error fetching all collections clubs:', error)
     return []
   }
 }

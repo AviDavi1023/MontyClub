@@ -50,6 +50,11 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       const collectionsData = data.data || []
       console.log(`[AnalyticsPanel] Received ${collectionsData.length} collections with data`)
       
+      // Log each collection and its clubs count
+      collectionsData.forEach((item: any, idx: number) => {
+        console.log(`[AnalyticsPanel] Collection ${idx}: ${item.collection?.name || 'Unknown'} (${item.collection?.id || 'no-id'}) has ${(item.clubs || []).length} clubs`)
+      })
+      
       setAllCollectionsData(collectionsData)
 
       // Flatten all clubs from all collections
