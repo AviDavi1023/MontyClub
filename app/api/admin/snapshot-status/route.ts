@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
 
           console.log(`[Snapshot] Merging ${Object.keys(map).length} announcements into snapshot`)
           // IMPORTANT: Only try exact string match, not numeric conversion
-          // Club IDs are always strings, and converting "ABC123" to Number yields NaN
+          // Club IDs are always strings, and converting "ABC123" to Number yields NaN test
           clubs.forEach((c) => {
             const idStr = String(c.id).trim()
             if (map[idStr] && map[idStr].trim() !== '') {
