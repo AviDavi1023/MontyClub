@@ -152,6 +152,7 @@ export function AdminPanel() {
     // Confirm dialog hook
     const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
+  const [registrationsRefreshTrigger, setRegistrationsRefreshTrigger] = useState(0)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [importingExcel, setImportingExcel] = useState(false)
   const [showExcelImportModal, setShowExcelImportModal] = useState(false)
@@ -3097,6 +3098,9 @@ export function AdminPanel() {
       // Refresh collections and registrations immediately after successful import
       await loadCollections()
       
+      // Trigger registrations list refresh
+      setRegistrationsRefreshTrigger(prev => prev + 1)
+      
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
           const bc = new window.BroadcastChannel('clubData')
@@ -3318,6 +3322,7 @@ export function AdminPanel() {
                   {/* Registrations List */}
                   {activeCollectionId ? (
                     <RegistrationsList
+                      key={`${activeCollectionId}-${registrationsRefreshTrigger}`}
                       collectionId={activeCollectionId}
                       collections={collections}
                       adminApiKey={adminApiKey}
@@ -4214,9 +4219,9 @@ export function AdminPanel() {
             <p className="font-medium text-gray-900 dark:text-white">Append</p>
             <p className="text-xs text-gray-600 dark:text-gray-400">Keep existing registrations and add new ones from the file.</p>
           </div>
-          <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
-            <p className="font-medium text-red-700 dark:text-red-300">Replace</p>
-            <p className="text-xs text-red-600 dark:text-red-400">Delete all existing registrations in this collection before importing.</p>
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900/50">
+            <p className="font-medium text-gray-900 dark:text-white">Replace</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">Delete all existing registrations in this collection before importing.</p>
           </div>
         </div>
         <div className="mt-6 flex items-center justify-end gap-2">
