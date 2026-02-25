@@ -3359,6 +3359,7 @@ export function AdminPanel() {
             <AnalyticsPanel
               clubs={clubs}
               collections={collections}
+              activeCollectionId={activeCollectionId}
             />
           )}
         </div>

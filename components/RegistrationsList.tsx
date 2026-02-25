@@ -1109,30 +1109,58 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
         {/* Stats Dashboard */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg border transition-all text-left hover:shadow-md ${
+              statusFilter === 'all'
+                ? 'border-gray-900 dark:border-white ring-2 ring-gray-300 dark:ring-gray-600'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
             <div className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase tracking-wide">Total</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
               {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted).length}
             </div>
-          </div>
-          <div className="p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending')}
+            className={`p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg border transition-all text-left hover:shadow-md ${
+              statusFilter === 'pending'
+                ? 'border-yellow-600 dark:border-yellow-500 ring-2 ring-yellow-300 dark:ring-yellow-700'
+                : 'border-yellow-200 dark:border-yellow-700 hover:border-yellow-300 dark:hover:border-yellow-600'
+            }`}
+          >
             <div className="text-xs text-yellow-700 dark:text-yellow-400 font-medium uppercase tracking-wide">Pending</div>
             <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">
               {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'pending').length}
             </div>
-          </div>
-          <div className="p-3 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg border border-green-200 dark:border-green-700">
+          </button>
+          <button
+            onClick={() => setStatusFilter('approved')}
+            className={`p-3 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg border transition-all text-left hover:shadow-md ${
+              statusFilter === 'approved'
+                ? 'border-green-600 dark:border-green-500 ring-2 ring-green-300 dark:ring-green-700'
+                : 'border-green-200 dark:border-green-700 hover:border-green-300 dark:hover:border-green-600'
+            }`}
+          >
             <div className="text-xs text-green-700 dark:text-green-400 font-medium uppercase tracking-wide">Approved</div>
             <div className="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">
               {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'approved').length}
             </div>
-          </div>
-          <div className="p-3 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-lg border border-red-200 dark:border-red-700">
+          </button>
+          <button
+            onClick={() => setStatusFilter('rejected')}
+            className={`p-3 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-lg border transition-all text-left hover:shadow-md ${
+              statusFilter === 'rejected'
+                ? 'border-red-600 dark:border-red-500 ring-2 ring-red-300 dark:ring-red-700'
+                : 'border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600'
+            }`}
+          >
             <div className="text-xs text-red-700 dark:text-red-400 font-medium uppercase tracking-wide">Denied</div>
             <div className="text-2xl font-bold text-red-700 dark:text-red-300 mt-1">
               {registrations.filter(r => !localPendingRegistrationChanges[r.id]?.deleted && r.status === 'rejected').length}
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Search Bar */}

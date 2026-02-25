@@ -7,17 +7,24 @@ import { Club, RegistrationCollection } from '@/types/club'
 interface AnalyticsPanelProps {
   clubs: Club[]
   collections: RegistrationCollection[]
+  activeCollectionId?: string | null
 }
 
-export function AnalyticsPanel({ clubs, collections }: AnalyticsPanelProps) {
+export function AnalyticsPanel({ clubs, collections, activeCollectionId }: AnalyticsPanelProps) {
   const [stats, setStats] = useState<any>({})
   const [categoryBreakdown, setCategoryBreakdown] = useState<Array<{ name: string; count: number }>>([])
   const [collectionStats, setCollectionStats] = useState<Array<{ name: string; count: number }>>([])
   const [allCollectionsData, setAllCollectionsData] = useState<Array<{ collection: RegistrationCollection; clubs: Club[] }>>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'all'>('month')
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all')
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>(activeCollectionId || 'all')
   
+  // Update selected collection when active collection changes
+  useEffect(() => {
+    if (activeCollectionId && activeCollectionId !== selectedCollectionId) {
+      setSelectedCollectionId(activeCollectionId)
+    }
+  }, [activeCollectionId])
 
   useEffect(() => {
     loadAnalytics()
