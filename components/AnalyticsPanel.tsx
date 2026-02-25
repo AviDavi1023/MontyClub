@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, Users, Clock, Download } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, Clock, Download, AlertTriangle } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 
 interface AnalyticsPanelProps {
@@ -34,18 +34,27 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
     try {
       setLoading(true)
 
+      console.log('[AnalyticsPanel] Starting analytics load, selectedCollectionId:', selectedCollectionId)
+
       // Fetch all collections' clubs for accurate stats
       const response = await fetch('/api/admin/all-collections-clubs')
       if (!response.ok) {
-        throw new Error('Failed to fetch collections clubs')
+        const errorText = await response.text()
+        console.error('[AnalyticsPanel] API error:', response.status, errorText)
+        throw new Error(`Failed to fetch collections clubs: ${response.status}`)
       }
       
       const data = await response.json()
+      console.log('[AnalyticsPanel] API response:', data)
+      
       const collectionsData = data.data || []
+      console.log(`[AnalyticsPanel] Received ${collectionsData.length} collections with data`)
+      
       setAllCollectionsData(collectionsData)
 
       // Flatten all clubs from all collections
-      const allClubs = collectionsData.flatMap((item: any) => item.clubs)
+      const allClubs = collectionsData.flatMap((item: any) => item.clubs || [])
+      console.log(`[AnalyticsPanel] Total clubs across all collections: ${allClubs.length}`)
 
       // Filter clubs by selected collection if not 'all'
       let filteredClubs = allClubs
@@ -54,18 +63,21 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       if (selectedCollectionId !== 'all') {
         const selectedData = collectionsData.find((item: any) => item.collection.id === selectedCollectionId)
         if (selectedData) {
-          filteredClubs = selectedData.clubs
+          filteredClubs = selectedData.clubs || []
           displayCollectionName = selectedData.collection.name
+          console.log(`[AnalyticsPanel] Filtered to ${filteredClubs.length} clubs from collection: ${displayCollectionName}`)
+        } else {
+          console.warn(`[AnalyticsPanel] Collection ${selectedCollectionId} not found in data`)
         }
       }
 
       // Calculate statistics from filtered clubs
       const totalClubs = filteredClubs.length
       const activeClubs = filteredClubs.filter((c: Club) => c.active).length
-      const avgMeetingsPerWeek = filteredClubs.reduce((sum: number, c: Club) => {
+      const avgMeetingsPerWeek = totalClubs > 0 ? filteredClubs.reduce((sum: number, c: Club) => {
         // Estimate based on meeting frequency
         return sum + (c.meetingFrequency === 'Weekly' ? 1 : c.meetingFrequency === 'Bi-weekly' ? 0.5 : 0.25)
-      }, 0) / Math.max(totalClubs, 1)
+      }, 0) / totalClubs : 0
 
       // Category breakdown
       const categories: Record<string, number> = {}
@@ -81,7 +93,7 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       // Collection statistics - count clubs per collection
       const collectionData = collectionsData.map((item: any) => ({
         name: item.collection.name,
-        count: item.clubs.length
+        count: (item.clubs || []).length
       }))
 
       // Meeting frequency breakdown
@@ -89,6 +101,14 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       filteredClubs.forEach((c: Club) => {
         const freq = c.meetingFrequency || 'Unknown'
         meetingFrequency[freq] = (meetingFrequency[freq] || 0) + 1
+      })
+
+      console.log('[AnalyticsPanel] Calculated stats:', {
+        totalClubs,
+        activeClubs,
+        avgMeetingsPerWeek: avgMeetingsPerWeek.toFixed(2),
+        categoryCount: categoryData.length,
+        collectionCount: collectionData.length
       })
 
       setStats({
@@ -105,7 +125,19 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       setCategoryBreakdown(categoryData)
       setCollectionStats(collectionData)
     } catch (error) {
-      console.error('Failed to load analytics:', error)
+      console.error('[AnalyticsPanel] Failed to load analytics:', error)
+      // Set empty stats to prevent undefined errors
+      setStats({
+        totalClubs: 0,
+        activeClubs: 0,
+        inactiveClubs: 0,
+        avgMeetingsPerWeek: '0.00',
+        clubsWithAnnouncements: 0,
+        totalCollections: collections.length,
+        meetingFrequency: {},
+        displayCollectionName: 'Error Loading Data',
+        error: String(error)
+      })
     } finally {
       setLoading(false)
     }
@@ -173,6 +205,23 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
 
       {loading ? (
         <div className="card p-8 text-center text-gray-500">Loading statistics...</div>
+      ) : stats.error ? (
+        <div className="card p-8 text-center">
+          <div className="text-red-600 dark:text-red-400 mb-4">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-2">Failed to Load Analytics</h3>
+            <p className="text-sm">{stats.error}</p>
+          </div>
+          <button
+            onClick={loadAnalytics}
+            className="btn-primary mt-4"
+          >
+            Try Again
+          </button>
+          <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+            <p>Check browser console for detailed error logs</p>
+          </div>
+        </div>
       ) : (
         <>
           {/* Collection Filter */}

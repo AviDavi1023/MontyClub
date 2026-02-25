@@ -146,21 +146,47 @@ export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: Re
       return []
     }
 
+    console.log(`[fetchAllCollectionsClubs] Processing ${collections.length} collections`)
+
     // Fetch clubs for each collection in parallel
     const results = await Promise.all(
       collections.map(async (collection) => {
         try {
-          // List registration files for this collection
+          console.log(`[fetchAllCollectionsClubs] Fetching clubs for collection: ${collection.name} (${collection.id})`)
+          
+          // First try to read from collection-specific snapshot if it exists
+          const snapshotPath = `settings/clubs-snapshot-${collection.id}.json`
+          const snapshotData = await readJSONFromStorage(snapshotPath).catch(() => null)
+          
+          if (snapshotData && snapshotData.clubs && Array.isArray(snapshotData.clubs)) {
+            console.log(`[fetchAllCollectionsClubs] Found ${snapshotData.clubs.length} clubs in snapshot for ${collection.name}`)
+            return { collection, clubs: snapshotData.clubs }
+          }
+
+          // Fallback: List registration files for this collection
           const regPaths = await listPaths(`registrations/${collection.id}`)
           const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
           
+          console.log(`[fetchAllCollectionsClubs] Found ${jsonPaths.length} registration files for ${collection.name}`)
+          
+          if (jsonPaths.length === 0) {
+            return { collection, clubs: [] }
+          }
+          
           // Read all registrations in parallel
-          const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
+          const registrationPromises = jsonPaths.map(path => 
+            readJSONFromStorage(path).catch(err => {
+              console.warn(`[fetchAllCollectionsClubs] Failed to read ${path}:`, err)
+              return null
+            })
+          )
           const allRegs = await Promise.all(registrationPromises)
           
           const registrations: ClubRegistration[] = allRegs.filter(
             reg => reg && typeof reg === 'object' && reg.status === 'approved'
           )
+
+          console.log(`[fetchAllCollectionsClubs] Found ${registrations.length} approved registrations for ${collection.name}`)
 
           // Convert to Club objects
           const clubs = registrations.map((r) => ({
@@ -188,6 +214,9 @@ export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: Re
         }
       })
     )
+
+    const totalClubs = results.reduce((sum, r) => sum + r.clubs.length, 0)
+    console.log(`[fetchAllCollectionsClubs] Successfully fetched ${totalClubs} total clubs across ${results.length} collections`)
 
     return results
   } catch (error) {
