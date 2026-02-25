@@ -2418,5 +2418,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           </div>
         </div>
       )}
+    </div>
   )
 }

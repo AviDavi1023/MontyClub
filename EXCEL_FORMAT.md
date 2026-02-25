@@ -1,40 +1,49 @@
-# Excel File Format for clubData.xlsx
+# Excel File Format (Import)
 
-Your Excel file should have the following columns in this exact order:
+This reflects the current Excel import behavior used by the admin "Import Excel" flow.
 
-| Column | Header | Description | Example |
-|--------|--------|-------------|---------|
-| A | ID | Unique identifier for each club | 1, 2, 3, etc. |
-| B | Name | Club name | "Debate Club" |
-| C | Category | Club category | "Academic", "Arts", "STEM", "Service" |
-| D | Description | Brief description of the club | "Develop public speaking skills..." |
-| E | Advisor | Teacher/staff advisor name | "Ms. Johnson" |
-| F | Student Leader | Student leader name(s) | "Alex Chen" |
-| G | Meeting Time | When the club meets | "Tuesdays 3:30 PM" |
-| H | Location | Where the club meets | "Room 201" |
-| I | Contact | Email or contact information | "debate@school.edu" |
-| J | Social Media | Social media handle | "@schooldebate" |
-| K | Active | Status (Active/Inactive or True/False or 1/0) | "Active" |
-| L | Grade Level | Grade levels | "9-12", "10-12" |
-| M | Keywords | Comma-separated keywords | "speaking,competition,academic" |
+## Required Format
 
-## Important Notes:
+- **File type:** `.xlsx` only
+- **First row:** Header row (any header names are acceptable)
+- **Column order matters** (the importer reads by position, not header text)
 
-1. **First row must be headers** - The first row should contain the column names
-2. **No empty rows** - Don't leave empty rows between data
-3. **Active status** - Use "Active"/"Inactive", "True"/"False", or "1"/"0"
-4. **Keywords** - Separate multiple keywords with commas (no spaces after commas)
-5. **File location** - Place the file in the root directory as `clubData.xlsx`
+## Column Mapping (by position)
 
-## Sample Data:
+| Column | Header (suggested) | Used For | Required | Notes |
+|--------|-------------------|----------|----------|-------|
+| A | ID | Not used for import | No | Can be blank or any value |
+| B | Name | `clubName` | Yes | Empty rows are skipped |
+| C | Category | `category` | No | Optional |
+| D | Description | `statementOfPurpose` | No | Optional |
+| E | Advisor | `advisorName` | No | Optional |
+| F | Student Leader | `studentContactName` | No | Optional |
+| G | Meeting Time | `meetingDay` | No | Optional |
+| H | Location | `location` | No | Optional |
+| I | Contact | `studentContactEmail` | No | Optional |
+| J | Social Media | `socialMedia` | No | Optional |
+| K | Active | Not used for import | No | Ignored by importer |
+| L | Notes | `notes` | No | Optional |
+| M | Keywords | Not used for import | No | Ignored by importer |
+| N | Meeting Frequency | `meetingFrequency` | No | Optional |
 
-| ID | Name | Category | Description | Advisor | Student Leader | Meeting Time | Location | Contact | Social Media | Active | Grade Level | Keywords |
-|----|------|----------|-------------|---------|----------------|--------------|----------|--------|--------------|--------|-------------|---------|
-| 1 | Debate Club | Academic | Develop public speaking skills | Ms. Johnson | Alex Chen | Tuesdays 3:30 PM | Room 201 | debate@school.edu | @schooldebate | Active | 9-12 | speaking,competition,academic |
-| 2 | Robotics Team | STEM | Build and program robots | Mr. Smith | Sarah Kim | Wednesdays 4:00 PM | Tech Lab | robotics@school.edu | @schoolrobotics | Active | 9-12 | engineering,programming,competition |
+## Optional Columns
 
-If the Excel file is not found or has errors, the app will fall back to mock data for demonstration purposes.
+The importer ignores extra columns beyond column N. You can leave unused columns blank.
 
-## Security Note
+## Sample Header Row
 
-This app uses ExcelJS, a secure and actively maintained library for reading Excel files, ensuring your data is processed safely without vulnerabilities.
+| ID | Name | Category | Description | Advisor | Student Leader | Meeting Time | Location | Contact | Social Media | Active | Notes | Keywords | Meeting Frequency |
+
+## Sample Data
+
+| ID | Name | Category | Description | Advisor | Student Leader | Meeting Time | Location | Contact | Social Media | Active | Notes | Keywords | Meeting Frequency |
+|----|------|----------|-------------|---------|----------------|--------------|----------|--------|--------------|--------|-------|----------|-------------------|
+| 1 | Debate Club | Academic | Develop public speaking skills | Ms. Johnson | Alex Chen | Tuesdays 3:30 PM | Room 201 | debate@school.edu | @schooldebate | Active | Tournament season starts Oct. | speaking,competition,academic | Weekly |
+| 2 | Robotics Team | STEM | Build and program robots | Mr. Smith | Sarah Kim | Wednesdays 4:00 PM | Tech Lab | robotics@school.edu | @schoolrobotics | Active | Tryouts in September | engineering,programming,competition | 1st and 3rd weeks of the month |
+
+## Import Notes
+
+- Imported rows are inserted as **approved registrations** in the selected collection.
+- The importer does **not** validate header names; only column positions matter.
+- Blank rows (missing a club name in column B) are skipped.
