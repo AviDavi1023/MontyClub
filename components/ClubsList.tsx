@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
@@ -28,7 +28,6 @@ export function ClubsList() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const ITEMS_PER_PAGE = viewMode === 'list' ? 24 : 12 // Double listings in list view
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
-  const infiniteScrollSentinelRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
@@ -549,28 +548,43 @@ export function ClubsList() {
   const visibleClubs = sortedClubs.slice(0, visibleCount)
   const remainingClubsCount = Math.max(0, sortedClubs.length - visibleClubs.length)
 
+  const loadMoreClubs = useCallback(() => {
+    setVisibleCount((prev) => Math.min(sortedClubs.length, prev + ITEMS_PER_PAGE))
+  }, [sortedClubs.length, ITEMS_PER_PAGE])
+
   // Auto-load more clubs as user scrolls near the bottom
   useEffect(() => {
-    const sentinel = infiniteScrollSentinelRef.current
-    if (!sentinel || remainingClubsCount <= 0) return
+    if (typeof window === 'undefined' || remainingClubsCount <= 0) return
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry?.isIntersecting) return
+    let ticking = false
 
-        setVisibleCount((prev) => Math.min(sortedClubs.length, prev + ITEMS_PER_PAGE))
-      },
-      {
-        root: null,
-        rootMargin: '320px 0px',
-        threshold: 0,
+    const checkAndLoad = () => {
+      const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 320
+      if (nearBottom) {
+        loadMoreClubs()
       }
-    )
+    }
 
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [remainingClubsCount, sortedClubs.length, ITEMS_PER_PAGE])
+    const onScrollOrResize = () => {
+      if (ticking) return
+      ticking = true
+      window.requestAnimationFrame(() => {
+        checkAndLoad()
+        ticking = false
+      })
+    }
+
+    // Run once so short pages auto-expand without requiring initial scroll
+    checkAndLoad()
+
+    window.addEventListener('scroll', onScrollOrResize, { passive: true })
+    window.addEventListener('resize', onScrollOrResize)
+
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [remainingClubsCount, loadMoreClubs])
 
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
@@ -888,11 +902,16 @@ export function ClubsList() {
 
         {filteredClubs.length > 0 && (
           <div className="py-2" aria-live="polite">
-            <div ref={infiniteScrollSentinelRef} className="h-1 w-full" />
             {remainingClubsCount > 0 && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400">
                 Loading more as you scroll…
-              </p>
+                <button
+                  onClick={loadMoreClubs}
+                  className="ml-2 underline underline-offset-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                >
+                  Load now
+                </button>
+              </div>
             )}
           </div>
         )}
