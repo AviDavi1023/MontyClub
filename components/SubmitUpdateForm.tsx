@@ -15,6 +15,7 @@ export function SubmitUpdateForm() {
     suggestedChange: '',
     contactEmail: '',
     additionalNotes: '',
+    website: '',
   })
   
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -34,7 +35,8 @@ export function SubmitUpdateForm() {
       })
 
       if (!resp.ok) {
-        throw new Error('Failed to submit update')
+        const errorData = await resp.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to submit update')
       }
       const entry = await resp.json()
 
@@ -48,6 +50,7 @@ export function SubmitUpdateForm() {
         suggestedChange: '',
         contactEmail: '',
         additionalNotes: '',
+        website: '',
       })
       setError(null)
     } catch (error) {
@@ -91,6 +94,7 @@ export function SubmitUpdateForm() {
               suggestedChange: '',
               contactEmail: '',
               additionalNotes: '',
+              website: '',
             })
           }}
         >
@@ -179,6 +183,19 @@ export function SubmitUpdateForm() {
         rows={3}
         placeholder="Any additional information or context"
       />
+
+      <div className="absolute left-[-10000px] top-auto w-px h-px overflow-hidden" aria-hidden="true">
+        <label htmlFor="website">Website</label>
+        <input
+          id="website"
+          name="website"
+          type="text"
+          value={formData.website}
+          onChange={handleChange}
+          autoComplete="off"
+          tabIndex={-1}
+        />
+      </div>
 
       <div className="pt-4">
         <Button

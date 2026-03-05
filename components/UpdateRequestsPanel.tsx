@@ -34,6 +34,7 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [prioritizeSeqOrg, setPrioritizeSeqOrg] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
@@ -86,6 +87,7 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
         // Map 'reviewed' field to 'status' for backwards compatibility
         status: item.status || (item.reviewed === true ? 'approved' : item.reviewed === false ? 'pending' : 'pending'),
         clubName: item.clubName || item.name || 'Unknown Club',
+        contactEmail: item.contactEmail || '',
         requestedBy: item.requestedBy || item.createdBy || item.contactEmail || 'Unknown',
         requestedAt: item.requestedAt || item.createdAt || new Date().toISOString(),
       })) : []
@@ -179,12 +181,31 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
     }
   }
 
-  const filteredRequests = updateRequests.filter(req => {
-    const matchesStatus = statusFilter === 'all' || req.status === statusFilter
-    const matchesSearch = req.clubName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.requestedBy.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesStatus && matchesSearch
-  })
+  const getEmailDomain = (email: string) => {
+    const trimmed = (email || '').trim().toLowerCase()
+    const atIndex = trimmed.lastIndexOf('@')
+    return atIndex >= 0 ? trimmed.slice(atIndex + 1) : ''
+  }
+
+  const isSeqOrgSubmission = (req: UpdateRequest) => getEmailDomain(req.contactEmail).endsWith('seq.org')
+
+  const filteredRequests = updateRequests
+    .filter(req => {
+      const matchesStatus = statusFilter === 'all' || req.status === statusFilter
+      const q = searchTerm.toLowerCase()
+      const matchesSearch = req.clubName.toLowerCase().includes(q) ||
+        req.requestedBy.toLowerCase().includes(q) ||
+        (req.contactEmail || '').toLowerCase().includes(q)
+      return matchesStatus && matchesSearch
+    })
+    .sort((a, b) => {
+      if (prioritizeSeqOrg) {
+        const seqDelta = Number(isSeqOrgSubmission(b)) - Number(isSeqOrgSubmission(a))
+        if (seqDelta !== 0) return seqDelta
+      }
+
+      return new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+    })
 
   const stats = {
     total: updateRequests.length,
@@ -327,6 +348,16 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
             <XCircle className="h-4 w-4" />
             Rejected ({stats.rejected})
           </button>
+          <button
+            onClick={() => setPrioritizeSeqOrg(prev => !prev)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              prioritizeSeqOrg
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100'
+            }`}
+          >
+            {prioritizeSeqOrg ? 'SEQ.org Prioritized' : 'Prioritize seq.org'}
+          </button>
         </div>
       </div>
 
@@ -365,6 +396,11 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
                           ? req.status.charAt(0).toUpperCase() + req.status.slice(1)
                           : 'Unknown'}
                       </span>
+                      {isSeqOrgSubmission(req) && (
+                        <span className="px-2 py-1 text-xs rounded-full font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                          seq.org
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Requested by {req.requestedBy} on {new Date(req.requestedAt).toLocaleDateString()}
