@@ -1,22 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
 import { announcementsCache } from '@/lib/caches'
 import { createCachedGET } from '@/lib/api-patterns'
 import { invalidateClubsCache } from '@/lib/cache-utils'
+import { getAllAnnouncements, setAnnouncement, bulkClearAnnouncements } from '@/lib/announcements-db'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-async function ensureAnnouncementsFile() {
-  // left for compatibility; runtime-store handles file creation
-  return null
-}
-
 export const GET = createCachedGET<Record<string, string>>(
   announcementsCache,
   async (_request: NextRequest) => {
-    const data = await readData('announcements', {})
-    return (data && typeof data === 'object') ? data as Record<string, string> : {}
+    return await getAllAnnouncements()
   },
   { maxAge: 10000 }
 )
@@ -28,10 +22,17 @@ export async function POST(request: NextRequest) {
       if (!body || typeof body !== 'object') {
         return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
       }
-      const current = announcementsCache.get() ?? await readData('announcements', {})
-      const base = (current && typeof current === 'object') ? { ...current } : {}
-      const updated: Record<string, string> = { ...base, ...body }
-      await writeData('announcements', updated)
+      
+      // Update each announcement in the database
+      const entries = Object.entries(body)
+      for (const [clubId, announcement] of entries) {
+        if (typeof announcement === 'string') {
+          await setAnnouncement(clubId, announcement)
+        }
+      }
+      
+      // Fetch fresh data from database
+      const updated = await getAllAnnouncements()
       announcementsCache.set(updated)
       
       // Invalidate clubs cache since announcements affect club display
@@ -75,25 +76,17 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ deleted: [], total: 0 })
       }
 
-      const current = announcementsCache.get() ?? await readData('announcements', {})
-      const updated: Record<string, string> = { ...(current || {}) } as Record<string, string>
-      let deletedCount = 0
-      const actuallyDeleted: string[] = []
-      for (const id of ids) {
-        if (Object.prototype.hasOwnProperty.call(updated, id)) {
-          delete updated[id]
-          deletedCount += 1
-          actuallyDeleted.push(id)
-        }
-      }
-      if (deletedCount > 0) {
-        await writeData('announcements', updated)
-        announcementsCache.set(updated)
-        
-        // Invalidate clubs cache since we changed announcements
-        invalidateClubsCache()
-      }
-      return NextResponse.json({ deleted: actuallyDeleted, total: deletedCount }, {
+      // Clear announcements in database
+      const deletedCount = await bulkClearAnnouncements(ids)
+      
+      // Fetch fresh data from database
+      const updated = await getAllAnnouncements()
+      announcementsCache.set(updated)
+      
+      // Invalidate clubs cache since we changed announcements
+      invalidateClubsCache()
+      
+      return NextResponse.json({ deleted: ids.slice(0, deletedCount), total: deletedCount }, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           'Pragma': 'no-cache',

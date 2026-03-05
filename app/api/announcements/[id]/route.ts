@@ -1,14 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server'
-import { readData, writeData } from '@/lib/runtime-store'
 import { announcementsCache } from '@/lib/caches'
+import { setAnnouncement, getAllAnnouncements, clearAnnouncement } from '@/lib/announcements-db'
+import { invalidateClubsCache } from '@/lib/cache-utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-async function ensureAnnouncementsFile() {
-  // compatibility shim - runtime-store handles storage
-  return null
-}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return announcementsCache.withLock(async () => {
@@ -28,26 +24,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Invalid payload, expected { announcement: string }' }, { status: 400 })
       }
       
-      console.log(`[SERVER] Reading current announcements...`)
-      const current = announcementsCache.get() ?? await readData('announcements', {})
-      console.log(`[SERVER] Current announcements:`, current)
+      console.log(`[SERVER] Updating announcement for club ${id}`)
       
-      const updated: Record<string, string> = { ...(current || {}) } as Record<string, string>
-      if (body.announcement === '') {
-        console.log(`[SERVER] Deleting announcement ${id}`)
-        delete updated[id]
-      } else {
-        console.log(`[SERVER] Updating announcement ${id} to: "${body.announcement.substring(0, 50)}..."`)
-        updated[id] = body.announcement
-      }
+      // Update in database
+      await setAnnouncement(id, body.announcement)
       
-      console.log(`[SERVER] Writing to storage...`)
-      console.log(`[SERVER] Updated announcements:`, updated)
-      const writeResult = await writeData('announcements', updated)
-      console.log(`[SERVER] Write result:`, writeResult)
+      console.log(`[SERVER] Database updated, fetching fresh announcements...`)
       
+      // Fetch fresh data from database
+      const updated = await getAllAnnouncements()
       announcementsCache.set(updated)
+      
       console.log(`[SERVER] Cache updated`)
+      
+      // Invalidate clubs cache since announcements affect club display
+      invalidateClubsCache()
       
       console.log(`${'='.repeat(60)}`)
       console.log(`[SERVER SUCCESS] Announcement ${id} saved`)
@@ -72,13 +63,17 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   return announcementsCache.withLock(async () => {
     try {
       const { id } = await params
-      const current = announcementsCache.get() ?? await readData('announcements', {})
-      const updated: Record<string, string> = { ...(current || {}) } as Record<string, string>
-      if (Object.prototype.hasOwnProperty.call(updated, id)) {
-        delete updated[id]
-        await writeData('announcements', updated)
-        announcementsCache.set(updated)
-      }
+      
+      // Clear announcement in database
+      await clearAnnouncement(id)
+      
+      // Fetch fresh data from database
+      const updated = await getAllAnnouncements()
+      announcementsCache.set(updated)
+      
+      // Invalidate clubs cache
+      invalidateClubsCache()
+      
       return NextResponse.json({ id }, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

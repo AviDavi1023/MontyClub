@@ -61,7 +61,7 @@ export function AnnouncementsBoard({
       await saveAnnouncement(editingId, editText)
       setEditingId(null)
       setEditText('')
-      showToast('Announcement saved')
+      // Toast is shown by saveAnnouncement itself
       
       logActivity({
         type: 'announcement',
@@ -76,7 +76,7 @@ export function AnnouncementsBoard({
         details: `Failed to save announcement: ${error instanceof Error ? error.message : 'Unknown error'}`,
         status: 'error'
       })
-      showToast('Failed to save announcement', 'error')
+      // Toast is shown by saveAnnouncement itself
     }
   }
 
