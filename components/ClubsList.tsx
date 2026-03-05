@@ -28,7 +28,7 @@ export function ClubsList() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const ITEMS_PER_PAGE = viewMode === 'list' ? 24 : 12 // Double listings in list view
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
-  const contentTopRef = useRef<HTMLDivElement>(null)
+  const infiniteScrollSentinelRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   function parseFiltersFromQuery(): ClubFilters {
@@ -549,6 +549,29 @@ export function ClubsList() {
   const visibleClubs = sortedClubs.slice(0, visibleCount)
   const remainingClubsCount = Math.max(0, sortedClubs.length - visibleClubs.length)
 
+  // Auto-load more clubs as user scrolls near the bottom
+  useEffect(() => {
+    const sentinel = infiniteScrollSentinelRef.current
+    if (!sentinel || remainingClubsCount <= 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting) return
+
+        setVisibleCount((prev) => Math.min(sortedClubs.length, prev + ITEMS_PER_PAGE))
+      },
+      {
+        root: null,
+        rootMargin: '320px 0px',
+        threshold: 0,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [remainingClubsCount, sortedClubs.length, ITEMS_PER_PAGE])
+
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
     const params = new URLSearchParams()
@@ -651,8 +674,6 @@ export function ClubsList() {
 
   return (
     <div className="space-y-6">
-      {/* Scroll target for pagination */}
-      <div ref={contentTopRef} className="scroll-mt-4" />
       {/* Search and Filter Controls */}
       <div className="space-y-3 sm:space-y-4">
         {/* Search bar - full width */}
@@ -776,7 +797,7 @@ export function ClubsList() {
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-            Showing {filteredClubs.length === 0 ? '0' : visibleClubs.length} of {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
+            {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
           
           <div className="flex items-center gap-3">
@@ -865,44 +886,14 @@ export function ClubsList() {
           </>
         )}
 
-        {filteredClubs.length > 0 && sortedClubs.length > ITEMS_PER_PAGE && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {remainingClubsCount > 0 ? `${remainingClubsCount} more club${remainingClubsCount !== 1 ? 's' : ''} available` : 'All clubs shown'}
-            </p>
-            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
-              {remainingClubsCount > 0 && (
-                <button
-                  onClick={() => setVisibleCount(prev => Math.min(sortedClubs.length, prev + ITEMS_PER_PAGE))}
-                  className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
-                >
-                  Show More
-                </button>
-              )}
-
-              {remainingClubsCount > ITEMS_PER_PAGE && (
-                <button
-                  onClick={() => setVisibleCount(sortedClubs.length)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Show All
-                </button>
-              )}
-
-              {remainingClubsCount === 0 && visibleClubs.length > ITEMS_PER_PAGE && (
-                <button
-                  onClick={() => {
-                    setVisibleCount(ITEMS_PER_PAGE)
-                    if (contentTopRef.current) {
-                      contentTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Show Less
-                </button>
-              )}
-            </div>
+        {filteredClubs.length > 0 && (
+          <div className="py-2" aria-live="polite">
+            <div ref={infiniteScrollSentinelRef} className="h-1 w-full" />
+            {remainingClubsCount > 0 && (
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                Loading more as you scroll…
+              </p>
+            )}
           </div>
         )}
       </div>
