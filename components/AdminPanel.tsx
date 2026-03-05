@@ -2088,14 +2088,14 @@ export function AdminPanel() {
   }, [localPendingAnnouncements, announcementsStorageLoaded])
 
   // Auto-clear pending announcements that now match database state
-  // CONSERVATIVE: Only clear if announcement matches DB AND is at least 3 seconds old
+  // With PostgreSQL, writes are instant - only need minimal delay for cache propagation
   useEffect(() => {
     if (!announcementsStorageLoaded) return
     const pendingCount = Object.keys(localPendingAnnouncements).filter(k => !k.endsWith('_timestamp')).length
     if (pendingCount === 0) return
 
     const now = Date.now()
-    const MIN_AGE_BEFORE_CLEAR = 3000 // 3 seconds - gives Supabase time to propagate
+    const MIN_AGE_BEFORE_CLEAR = 300 // 300ms - minimal delay for cache propagation with PostgreSQL
 
     // Create a hash of current state to detect actual changes
     const stateHash = JSON.stringify({ announcements, localPendingAnnouncements })
