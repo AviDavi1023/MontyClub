@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, X, Grid3x3, List, RefreshCw } from 'lucide-react'
 import { Club, ClubFilters } from '@/types/club'
 import formatMeetingFrequency from '@/lib/meetingFrequency'
 import { getClubs } from '@/lib/clubs-client'
@@ -13,7 +13,6 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { createDomainListener } from '@/lib/broadcast'
 import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
 import { EmptyState, LoadingState, Chip, Button } from '@/components/ui'
-import { usePagination } from '@/lib/pagination'
 
 export function ClubsList() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -27,8 +26,8 @@ export function ClubsList() {
   const [showFilters, setShowFilters] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false)
   const [updateCounter, setUpdateCounter] = useState(0)  // Add a counter to force re-renders
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = viewMode === 'list' ? 24 : 12 // Double listings in list view
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const contentTopRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -541,21 +540,14 @@ export function ClubsList() {
     // Include dependencies that affect sorting
   }, [filteredClubs, filters.sort, searchInput])
 
-  // Reset to page 1 when filters change
+  // Reset visible clubs when filters/sort/search/view change
   useEffect(() => {
-    setCurrentPage(1)
-  }, [filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput])
+    setVisibleCount(ITEMS_PER_PAGE)
+  }, [ITEMS_PER_PAGE, filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput])
 
-  // Scroll to top when page changes
-  useEffect(() => {
-    if (contentTopRef.current) {
-      contentTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }, [currentPage])
-
-  // Paginate the sorted clubs
-  const paginationResult = usePagination(sortedClubs, currentPage, ITEMS_PER_PAGE)
-  const paginatedClubs = paginationResult.items
+  // Progressive reveal instead of page-based pagination
+  const visibleClubs = sortedClubs.slice(0, visibleCount)
+  const remainingClubsCount = Math.max(0, sortedClubs.length - visibleClubs.length)
 
   // Update URL query params when filters change
   function updateQueryParams(newFilters: ClubFilters) {
@@ -784,7 +776,7 @@ export function ClubsList() {
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-            {filteredClubs.length === 0 ? '0' : `${paginationResult.startIndex + 1}–${paginationResult.endIndex}`} of {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
+            Showing {filteredClubs.length === 0 ? '0' : visibleClubs.length} of {filteredClubs.length} club{filteredClubs.length !== 1 ? 's' : ''}
           </p>
           
           <div className="flex items-center gap-3">
@@ -862,91 +854,56 @@ export function ClubsList() {
         ) : viewMode === 'grid' ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {paginatedClubs.map(club => (
+              {visibleClubs.map(club => (
                 <ClubCard key={club.id} club={club} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} />
               ))}
             </div>
-            {/* Pagination Controls */}
-            {paginationResult.totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={!paginationResult.hasPrevPage}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="text-sm font-medium">Previous</span>
-                </button>
-                
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin">
-                  {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
-                        page === paginationResult.currentPage
-                          ? 'bg-primary-600 text-white'
-                          : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
-                  disabled={!paginationResult.hasNextPage}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                >
-                  <span className="text-sm font-medium">Next</span>
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
           </>
         ) : (
           <>
-            <ClubsTable clubs={paginatedClubs} pendingAnnouncements={localPendingAnnouncements} />
-            {/* Pagination Controls for Table View */}
-            {paginationResult.totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={!paginationResult.hasPrevPage}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="text-sm font-medium">Previous</span>
-                </button>
-                
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin">
-                  {Array.from({ length: paginationResult.totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
-                        page === paginationResult.currentPage
-                          ? 'bg-primary-600 text-white'
-                          : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(paginationResult.totalPages, prev + 1))}
-                  disabled={!paginationResult.hasNextPage}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
-                >
-                  <span className="text-sm font-medium">Next</span>
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+            <ClubsTable clubs={visibleClubs} pendingAnnouncements={localPendingAnnouncements} />
           </>
+        )}
+
+        {filteredClubs.length > 0 && sortedClubs.length > ITEMS_PER_PAGE && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {remainingClubsCount > 0 ? `${remainingClubsCount} more club${remainingClubsCount !== 1 ? 's' : ''} available` : 'All clubs shown'}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+              {remainingClubsCount > 0 && (
+                <button
+                  onClick={() => setVisibleCount(prev => Math.min(sortedClubs.length, prev + ITEMS_PER_PAGE))}
+                  className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
+                >
+                  Show More
+                </button>
+              )}
+
+              {remainingClubsCount > ITEMS_PER_PAGE && (
+                <button
+                  onClick={() => setVisibleCount(sortedClubs.length)}
+                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Show All
+                </button>
+              )}
+
+              {remainingClubsCount === 0 && visibleClubs.length > ITEMS_PER_PAGE && (
+                <button
+                  onClick={() => {
+                    setVisibleCount(ITEMS_PER_PAGE)
+                    if (contentTopRef.current) {
+                      contentTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Show Less
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
