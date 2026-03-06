@@ -34,8 +34,6 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
     try {
       setLoading(true)
 
-      console.log('[AnalyticsPanel] Starting analytics load, selectedCollectionId:', selectedCollectionId)
-
       // Fetch all collections' clubs for accurate stats
       const response = await fetch('/api/admin/all-collections-clubs')
       if (!response.ok) {
@@ -45,21 +43,13 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       }
       
       const data = await response.json()
-      console.log('[AnalyticsPanel] API response:', data)
       
       const collectionsData = data.data || []
-      console.log(`[AnalyticsPanel] Received ${collectionsData.length} collections with data`)
-      
-      // Log each collection and its clubs count
-      collectionsData.forEach((item: any, idx: number) => {
-        console.log(`[AnalyticsPanel] Collection ${idx}: ${item.collection?.name || 'Unknown'} (${item.collection?.id || 'no-id'}) has ${(item.clubs || []).length} clubs`)
-      })
-      
+
       setAllCollectionsData(collectionsData)
 
       // Flatten all clubs from all collections
       const allClubs = collectionsData.flatMap((item: any) => item.clubs || [])
-      console.log(`[AnalyticsPanel] Total clubs across all collections: ${allClubs.length}`)
 
       // Filter clubs by selected collection if not 'all'
       let filteredClubs = allClubs
@@ -70,7 +60,6 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
         if (selectedData) {
           filteredClubs = selectedData.clubs || []
           displayCollectionName = selectedData.collection.name
-          console.log(`[AnalyticsPanel] Filtered to ${filteredClubs.length} clubs from collection: ${displayCollectionName}`)
         } else {
           console.warn(`[AnalyticsPanel] Collection ${selectedCollectionId} not found in data`)
         }
@@ -106,14 +95,6 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
       filteredClubs.forEach((c: Club) => {
         const freq = c.meetingFrequency || 'Unknown'
         meetingFrequency[freq] = (meetingFrequency[freq] || 0) + 1
-      })
-
-      console.log('[AnalyticsPanel] Calculated stats:', {
-        totalClubs,
-        activeClubs,
-        avgMeetingsPerWeek: avgMeetingsPerWeek.toFixed(2),
-        categoryCount: categoryData.length,
-        collectionCount: collectionData.length
       })
 
       setStats({

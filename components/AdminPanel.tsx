@@ -3248,13 +3248,6 @@ export function AdminPanel() {
               }
             })
             
-            // Log what the user is actually seeing
-            console.log('[UI RENDER] AnnouncementsBoard about to render with:')
-            console.log('[UI RENDER] - From DB (announcements):', Object.keys(announcements))
-            console.log('[UI RENDER] - From pending (localPendingAnnouncements):', Object.keys(localPendingAnnouncements).filter(k => !k.endsWith('_timestamp')))
-            console.log('[UI RENDER] - Merged (what user sees):', Object.keys(merged))
-            console.log('[UI RENDER] - savingAnnouncements:', Object.keys(savingAnnouncements).filter(k => savingAnnouncements[k]))
-            
             return (
               <AnnouncementsBoard
                 clubs={clubs}
