@@ -4,6 +4,7 @@ import { slugifyName } from '@/lib/slug'
 import { listPaths, readJSONFromStorage } from '@/lib/supabase'
 import { readFile as runtimeReadFile } from '@/lib/runtime-store'
 import { createClient } from '@supabase/supabase-js'
+import { getAllAnnouncements } from '@/lib/announcements-db'
 
 let syncChecked = false
 
@@ -94,10 +95,36 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
     console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
     
-    // Sync to Postgres asynchronously (don't await - let it happen in background)
-    syncClubsToPostgres(snapshot.clubs).catch(e => console.error('[clubs-sync] Background sync failed:', e))
+    const clubs: Club[] = snapshot.clubs
     
-    return snapshot.clubs
+    // Merge announcements from Postgres
+    try {
+      const settings = await readData('settings', { announcementsEnabled: true })
+      if (settings.announcementsEnabled !== false) {
+        console.log('[fetchClubsFromCollection] Fetching announcements from Postgres for snapshot clubs...')
+        const announcements = await getAllAnnouncements()
+        
+        if (Object.keys(announcements).length > 0) {
+          console.log('[fetchClubsFromCollection] Found announcements in Postgres:', Object.keys(announcements))
+        }
+        
+        // Merge announcements into club objects
+        clubs.forEach((c: Club) => {
+          const idStr = String(c.id).trim()
+          if (announcements[idStr]) {
+            c.announcement = announcements[idStr]
+            console.log(`[fetchClubsFromCollection] Merged announcement for club ${idStr}: "${announcements[idStr]}"`)
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('Could not merge announcements from Postgres (Snapshot mode):', err)
+    }
+    
+    // Sync to Postgres asynchronously (don't await - let it happen in background)
+    syncClubsToPostgres(clubs).catch(e => console.error('[clubs-sync] Background sync failed:', e))
+    
+    return clubs
   }
 
   // FALLBACK: Dynamic fetch from registrations (used if snapshot doesn't exist)
@@ -163,42 +190,29 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
     keywords: [],
   }))
 
-  // 5. Merge admin-managed announcements (if enabled) from runtime-store
+  // 5. Merge admin-managed announcements (if enabled) from Postgres
   try {
     const settings = await readData('settings', { announcementsEnabled: true })
     
     if (settings.announcementsEnabled !== false) {
-      const mapRaw = await readData('announcements', {})
-      const map: Record<string, string> = {}
-      // Normalize keys to strings and trim values
-      if (mapRaw && typeof mapRaw === 'object') {
-        Object.keys(mapRaw).forEach((k) => {
-          try {
-            const v = (mapRaw as any)[k]
-            if (typeof v === 'string' && v.trim() !== '') map[String(k).trim()] = v.trim()
-            else if (v !== null && typeof v !== 'undefined') map[String(k).trim()] = String(v)
-          } catch (e) {
-            // ignore malformed entries
-          }
-        })
-      }
-
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[DEBUG] Announcements map (Collection mode):', map)
+      console.log('[fetchClubsFromCollection] Fetching announcements from Postgres...')
+      const announcements = await getAllAnnouncements()
+      
+      if (Object.keys(announcements).length > 0) {
+        console.log('[fetchClubsFromCollection] Found announcements in Postgres:', Object.keys(announcements))
       }
       
       // Merge announcements where club id matches
-      // IMPORTANT: Only try exact string match, not numeric conversion
-      // Club IDs are always strings, and converting "ABC123" to Number yields NaN
-      clubs.forEach((c) => {
+      clubs.forEach((c: Club) => {
         const idStr = String(c.id).trim()
-        if (map[idStr] && map[idStr].trim() !== '') {
-          c.announcement = map[idStr].trim()
+        if (announcements[idStr]) {
+          c.announcement = announcements[idStr]
+          console.log(`[fetchClubsFromCollection] Merged announcement for club ${idStr}`)
         }
       })
     }
   } catch (err) {
-    console.warn('Could not merge announcements (Collection mode):', err)
+    console.warn('Could not merge announcements from Postgres (Collection mode):', err)
   }
 
   // Sync to Postgres asynchronously (don't await - let it happen in background)
@@ -359,37 +373,22 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
       const settings = await readData('settings', { announcementsEnabled: true })
       
       if (settings.announcementsEnabled !== false) {
-        const mapRaw = await readData('announcements', {})
-        const map: Record<string, string> = {}
-        // Normalize keys to strings and trim values
-        if (mapRaw && typeof mapRaw === 'object') {
-          Object.keys(mapRaw).forEach((k) => {
-            try {
-              const v = (mapRaw as any)[k]
-              if (typeof v === 'string' && v.trim() !== '') map[String(k).trim()] = v.trim()
-              else if (v !== null && typeof v !== 'undefined') map[String(k).trim()] = String(v)
-            } catch (e) {
-              // ignore malformed entries
-            }
-          })
-        }
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[DEBUG] Announcements map:', map)
+        const announcements = await getAllAnnouncements()
+        
+        if (Object.keys(announcements).length > 0) {
+          console.log('[Excel Import] Merged announcements from Postgres:', Object.keys(announcements))
         }
         
         // Merge announcements where club id matches
-        // IMPORTANT: Only try exact string match, not numeric conversion
-        // Club IDs are always strings, and converting "ABC123" to Number yields NaN
-        clubs.forEach((c) => {
+        clubs.forEach((c: Club) => {
           const idStr = String(c.id).trim()
-          if (map[idStr] && map[idStr].trim() !== '') {
-            c.announcement = map[idStr].trim()
+          if (announcements[idStr]) {
+            c.announcement = announcements[idStr]
           }
         })
       }
     } catch (err) {
-      console.warn('Could not merge announcements:', err)
+      console.warn('Could not merge announcements from Postgres:', err)
     }
 
     return clubs
