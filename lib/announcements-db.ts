@@ -67,24 +67,26 @@ export async function getAllAnnouncements(): Promise<Record<string, string>> {
 export async function setAnnouncement(clubId: string, announcement: string): Promise<void> {
   const client = getAdminClient()
   
-  console.log(`[DB] setAnnouncement called: clubId="${clubId}", text="${announcement}"`)
+  const textToSave = announcement && announcement.trim() ? announcement.trim() : null
+  
+  console.log(`[DB] setAnnouncement called: clubId="${clubId}", text="${announcement}", textToSave="${textToSave}"`)
   
   const updateData = {
-    announcement: announcement || null,
+    announcement: textToSave,
     updated_at: new Date().toISOString(),
   }
-  console.log(`[DB] Update object:`, updateData)
+  console.log(`[DB] Update object:`, JSON.stringify(updateData))
   
   const query = (client.from('clubs') as any)
     .update(updateData)
     .eq('id', clubId)
     .select('id, announcement')
   
-  console.log(`[DB] About to execute update query for club ${clubId}`)
+  console.log(`[DB] About to execute update query for club "${clubId}"`)
   
   const { error, data, status } = await query
 
-  console.log(`[DB] Update response - status: ${status}, error: ${error ? JSON.stringify(error) : 'none'}, data:`, data)
+  console.log(`[DB] Update response - status: ${status}, error: ${error ? JSON.stringify(error) : 'none'}, rows returned: ${data ? data.length : 'null'}`)
 
   if (error) {
     console.error(`[DB ERROR] setAnnouncement failed for ${clubId}:`, error)
@@ -93,9 +95,11 @@ export async function setAnnouncement(clubId: string, announcement: string): Pro
   
   if (!data || data.length === 0) {
     console.warn(`[DB WARNING] setAnnouncement returned no rows! Club ${clubId} may not exist in database`)
-  } else {
-    console.log(`[DB] Updated ${data.length} row(s):`, data)
+    return
   }
+  
+  const saved = data[0]
+  console.log(`[DB] Successfully updated club ${saved.id}: announcement="${saved.announcement}"`)
 }
 
 /**
