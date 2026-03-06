@@ -46,9 +46,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       
       // Get all club IDs for debugging
       const { data: allClubs } = await (client.from('clubs') as any)
-        .select('id')
-        .limit(5)
-      console.log(`[SERVER] First 5 club IDs: ${allClubs?.map((c: any) => c.id).join(', ') || 'none'}`)
+        .select('id, name')
+        .limit(10)
+      console.log(`[SERVER] First 10 club IDs in database:`)
+      allClubs?.forEach((c: any) => {
+        console.log(`[SERVER]   - ${c.id} (${c.name})`)
+      })
       
       // Now check for the specific club
       const { data: clubExists, error: checkError } = await (client.from('clubs') as any)

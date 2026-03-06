@@ -44,6 +44,7 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
     // Insert clubs into Postgres
     let inserted = 0
     for (const club of clubs) {
+      console.log(`[clubs-sync] Syncing club: id="${club.id}", name="${club.name}"`)
       try {
         await (client.from('clubs') as any)
           .insert({
@@ -64,6 +65,7 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
             keywords: club.keywords || [],
           })
         inserted++
+        console.log(`[clubs-sync] ✓ Inserted club ${club.id}`)
       } catch (e: any) {
         if (e?.code !== '23505') { // 23505 = unique violation (club already exists)
           console.warn(`[clubs-sync] Failed to insert club ${club.id}:`, e?.message)
