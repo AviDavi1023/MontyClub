@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { announcementsCache } from '@/lib/caches'
 import { setAnnouncement, getAllAnnouncements, clearAnnouncement } from '@/lib/announcements-db'
 import { invalidateClubsCache } from '@/lib/cache-utils'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,14 +26,53 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       
       console.log(`[SERVER] Updating announcement for club ${id}`)
+      console.log(`[SERVER] Text to save: "${body.announcement}"`)
+      
+      // First, verify the club exists
+      const supabaseUrl = process.env.SUPABASE_URL
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (!supabaseUrl || !supabaseServiceKey) {
+        throw new Error('Supabase not configured')
+      }
+      
+      const client = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+      
+      const { data: clubExists, error: checkError } = await (client.from('clubs') as any)
+        .select('id, announcement')
+        .eq('id', id)
+        .single()
+      
+      if (checkError || !clubExists) {
+        console.log(`[SERVER ERROR] Club ${id} does not exist in database`, { checkError, clubExists })
+        return NextResponse.json({ error: `Club ${id} not found in database` }, { status: 404 })
+      }
+      
+      console.log(`[SERVER] Club ${id} exists, current announcement: "${clubExists.announcement}"`)
+      console.log(`[SERVER] Proceeding with update from "${clubExists.announcement}" to "${body.announcement}"`)
       
       // Update in database
       await setAnnouncement(id, body.announcement)
       
-      console.log(`[SERVER] Database updated, fetching fresh announcements...`)
+      console.log(`[SERVER] Database update call completed, checking club directly...`)
+      
+      // Verify the update worked by checking the club directly
+      const { data: clubAfterUpdate, error: checkAfterError } = await (client.from('clubs') as any)
+        .select('announcement')
+        .eq('id', id)
+        .single()
+      
+      console.log(`[SERVER] Club after update check: announcement="${clubAfterUpdate?.announcement}"`)
+      if (checkAfterError) {
+        console.error(`[SERVER] Error checking club after update:`, checkAfterError)
+      }
       
       // Fetch fresh data from database
       const updated = await getAllAnnouncements()
+      console.log(`[SERVER] Fresh announcements from DB:`, updated)
+      console.log(`[SERVER] Looking for club ${id} in updated data...`)
+      console.log(`[SERVER] updated[${id}] =`, updated[id])
       announcementsCache.set(updated)
       
       console.log(`[SERVER] Cache updated`)

@@ -30,23 +30,33 @@ function getAdminClient() {
 export async function getAllAnnouncements(): Promise<Record<string, string>> {
   const client = getAdminClient()
   
+  console.log(`[DB getAllAnnouncements] Starting query for non-empty announcements...`)
+  
   const { data, error } = await (client.from('clubs') as any)
     .select('id, announcement')
     .not('announcement', 'is', null)
     .neq('announcement', '')
 
-  if (error) throw error
+  if (error) {
+    console.error(`[DB ERROR] getAllAnnouncements query error:`, error)
+    throw error
+  }
 
   const announcements: Record<string, string> = {}
   
   if (data) {
+    console.log(`[DB] getAllAnnouncements fetched ${data.length} rows with announcements`)
     for (const row of data) {
       if (row.announcement) {
         announcements[row.id] = row.announcement
+        console.log(`[DB] Club ${row.id}: "${row.announcement.substring(0, 50)}..."`)
       }
     }
+  } else {
+    console.log(`[DB] getAllAnnouncements returned no data`)
   }
 
+  console.log(`[DB] getAllAnnouncements final result map:`, Object.keys(announcements))
   return announcements
 }
 
@@ -57,14 +67,35 @@ export async function getAllAnnouncements(): Promise<Record<string, string>> {
 export async function setAnnouncement(clubId: string, announcement: string): Promise<void> {
   const client = getAdminClient()
   
-  const { error } = await (client.from('clubs') as any)
-    .update({
-      announcement: announcement || null,
-      updated_at: new Date().toISOString(),
-    })
+  console.log(`[DB] setAnnouncement called: clubId="${clubId}", text="${announcement}"`)
+  
+  const updateData = {
+    announcement: announcement || null,
+    updated_at: new Date().toISOString(),
+  }
+  console.log(`[DB] Update object:`, updateData)
+  
+  const query = (client.from('clubs') as any)
+    .update(updateData)
     .eq('id', clubId)
+    .select('id, announcement')
+  
+  console.log(`[DB] About to execute update query for club ${clubId}`)
+  
+  const { error, data, status } = await query
 
-  if (error) throw error
+  console.log(`[DB] Update response - status: ${status}, error: ${error ? JSON.stringify(error) : 'none'}, data:`, data)
+
+  if (error) {
+    console.error(`[DB ERROR] setAnnouncement failed for ${clubId}:`, error)
+    throw error
+  }
+  
+  if (!data || data.length === 0) {
+    console.warn(`[DB WARNING] setAnnouncement returned no rows! Club ${clubId} may not exist in database`)
+  } else {
+    console.log(`[DB] Updated ${data.length} row(s):`, data)
+  }
 }
 
 /**
