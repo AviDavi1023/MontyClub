@@ -1,9 +1,82 @@
 import { readData } from '@/lib/runtime-store'
 import { Club, ClubRegistration, RegistrationCollection } from '@/types/club'
 import { slugifyName } from '@/lib/slug'
-
 import { listPaths, readJSONFromStorage } from '@/lib/supabase'
 import { readFile as runtimeReadFile } from '@/lib/runtime-store'
+import { createClient } from '@supabase/supabase-js'
+
+let syncChecked = false
+
+async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
+  // Only sync once per server instance to avoid unnecessary writes
+  if (syncChecked) return
+  syncChecked = true
+
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn('[clubs-sync] Supabase not configured, skipping sync to Postgres')
+      return
+    }
+
+    const client = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    // Check if clubs already exist in Postgres
+    const { count: existingCount } = await (client.from('clubs') as any)
+      .select('*', { count: 'exact', head: true })
+
+    if (existingCount && existingCount > 0) {
+      console.log(`[clubs-sync] Postgres clubs table already has ${existingCount} clubs, skipping sync`)
+      return
+    }
+
+    if (clubs.length === 0) {
+      console.log('[clubs-sync] No clubs to sync to Postgres')
+      return
+    }
+
+    console.log(`[clubs-sync] Syncing ${clubs.length} clubs to Postgres...`)
+
+    // Insert clubs into Postgres
+    let inserted = 0
+    for (const club of clubs) {
+      try {
+        await (client.from('clubs') as any)
+          .insert({
+            id: club.id,
+            name: club.name,
+            category: club.category,
+            description: club.description,
+            advisor: club.advisor,
+            student_leader: club.studentLeader,
+            meeting_time: club.meetingTime,
+            meeting_frequency: club.meetingFrequency || null,
+            location: club.location,
+            contact: club.contact,
+            social_media: club.socialMedia,
+            active: club.active,
+            notes: club.notes || null,
+            announcement: club.announcement || null,
+            keywords: club.keywords || [],
+          })
+        inserted++
+      } catch (e: any) {
+        if (e?.code !== '23505') { // 23505 = unique violation (club already exists)
+          console.warn(`[clubs-sync] Failed to insert club ${club.id}:`, e?.message)
+        }
+      }
+    }
+
+    console.log(`[clubs-sync] Successfully synced ${inserted} clubs to Postgres`)
+  } catch (error) {
+    console.error('[clubs-sync] Error syncing clubs to Postgres:', error)
+    // Don't throw - this is a background sync operation
+  }
+}
 
 export async function fetchClubsFromCollection(): Promise<Club[]> {
   // OPTIMIZATION: Try snapshot first for instant loading (100x faster)
@@ -11,6 +84,10 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
   if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
     console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
+    
+    // Sync to Postgres asynchronously (don't await - let it happen in background)
+    syncClubsToPostgres(snapshot.clubs).catch(e => console.error('[clubs-sync] Background sync failed:', e))
+    
     return snapshot.clubs
   }
 
@@ -114,6 +191,9 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   } catch (err) {
     console.warn('Could not merge announcements (Collection mode):', err)
   }
+
+  // Sync to Postgres asynchronously (don't await - let it happen in background)
+  syncClubsToPostgres(clubs).catch(e => console.error('[clubs-sync] Background sync failed:', e))
 
   return clubs
 }
