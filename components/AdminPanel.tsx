@@ -2104,10 +2104,7 @@ export function AdminPanel() {
       return
     }
 
-    console.log('🔍 ANNOUNCEMENTS AUTO-CLEAR CHECK - Pending keys:', Object.keys(localPendingAnnouncements).filter(k => !k.endsWith('_timestamp')))
-    console.log('🔍 Current announcements from DB - Keys:', Object.keys(announcements))
-    console.log('🔍 savingAnnouncements state:', savingAnnouncements)
-    console.log('🔍 announcementsStorageLoaded:', announcementsStorageLoaded)
+    // Auto-clear check for pending announcements
 
     const stillPending = { ...localPendingAnnouncements }
     let hasCleared = false
@@ -2126,17 +2123,15 @@ export function AdminPanel() {
 
       const pendingTextStr = typeof pendingText === 'string' ? pendingText : String(pendingText)
       const dbTextStr = typeof dbText === 'string' ? dbText : String(dbText)
-      console.log(`[AUTO-CLEAR DETAIL] ${id}: pending="${pendingTextStr.substring(0, 30)}", db="${dbTextStr.substring(0, 30)}", age=${age}ms, saving=${isSaving}, matches=${pendingText === dbText}`)
 
       // Too recent AND is currently saving - skip
       if (pendingTimestamp > 0 && age < MIN_AGE_BEFORE_CLEAR && isSaving) {
-        console.log(`⏳ Keeping announcement ${id} - too recent (age: ${age}ms) and still saving`)
         return
       }
 
       // If announcement text matches DB (including both being empty), clear it
       if (pendingText === dbText) {
-        console.log(`✅ Clearing announcement ${id} - DB now matches ("${pendingText.substring(0, 30)}")`)
+        // Announcement text matches DB - safe to clear
         delete stillPending[id]
         delete stillPending[`${id}_timestamp`]
         hasCleared = true
@@ -2144,44 +2139,34 @@ export function AdminPanel() {
         // Safety mechanism: force clear if older than 5 seconds even if DB doesn't match
         const dbTextStr = typeof dbText === 'string' ? dbText : String(dbText)
         const pendingTextStr = typeof pendingText === 'string' ? pendingText : String(pendingText)
-        console.log(`⚠️ FORCE CLEARING announcement ${id} after ${age}ms - too old (DB: "${dbTextStr.substring(0, 30)}", pending: "${pendingTextStr.substring(0, 30)}")`)
+        console.log(`[AUTO-CLEAR] Final state - localPendingAnnouncements updated`)
         delete stillPending[id]
         delete stillPending[`${id}_timestamp`]
         hasCleared = true
       } else {
         const dbTextStr = typeof dbText === 'string' ? dbText : String(dbText)
         const pendingTextStr = typeof pendingText === 'string' ? pendingText : String(pendingText)
-        console.log(`⏳ Keeping announcement ${id} - DB mismatch (age: ${age}ms, pending: "${pendingTextStr.substring(0, 30)}", db: "${dbTextStr.substring(0, 30)}")`)
+        // Too recent or DB doesn't match
       }
     })
 
-    // Only update state if something actually changed
     if (hasCleared) {
       const newPendingCount = Object.keys(stillPending).filter(k => !k.endsWith('_timestamp')).length
-      // Ensure we're actually removing something (prevents state thrashing)
       if (newPendingCount < pendingCount) {
-        console.log('📝 Updating announcements localStorage with remaining pending:', stillPending)
         setLocalPendingAnnouncements(stillPending)
         try {
           if (newPendingCount === 0) {
             localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
             localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
-            console.log('🗑️ All pending announcements synced - localStorage cleared')
           } else {
             localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(stillPending))
             localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-            console.log('💾 Announcements localStorage updated with remaining pending')
           }
         } catch (e) {
-          console.error('❌ Failed to update announcements localStorage', e)
+          console.error('Failed to update announcements localStorage')
         }
       }
-    } else {
-      console.log('[AUTO-CLEAR] Nothing to clear')
     }
-    
-    console.log('[AUTO-CLEAR] Final state - savingAnnouncements:', savingAnnouncements)
-    console.log('[AUTO-CLEAR] Final state - localPendingAnnouncements:', Object.keys(localPendingAnnouncements).filter(k => !k.endsWith('_timestamp')))
     
     // Update hash after processing
     announcementsAutoClearcheckRef.current = stateHash
@@ -2261,61 +2246,36 @@ export function AdminPanel() {
     }
 
     try {
-      console.group('[FETCH] Getting fresh announcements from server')
-      console.log(`Timestamp: ${new Date().toISOString()}`)
-      
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
       
-      const fetchStartTime = Date.now()
       const resp = await fetch('/api/announcements', { signal: controller.signal })
       clearTimeout(timeoutId)
-      const fetchEndTime = Date.now()
-      
-      console.log(`Response status: ${resp.status}`)
-      console.log(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
       
       if (!resp.ok) throw new Error('Failed to fetch announcements')
       const data = await resp.json()
       // Keep announcements as pure server snapshot; overlay happens at render
-      console.log(`[FETCH] Fresh announcements from server:`, data)
-      console.log(`[FETCH] Keys: ${Object.keys(data||{}).join(', ')}`)
-      console.groupEnd()
       
       setAnnouncements(data || {})
     } catch (err) {
       console.error('Error fetching announcements:', err)
-      console.groupEnd()
     }
   }
 
   const saveAnnouncement = async (id: string, text: string) => {
-    const requestId = `ann-${id}-${Date.now()}`
-    console.group(`[CHECKPOINT 1] Saving announcement ${id}`)
-    console.log(`Request ID: ${requestId}`)
-    console.log(`Text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`)
-    console.log(`Timestamp: ${new Date().toISOString()}`)
-    console.groupEnd()
-
-    console.log(`[SAVE DEBUG] Setting savingAnnouncements[${id}] = true`)
-    console.log(`[SAVE DEBUG] Before: savingAnnouncements =`, savingAnnouncements)
     setSavingAnnouncements(prev => {
-      const updated = { ...prev, [id]: true }
-      console.log(`[SAVE DEBUG] After setSavingAnnouncements: ${id} = true`, updated)
-      return updated
+      return { ...prev, [id]: true }
     })
     
     // Do NOT mutate announcements optimistically; only update localPendingAnnouncements
     const timestamp = Date.now()
     const newPending = { ...localPendingAnnouncements, [id]: text || '', [`${id}_timestamp`]: timestamp }
     setLocalPendingAnnouncements(newPending)
-    console.log('💾 SAVE ANNOUNCEMENT - Saving to localStorage:', newPending)
     try {
       localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(newPending))
       localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-      console.log('✅ Announcements localStorage saved successfully')
     } catch (e) {
-      console.error('❌ Failed to save announcements to localStorage:', e)
+      // Failed to save to localStorage
     }
 
     let responseReceived = false
@@ -2385,17 +2345,10 @@ export function AdminPanel() {
         // ignore
       }
       
-      console.log(`[FETCH] Fetching fresh announcements after save...`)
       // Fetch fresh data to trigger auto-clear, but don't block or await
       fetchAnnouncements().catch(err => console.error('Error fetching announcements:', err))
     } catch (err) {
       console.error('Error saving announcement:', err)
-      console.group(`[ERROR] Announcement save failed for ${id}`)
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
-      console.log(`Stack: ${err instanceof Error ? err.stack : 'N/A'}`)
-      console.log(`Response received: ${responseReceived}`)
-      console.log(`Timestamp: ${new Date().toISOString()}`)
-      console.groupEnd()
 
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingAnnouncements }
@@ -2413,30 +2366,20 @@ export function AdminPanel() {
       } catch (e) {}
       showToast(`Could not save announcement: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
     } finally {
-      console.log(`[FINALLY] Setting savingAnnouncements[${id}] = false`)
-      console.log(`[FINALLY] Current savingAnnouncements BEFORE:`, savingAnnouncements)
       setSavingAnnouncements(prev => {
-        const updated = { ...prev, [id]: false }
-        console.log(`[FINALLY] Current savingAnnouncements AFTER: ${id} = false`, updated)
-        return updated
+        return { ...prev, [id]: false }
       })
-      console.log(`[DONE] Saving announcement ${id} completed`)
     }
   }
 
   const clearAnnouncement = async (id: string) => {
-    console.log(`[CLEAR DEBUG] Starting clearAnnouncement for ${id}`)
-    console.log(`[CLEAR DEBUG] Setting savingAnnouncements[${id}] = true`)
     setSavingAnnouncements(prev => {
-      const updated = { ...prev, [id]: true }
-      console.log(`[CLEAR DEBUG] savingAnnouncements updated:`, updated)
-      return updated
+      return { ...prev, [id]: true }
     })
     
     // Mark as cleared (empty string) in localPendingAnnouncements
     const newPending = { ...localPendingAnnouncements, [id]: '' }
     setLocalPendingAnnouncements(newPending)
-    console.log(`[CLEAR DEBUG] localPendingAnnouncements updated:`, newPending)
     
     try {
       localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, JSON.stringify(newPending))
@@ -2447,7 +2390,6 @@ export function AdminPanel() {
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
-        console.log(`[CLEAR TIMEOUT] Announcement ${id} clear timed out after 10 seconds`)
         controller.abort()
       }, 10000) // 10 second timeout
       
@@ -2460,10 +2402,8 @@ export function AdminPanel() {
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
-      const fetchEndTime = Date.now()
       
       responseReceived = true
-      console.log(`[CLEAR FETCH COMPLETE] Announcement ${id} clear fetch completed in ${fetchEndTime - fetchStartTime}ms`)
       
       if (!resp.ok) throw new Error('Failed to clear')
       await resp.json()
@@ -2481,11 +2421,9 @@ export function AdminPanel() {
       } catch (e) {}
       
       // Fetch fresh data to trigger auto-clear, but don't block or await
-      console.log(`[CLEAR] Fetching fresh announcements after clear...`)
       fetchAnnouncements().catch(err => console.error('Error fetching announcements:', err))
     } catch (err) {
       console.error('Error clearing announcement:', err)
-      console.log(`[CLEAR ERROR] Response received: ${responseReceived}`, err)
       
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingAnnouncements }
