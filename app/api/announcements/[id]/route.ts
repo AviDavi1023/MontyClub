@@ -39,14 +39,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         auth: { autoRefreshToken: false, persistSession: false }
       })
       
+      // First, check how many clubs even exist in the database
+      const { count: totalClubs } = await (client.from('clubs') as any)
+        .select('*', { count: 'exact', head: true })
+      console.log(`[SERVER] Total clubs in database: ${totalClubs}`)
+      
+      // Get all club IDs for debugging
+      const { data: allClubs } = await (client.from('clubs') as any)
+        .select('id')
+        .limit(5)
+      console.log(`[SERVER] First 5 club IDs: ${allClubs?.map((c: any) => c.id).join(', ') || 'none'}`)
+      
+      // Now check for the specific club
       const { data: clubExists, error: checkError } = await (client.from('clubs') as any)
         .select('id, announcement')
         .eq('id', id)
         .single()
       
       if (checkError || !clubExists) {
-        console.log(`[SERVER ERROR] Club ${id} does not exist in database`, { checkError, clubExists })
-        return NextResponse.json({ error: `Club ${id} not found in database` }, { status: 404 })
+        console.error(`[SERVER ERROR] Club ${id} does not exist! Available clubs: ${totalClubs}`)
+        return NextResponse.json({ 
+          error: `Club ${id} not found in database. Total clubs in DB: ${totalClubs}` 
+        }, { status: 404 })
       }
       
       console.log(`[SERVER] Club ${id} exists, current announcement: "${clubExists.announcement}"`)
