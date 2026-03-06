@@ -2242,9 +2242,15 @@ export function AdminPanel() {
     try {
       console.group('[FETCH] Getting fresh announcements from server')
       console.log(`Timestamp: ${new Date().toISOString()}`)
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const fetchStartTime = Date.now()
-      const resp = await fetch('/api/announcements')
+      const resp = await fetch('/api/announcements', { signal: controller.signal })
+      clearTimeout(timeoutId)
       const fetchEndTime = Date.now()
+      
       console.log(`Response status: ${resp.status}`)
       console.log(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
       
@@ -2285,6 +2291,7 @@ export function AdminPanel() {
       console.error('❌ Failed to save announcements to localStorage:', e)
     }
 
+    let responseReceived = false
     try {
       console.group(`[API CALL] Sending PATCH request for announcement ${id}`)
       console.log(`URL: /api/announcements/${id}`)
@@ -2293,13 +2300,20 @@ export function AdminPanel() {
       console.log(`Timestamp: ${new Date().toISOString()}`)
       console.groupEnd()
 
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const fetchStartTime = Date.now()
       const resp = await fetch(`/api/announcements/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ announcement: text || '' }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
       const fetchEndTime = Date.now()
+      
+      responseReceived = true
       
       console.group(`[API RESPONSE] Response received for announcement ${id}`)
       console.log(`Status: ${resp.status} ${resp.statusText}`)
@@ -2315,7 +2329,7 @@ export function AdminPanel() {
       const responseData = await resp.json()
       console.log(`[API SUCCESS] Announcement ${id} response data:`, responseData)
       
-      // Success: fetch fresh data to trigger auto-clear
+      // Success: show toast immediately
       showToast('Announcement saved successfully')
       
       // Log activity
@@ -2340,19 +2354,21 @@ export function AdminPanel() {
       }
       
       console.log(`[FETCH] Fetching fresh announcements after save...`)
-      // Fetch fresh data to trigger auto-clear, but don't block
-      fetchAnnouncements()
+      // Fetch fresh data to trigger auto-clear, but don't block or await
+      fetchAnnouncements().catch(err => console.error('Error fetching announcements:', err))
     } catch (err) {
       console.error('Error saving announcement:', err)
       console.group(`[ERROR] Announcement save failed for ${id}`)
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
       console.log(`Stack: ${err instanceof Error ? err.stack : 'N/A'}`)
+      console.log(`Response received: ${responseReceived}`)
       console.log(`Timestamp: ${new Date().toISOString()}`)
       console.groupEnd()
 
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingAnnouncements }
       delete revertPending[id]
+      delete revertPending[`${id}_timestamp`]
       setLocalPendingAnnouncements(revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
@@ -2367,7 +2383,6 @@ export function AdminPanel() {
     } finally {
       setSavingAnnouncements(prev => ({ ...prev, [id]: false }))
       console.log(`[DONE] Saving announcement ${id} completed`)
-
     }
   }
 
@@ -2382,12 +2397,21 @@ export function AdminPanel() {
       localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
     } catch (e) {}
 
+    let responseReceived = false
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const resp = await fetch(`/api/announcements/${id}`, { 
         method: 'PATCH', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ announcement: '' }) 
+        body: JSON.stringify({ announcement: '' }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+      
+      responseReceived = true
+      
       if (!resp.ok) throw new Error('Failed to clear')
       await resp.json()
       // Success: fetch fresh data to trigger auto-clear
@@ -2403,13 +2427,16 @@ export function AdminPanel() {
         localStorage.setItem('montyclub:announcementsUpdated', JSON.stringify({ id, t: Date.now() }))
       } catch (e) {}
       
-      // Fetch fresh data to trigger auto-clear, but don't block
-      fetchAnnouncements()
+      // Fetch fresh data to trigger auto-clear, but don't block or await
+      fetchAnnouncements().catch(err => console.error('Error fetching announcements:', err))
     } catch (err) {
       console.error('Error clearing announcement:', err)
+      console.log(`Response received: ${responseReceived}`)
+      
       // Clear from pending on error (revert)
       const revertPending = { ...localPendingAnnouncements }
       delete revertPending[id]
+      delete revertPending[`${id}_timestamp`]
       setLocalPendingAnnouncements(revertPending)
       try {
         if (Object.keys(revertPending).length === 0) {
