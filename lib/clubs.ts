@@ -18,7 +18,6 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.warn('[clubs-sync] Supabase not configured, skipping sync to Postgres')
       return
     }
 
@@ -31,26 +30,15 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
       .select('*', { count: 'exact', head: true })
 
     if (existingCount === clubs.length) {
-      console.log(`[clubs-sync] Postgres clubs table already has ${existingCount} clubs (matches source), skipping sync`)
       return
-    }
-
-    // If count doesn't match, we need to sync - warn about mismatch
-    if (existingCount && existingCount > 0) {
-      console.warn(`[clubs-sync] Postgres has ${existingCount} clubs but source has ${clubs.length} - MISMATCH! Proceeding with sync...`)
     }
 
     if (clubs.length === 0) {
-      console.log('[clubs-sync] No clubs to sync to Postgres')
       return
     }
 
-    console.log(`[clubs-sync] Syncing ${clubs.length} clubs to Postgres...`)
-
     // Insert clubs into Postgres
-    let inserted = 0
     for (const club of clubs) {
-      console.log(`[clubs-sync] Syncing club: id="${club.id}", name="${club.name}"`)
       try {
         await (client.from('clubs') as any)
           .insert({
@@ -70,18 +58,10 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
             announcement: club.announcement || null,
             keywords: club.keywords || [],
           })
-        inserted++
-        console.log(`[clubs-sync] ✓ Inserted club ${club.id}`)
       } catch (e: any) {
-        if (e?.code !== '23505') { // 23505 = unique violation (club already exists)
-          console.warn(`[clubs-sync] Failed to insert club ${club.id}:`, e?.message)
-        } else {
-          console.log(`[clubs-sync] Club ${club.id} already exists, skipping`)
-        }
+        // Club insertion failed or already exists
       }
     }
-
-    console.log(`[clubs-sync] Successfully synced ${inserted} clubs to Postgres`)
   } catch (error) {
     console.error('[clubs-sync] Error syncing clubs to Postgres:', error)
     // Don't throw - this is a background sync operation
@@ -93,32 +73,24 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   // Snapshot is generated via admin "Publish Catalog" action
   const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
   if (snapshot && snapshot.clubs && Array.isArray(snapshot.clubs)) {
-    console.log(`[fetchClubsFromCollection] ⚡ Using snapshot (${snapshot.clubs.length} clubs) from ${snapshot.metadata?.generatedAt}`)
-    
     const clubs: Club[] = snapshot.clubs
     
     // Merge announcements from Postgres
     try {
       const settings = await readData('settings', { announcementsEnabled: true })
       if (settings.announcementsEnabled !== false) {
-        console.log('[fetchClubsFromCollection] Fetching announcements from Postgres for snapshot clubs...')
         const announcements = await getAllAnnouncements()
-        
-        if (Object.keys(announcements).length > 0) {
-          console.log('[fetchClubsFromCollection] Found announcements in Postgres:', Object.keys(announcements))
-        }
         
         // Merge announcements into club objects
         clubs.forEach((c: Club) => {
           const idStr = String(c.id).trim()
           if (announcements[idStr]) {
             c.announcement = announcements[idStr]
-            console.log(`[fetchClubsFromCollection] Merged announcement for club ${idStr}: "${announcements[idStr]}"`)
           }
         })
       }
     } catch (err) {
-      console.warn('Could not merge announcements from Postgres (Snapshot mode):', err)
+      // Could not merge announcements from Postgres
     }
     
     // Sync to Postgres asynchronously (don't await - let it happen in background)
@@ -129,7 +101,6 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
 
   // FALLBACK: Dynamic fetch from registrations (used if snapshot doesn't exist)
   // This is normal if admin hasn't clicked "Publish Catalog" yet
-  console.log('[fetchClubsFromCollection] 📂 Generating from registration files (snapshot not yet published - this is normal)')
   
   // 1. Get all collections and choose display collection (fallback to legacy enabled)
   const collections: RegistrationCollection[] = await readData('settings/registration-collections', [])
@@ -137,16 +108,12 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   const legacy = collections.find(c => c.enabled)
   const selected = display || legacy
   if (!selected) {
-    console.warn('❌ No display or enabled collection found. Available collections:', collections.map(c => ({ id: c.id, name: c.name, display: c.display, enabled: c.enabled })))
     return []
   }
-
-  console.log(`[fetchClubsFromCollection] Using collection: ${selected.name} (id: ${selected.id})`)
 
   // 2. List all registration files for this collection
   const regPaths = await listPaths(`registrations/${selected.id}`)
   const jsonPaths = regPaths.filter(p => p.endsWith('.json'))
-  console.log(`[fetchClubsFromCollection] Found ${jsonPaths.length} registration files`)
   
   // 3. Read all registrations in parallel for performance
   const registrationPromises = jsonPaths.map(path => readJSONFromStorage(path))
@@ -157,11 +124,8 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
   )
   
   if (!registrations.length) {
-    console.warn(`❌ No approved registrations found in collection "${selected.name}". Total files: ${allRegs.length}, Parsed: ${allRegs.filter(r => r).length}`)
     return []
   }
-
-  console.log(`[fetchClubsFromCollection] ✅ Found ${registrations.length} approved clubs`)
 
   // 3. Sort by approvedAt timestamp (newest first), fallback to submittedAt
   registrations.sort((a, b) => {
@@ -195,24 +159,18 @@ export async function fetchClubsFromCollection(): Promise<Club[]> {
     const settings = await readData('settings', { announcementsEnabled: true })
     
     if (settings.announcementsEnabled !== false) {
-      console.log('[fetchClubsFromCollection] Fetching announcements from Postgres...')
       const announcements = await getAllAnnouncements()
-      
-      if (Object.keys(announcements).length > 0) {
-        console.log('[fetchClubsFromCollection] Found announcements in Postgres:', Object.keys(announcements))
-      }
       
       // Merge announcements where club id matches
       clubs.forEach((c: Club) => {
         const idStr = String(c.id).trim()
         if (announcements[idStr]) {
           c.announcement = announcements[idStr]
-          console.log(`[fetchClubsFromCollection] Merged announcement for club ${idStr}`)
         }
       })
     }
   } catch (err) {
-    console.warn('Could not merge announcements from Postgres (Collection mode):', err)
+    // Could not merge announcements from Postgres
   }
 
   // Sync to Postgres asynchronously (don't await - let it happen in background)
@@ -246,29 +204,21 @@ export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: Re
     const { listRegistrations } = await import('@/lib/registrations-db')
 
     // Get all collections from Postgres (the source of truth)
-    console.log('[fetchAllCollectionsClubs] Fetching collections from Postgres...')
     const collections = await listCollections()
     
     if (!collections.length) {
-      console.warn('[fetchAllCollectionsClubs] No collections found in Postgres')
       return []
     }
-
-    console.log(`[fetchAllCollectionsClubs] ✓ Found ${collections.length} collections in Postgres`)
 
     // Fetch approved clubs for each collection in parallel from Postgres
     const results = await Promise.all(
       collections.map(async (collection) => {
         try {
-          console.log(`[fetchAllCollectionsClubs] Fetching approved registrations for collection: ${collection.name} (${collection.id})`)
-          
           // Get approved registrations from Postgres for this collection
           const registrations = await listRegistrations({
             collectionId: collection.id,
             status: 'approved'
           })
-
-          console.log(`[fetchAllCollectionsClubs] ✓ Found ${registrations.length} approved registrations in ${collection.name}`)
 
           // Convert to Club objects
           const clubs = registrations.map((r) => ({
@@ -291,18 +241,16 @@ export async function fetchAllCollectionsClubs(): Promise<Array<{ collection: Re
 
           return { collection, clubs }
         } catch (error) {
-          console.warn(`[fetchAllCollectionsClubs] Failed to fetch clubs for collection ${collection.name}:`, error)
+          // Failed to fetch clubs for collection
           return { collection, clubs: [] }
         }
       })
     )
 
     const totalClubs = results.reduce((sum, r) => sum + r.clubs.length, 0)
-    console.log(`[fetchAllCollectionsClubs] ✓ Successfully fetched ${totalClubs} total clubs across ${results.length} collections`)
 
     return results
   } catch (error) {
-    console.error('[fetchAllCollectionsClubs] ✗ Error fetching all collections clubs:', error)
     return []
   }
 }
@@ -314,13 +262,12 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     try {
       buffer = await runtimeReadFile('clubData.xlsx')
     } catch (e) {
-      console.warn('runtimeReadFile failed:', (e as any)?.message || e)
+      // runtimeReadFile not available
     }
 
     const filePath = path.join(process.cwd(), 'clubData.xlsx')
     if (!buffer) {
       if (!fs.existsSync(filePath)) {
-        console.warn('clubData.xlsx not found, using mock data')
         return getMockClubs()
       }
       buffer = await fs.promises.readFile(filePath)
@@ -335,7 +282,6 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     const worksheet = workbook.worksheets[0] // Use first worksheet
     
     if (!worksheet) {
-      console.warn('No worksheets found in Excel file')
       return getMockClubs()
     }
 
@@ -350,7 +296,6 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     })
 
     if (rows.length < 2) {
-      console.warn('Excel file has no data rows')
       return getMockClubs()
     }
 
@@ -358,7 +303,6 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     const [headerRow, ...dataRows] = rows
     const isValidHeader = validateExcelHeaders(headerRow)
     if (!isValidHeader) {
-      console.error('Excel file has invalid or missing headers. Using mock data.')
       return getMockClubs()
     }
 
@@ -366,7 +310,7 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
     const clubs = parseExcelData(dataRows)
 
 
-    // Merge admin-managed announcements (if any) from runtime-store (Supabase, KV, or FS)
+    // Merge admin-managed announcements (if any) from Postgres
     // But first check if announcements are enabled in settings
     try {
       const { readData } = require('@/lib/runtime-store')
@@ -374,10 +318,6 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
       
       if (settings.announcementsEnabled !== false) {
         const announcements = await getAllAnnouncements()
-        
-        if (Object.keys(announcements).length > 0) {
-          console.log('[Excel Import] Merged announcements from Postgres:', Object.keys(announcements))
-        }
         
         // Merge announcements where club id matches
         clubs.forEach((c: Club) => {
@@ -388,19 +328,17 @@ export async function fetchClubsFromExcel(): Promise<Club[]> {
         })
       }
     } catch (err) {
-      console.warn('Could not merge announcements from Postgres:', err)
+      // Could not merge announcements from Postgres
     }
 
     return clubs
   } catch (error) {
-    console.error('Error reading Excel file:', error)
     return getMockClubs()
   }
 }
 
 function validateExcelHeaders(headerRow: any[]): boolean {
   if (!headerRow || headerRow.length < 10) {
-    console.error('Header row missing or too short')
     return false
   }
 
@@ -435,8 +373,6 @@ function validateExcelHeaders(headerRow: any[]): boolean {
 
   // Require at least 8 out of 10 core headers to match
   if (matchCount < 8) {
-    console.error(`Excel header validation failed. Only ${matchCount}/10 headers matched.`)
-    console.error('First 13 headers found:', headerRow.slice(0, 13).map(cellToString))
     return false
   }
 

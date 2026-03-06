@@ -11,7 +11,6 @@ export async function GET() {
     // Check if cache is still valid
     const cached = getCachedClubs()
     if (cached) {
-      console.log(`[API /clubs] Returning cached clubs (${cached.data.length} clubs), age: ${cached.age}ms`)
       const json = JSON.stringify(cached.data)
       return new NextResponse(json, {
         headers: {
@@ -24,12 +23,7 @@ export async function GET() {
     }
 
     // Cache miss - fetch fresh data
-    console.log(`[API /clubs] Cache miss, fetching fresh clubs...`)
     const clubs = await fetchClubs()
-    console.log(`[API /clubs] Fetched ${clubs.length} clubs, storing in cache`)
-    clubs.forEach((c, i) => {
-      console.log(`[API /clubs]   ${i + 1}. ${c.id} - ${c.name}`)
-    })
     setClubsCache(clubs)
 
     const json = JSON.stringify(clubs)
