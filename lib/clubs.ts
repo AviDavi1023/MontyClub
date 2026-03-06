@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 let syncChecked = false
 
 async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
-  // Only sync once per server instance to avoid unnecessary writes
+  // Only try to sync once per server instance
   if (syncChecked) return
   syncChecked = true
 
@@ -25,13 +25,18 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    // Check if clubs already exist in Postgres
+    // Check if we've already synced all clubs for this batch
     const { count: existingCount } = await (client.from('clubs') as any)
       .select('*', { count: 'exact', head: true })
 
-    if (existingCount && existingCount > 0) {
-      console.log(`[clubs-sync] Postgres clubs table already has ${existingCount} clubs, skipping sync`)
+    if (existingCount === clubs.length) {
+      console.log(`[clubs-sync] Postgres clubs table already has ${existingCount} clubs (matches source), skipping sync`)
       return
+    }
+
+    // If count doesn't match, we need to sync - warn about mismatch
+    if (existingCount && existingCount > 0) {
+      console.warn(`[clubs-sync] Postgres has ${existingCount} clubs but source has ${clubs.length} - MISMATCH! Proceeding with sync...`)
     }
 
     if (clubs.length === 0) {
@@ -69,6 +74,8 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
       } catch (e: any) {
         if (e?.code !== '23505') { // 23505 = unique violation (club already exists)
           console.warn(`[clubs-sync] Failed to insert club ${club.id}:`, e?.message)
+        } else {
+          console.log(`[clubs-sync] Club ${club.id} already exists, skipping`)
         }
       }
     }
