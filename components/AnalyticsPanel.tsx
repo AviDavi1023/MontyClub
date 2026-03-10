@@ -19,11 +19,9 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'all'>('month')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>(activeCollectionId || 'all')
   
-  // Update selected collection when active collection changes
+  // Always reset to the admin panel's active collection on fresh loads/changes.
   useEffect(() => {
-    if (activeCollectionId && activeCollectionId !== selectedCollectionId) {
-      setSelectedCollectionId(activeCollectionId)
-    }
+    setSelectedCollectionId(activeCollectionId || 'all')
   }, [activeCollectionId])
 
   useEffect(() => {

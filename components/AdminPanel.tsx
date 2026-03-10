@@ -2137,15 +2137,10 @@ export function AdminPanel() {
         hasCleared = true
       } else if (age >= FORCE_CLEAR_AGE) {
         // Safety mechanism: force clear if older than 5 seconds even if DB doesn't match
-        const dbTextStr = typeof dbText === 'string' ? dbText : String(dbText)
-        const pendingTextStr = typeof pendingText === 'string' ? pendingText : String(pendingText)
-        console.log(`[AUTO-CLEAR] Final state - localPendingAnnouncements updated`)
         delete stillPending[id]
         delete stillPending[`${id}_timestamp`]
         hasCleared = true
       } else {
-        const dbTextStr = typeof dbText === 'string' ? dbText : String(dbText)
-        const pendingTextStr = typeof pendingText === 'string' ? pendingText : String(pendingText)
         // Too recent or DB doesn't match
       }
     })
@@ -2172,76 +2167,131 @@ export function AdminPanel() {
     announcementsAutoClearcheckRef.current = stateHash
   }, [announcements, localPendingAnnouncements, announcementsStorageLoaded])
 
-  // When the announcements panel opens, scroll it into view and keep a fixed height
+  // Handle Escape key and body scroll consistently for all admin modals/dialogs.
   useEffect(() => {
-    if (showAnnouncementsPanel) {
-      // Prevent body scroll when modal is open
-      document.body.style.overflow = 'hidden'
-      
-      // Handle escape key to close modal
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          setShowAnnouncementsPanel(false)
-        }
-      }
-      document.addEventListener('keydown', handleEscape)
-      
-      return () => {
-        document.body.style.overflow = 'unset'
-        document.removeEventListener('keydown', handleEscape)
-      }
-    }
-  }, [showAnnouncementsPanel])
+    const anyModalOpen =
+      showAnnouncementsPanel ||
+      showStatistics ||
+      showUserManagement ||
+      showRegistrations ||
+      showClearDataModal ||
+      showManageCollections ||
+      showExcelImportModal ||
+      Boolean(editingCollectionId) ||
+      Boolean(confirmClearId) ||
+      showPasswordReset ||
+      showApiKeyPrompt ||
+      showPrimaryEmailSetup ||
+      Boolean(isOpen && options)
 
-  // When the statistics modal opens, handle ESC and body scroll
-  useEffect(() => {
-    if (showStatistics) {
-      document.body.style.overflow = 'hidden'
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowStatistics(false)
-      }
-      document.addEventListener('keydown', handleEscape)
-      return () => {
-        document.body.style.overflow = 'unset'
-        document.removeEventListener('keydown', handleEscape)
-      }
-    }
-  }, [showStatistics])
+    if (!anyModalOpen) return
 
-  // When the user management modal opens, handle ESC and body scroll
-  useEffect(() => {
-    if (showUserManagement) {
-      document.body.style.overflow = 'hidden'
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowUserManagement(false)
-      }
-      document.addEventListener('keydown', handleEscape)
-      return () => {
-        document.body.style.overflow = 'unset'
-        document.removeEventListener('keydown', handleEscape)
-      }
-    }
-  }, [showUserManagement])
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
 
-  // When the registrations modal opens, handle ESC and body scroll
-  useEffect(() => {
-    if (showRegistrations) {
-      document.body.style.overflow = 'hidden'
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowRegistrations(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+
+      if (confirmClearId) {
+        setConfirmClearId(null)
+        return
       }
-      document.addEventListener('keydown', handleEscape)
-      return () => {
-        document.body.style.overflow = 'unset'
-        document.removeEventListener('keydown', handleEscape)
+
+      if (isOpen && options) {
+        handleCancel()
+        return
+      }
+
+      if (editingCollectionId) {
+        setEditingCollectionId(null)
+        setEditingCollectionName('')
+        return
+      }
+
+      if (showExcelImportModal) {
+        setShowExcelImportModal(false)
+        setPendingExcelFile(null)
+        setExcelImportCollectionId(null)
+        return
+      }
+
+      if (showManageCollections) {
+        setShowManageCollections(false)
+        return
+      }
+
+      if (showClearDataModal) {
+        setShowClearDataModal(false)
+        setClearDataPassword('')
+        setClearDataApiKey('')
+        return
+      }
+
+      if (showRegistrations) {
+        setShowRegistrations(false)
+        return
+      }
+
+      if (showStatistics) {
+        setShowStatistics(false)
+        return
+      }
+
+      if (showAnnouncementsPanel) {
+        setShowAnnouncementsPanel(false)
+        return
+      }
+
+      if (showUserManagement) {
+        setShowUserManagement(false)
+        return
+      }
+
+      if (showPasswordReset) {
+        setShowPasswordReset(false)
+        setResetStep('request')
+        setResetToken('')
+        setNewPassword('')
+        setConfirmPassword('')
+        return
+      }
+
+      if (showPrimaryEmailSetup) {
+        setShowPrimaryEmailSetup(false)
+        return
+      }
+
+      if (showApiKeyPrompt) {
+        skipApiKeyPrompt()
       }
     }
-  }, [showRegistrations])
+
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [
+    confirmClearId,
+    editingCollectionId,
+    handleCancel,
+    isOpen,
+    options,
+    showAnnouncementsPanel,
+    showApiKeyPrompt,
+    showClearDataModal,
+    showExcelImportModal,
+    showManageCollections,
+    showPasswordReset,
+    showPrimaryEmailSetup,
+    showRegistrations,
+    showStatistics,
+    showUserManagement,
+  ])
 
   const fetchAnnouncements = async () => {
     // Skip if not authenticated yet
     if (!isAuthenticated) {
-      console.log('Skipping fetchAnnouncements: not authenticated')
       return
     }
 
@@ -2684,19 +2734,6 @@ export function AdminPanel() {
       console.error('Failed to check catalog status:', err)
     }
   }
-
-  // ESC key handler for factory reset modal
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showClearDataModal) {
-        setShowClearDataModal(false)
-        setClearDataPassword('')
-        setClearDataApiKey('')
-      }
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [showClearDataModal])
 
   // Handler to show publish reminder toast after registration actions
   const handleRegistrationActionComplete = () => {
