@@ -3159,7 +3159,7 @@ export function AdminPanel() {
                     <p className="text-gray-600 dark:text-gray-400">Create your first collection to start accepting club registrations. Collections let you organize registrations by year or category.</p>
                     <button
                       onClick={() => setShowManageCollections(true)}
-                      className="btn-primary px-6 py-3 text-base mt-4"
+                      className="btn-primary inline-flex px-6 py-3 text-base"
                     >
                       <Plus className="h-5 w-5 mr-2" />
                       Create First Collection
