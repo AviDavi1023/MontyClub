@@ -420,9 +420,10 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="Advisor Name"
+                  label="Advisor Last Name (then first initial)"
                   value={advisorName}
                   onChange={(e) => setAdvisorName(e.target.value)}
+                  placeholder="e.g., Smith J"
                   required
                 />
 
