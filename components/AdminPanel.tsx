@@ -3269,45 +3269,45 @@ export function AdminPanel() {
                                   </span>
                                 )}
                               </div>
-                              {(isAccepting || isRenewal) && (
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-                                  {isAccepting && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs text-gray-500 dark:text-gray-500">Registration:</span>
-                                      <a
-                                        href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(activeCol.name)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                      >
-                                        /register-club?collection={slugifyName(activeCol.name)}
-                                        <ExternalLink className="h-3 w-3" />
-                                      </a>
-                                    </div>
-                                  )}
-                                  {isRenewal && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs text-gray-500 dark:text-gray-500">Renewal:</span>
-                                      <a
-                                        href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${activeCollectionId}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                                      >
-                                        /renew-club/{activeCollectionId}
-                                        <ExternalLink className="h-3 w-3" />
-                                      </a>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+
                             </>
                           )
                         })()}
                       </div>
 
                       {/* Right: Action Buttons */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        {activeCollectionId && (() => {
+                          const activeCol = collections.find(c => c.id === activeCollectionId)
+                          const isAccepting = Boolean(activeCol?.accepting)
+                          const isRenewal = Boolean(activeCol?.renewalEnabled)
+                          return (
+                            <>
+                              {isAccepting && (
+                                <a
+                                  href={`/register-club?collection=${slugifyName(activeCol!.name)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  Registration Form
+                                </a>
+                              )}
+                              {isRenewal && (
+                                <a
+                                  href={`/renew-club/${activeCollectionId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  Renewal Form
+                                </a>
+                              )}
+                            </>
+                          )
+                        })()}
                         <button
                           onClick={() => setShowManageCollections(true)}
                           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
