@@ -283,12 +283,14 @@ export function ClubRegistrationForm({ collectionSlug }: ClubRegistrationFormPro
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Your club charter request has been received. You will be notified via email once it has been reviewed.
           </p>
-          <Button
-            variant="primary"
-            onClick={() => window.location.href = '/'}
-          >
-            Return to Home
-          </Button>
+          <div className="flex justify-center">
+            <Button
+              variant="primary"
+              onClick={() => window.location.href = '/'}
+            >
+              Return to Home
+            </Button>
+          </div>
         </div>
       </div>
     )

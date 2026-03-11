@@ -300,12 +300,14 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Your club renewal for <strong>{clubName}</strong> has been submitted successfully. You'll be notified once it's reviewed.
           </p>
-          <Button
-            variant="primary"
-            onClick={() => window.location.href = '/'}
-          >
-            Return to Home
-          </Button>
+          <div className="flex justify-center">
+            <Button
+              variant="primary"
+              onClick={() => window.location.href = '/'}
+            >
+              Return to Home
+            </Button>
+          </div>
         </div>
       </div>
     )
