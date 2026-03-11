@@ -201,6 +201,8 @@ export function AdminPanel() {
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(true)
   const [showManageCollections, setShowManageCollections] = useState(false)
   const manageCollectionsRef = useRef<HTMLDivElement | null>(null)
+  const [renewalSettings, setRenewalSettings] = useState<Record<string, { sourceCollections: string[] }>>({})
+  const [savingRenewalSettings, setSavingRenewalSettings] = useState(false)
 
   // Helper to handle 401 (Unauthorized) responses
   const handle401Error = (context: string) => {
@@ -244,6 +246,21 @@ export function AdminPanel() {
     if (!isAuthenticated || !adminApiKey) return
     loadCollections()
   }, [isAuthenticated, adminApiKey])
+
+  // Load renewal settings on auth
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const loadRenewalSettings = async () => {
+      try {
+        const resp = await fetch('/api/renewal-settings')
+        if (resp.ok) {
+          const data = await resp.json()
+          setRenewalSettings(data)
+        }
+      } catch {}
+    }
+    loadRenewalSettings()
+  }, [isAuthenticated])
 
   // Calculate pending registrations count across ALL collections using aggregated endpoint
   // CRITICAL FIX: Replaced N individual API calls with single aggregated call
@@ -503,6 +520,35 @@ export function AdminPanel() {
       showToast(err.message || 'Failed to update renewal', 'error')
     } finally {
       setTogglingCollection(null)
+    }
+  }
+
+  const toggleModalRenewalSourceCollection = async (targetCollectionId: string, sourceCollectionId: string) => {
+    const currentSettings = renewalSettings[targetCollectionId] || { sourceCollections: [] }
+    const currentSources = currentSettings.sourceCollections || []
+    const newSources = currentSources.includes(sourceCollectionId)
+      ? currentSources.filter(id => id !== sourceCollectionId)
+      : [...currentSources, sourceCollectionId]
+    const updatedSettings = { ...renewalSettings, [targetCollectionId]: { sourceCollections: newSources } }
+    setRenewalSettings(updatedSettings)
+    setSavingRenewalSettings(true)
+    try {
+      const resp = await fetch('/api/renewal-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify(updatedSettings)
+      })
+      if (!resp.ok) throw new Error('Failed to save')
+      const serverData = await resp.json()
+      setRenewalSettings(serverData)
+    } catch {
+      showToast('Failed to save renewal settings', 'error')
+      try {
+        const revertResp = await fetch('/api/renewal-settings')
+        if (revertResp.ok) setRenewalSettings(await revertResp.json())
+      } catch {}
+    } finally {
+      setSavingRenewalSettings(false)
     }
   }
 
@@ -3201,27 +3247,61 @@ export function AdminPanel() {
                           const isRenewal = Boolean(activeCol.renewalEnabled)
                           
                           return (
-                            <div className="flex items-center gap-2 mt-3">
-                              {isDisplay && (
-                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                  Public Catalog
-                                </span>
+                            <>
+                              <div className="flex items-center gap-2 mt-3">
+                                {isDisplay && (
+                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                    Public Catalog
+                                  </span>
+                                )}
+                                {isAccepting ? (
+                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    ✓ Accepting Registrations
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                    Registration Disabled
+                                  </span>
+                                )}
+                                {isRenewal && (
+                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                    Renewals Enabled
+                                  </span>
+                                )}
+                              </div>
+                              {(isAccepting || isRenewal) && (
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                                  {isAccepting && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-gray-500 dark:text-gray-500">Registration:</span>
+                                      <a
+                                        href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(activeCol.name)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                      >
+                                        /register-club?collection={slugifyName(activeCol.name)}
+                                        <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    </div>
+                                  )}
+                                  {isRenewal && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-gray-500 dark:text-gray-500">Renewal:</span>
+                                      <a
+                                        href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${activeCollectionId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                      >
+                                        /renew-club/{activeCollectionId}
+                                        <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
                               )}
-                              {isAccepting ? (
-                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                  ✓ Accepting Registrations
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                                  Registration Disabled
-                                </span>
-                              )}
-                              {isRenewal && (
-                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                  Renewals Enabled
-                                </span>
-                              )}
-                            </div>
+                            </>
                           )
                         })()}
                       </div>
@@ -4389,6 +4469,74 @@ export function AdminPanel() {
                               </span>
                             )}
                           </div>
+
+                          {/* Form Links */}
+                          {(isAccepting || isRenewal) && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
+                              {isAccepting && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs text-gray-500 dark:text-gray-500">Registration form:</span>
+                                  <a
+                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/register-club?collection=${slugifyName(collection.name)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    /register-club?collection={slugifyName(collection.name)}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              )}
+                              {isRenewal && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs text-gray-500 dark:text-gray-500">Renewal form:</span>
+                                  <a
+                                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/renew-club/${collection.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    /renew-club/{collection.id}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Club Charter Renewal Settings */}
+                          {isRenewal && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                              <h5 className="text-xs font-semibold text-gray-900 dark:text-white mb-1.5">Club Charter Renewal Settings</h5>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Select which collection(s) clubs can renew from.
+                              </p>
+                              <div className="space-y-1.5">
+                                {collections.filter(c => c.id !== collection.id).map(sourceCol => {
+                                  const currentSettings = renewalSettings[collection.id] || { sourceCollections: [] }
+                                  const isSource = currentSettings.sourceCollections.includes(sourceCol.id)
+                                  return (
+                                    <label key={sourceCol.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSource}
+                                        onChange={() => toggleModalRenewalSourceCollection(collection.id, sourceCol.id)}
+                                        disabled={savingRenewalSettings}
+                                        className="rounded border-gray-300 dark:border-gray-600"
+                                      />
+                                      <span className="text-gray-700 dark:text-gray-300">{sourceCol.name}</span>
+                                    </label>
+                                  )
+                                })}
+                                {collections.filter(c => c.id !== collection.id).length === 0 && (
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 italic">No other collections available to renew from.</p>
+                                )}
+                                {savingRenewalSettings && <p className="text-xs text-blue-600 dark:text-blue-400">Saving...</p>}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
