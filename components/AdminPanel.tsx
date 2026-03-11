@@ -131,10 +131,7 @@ export function AdminPanel() {
   const [publishingCatalog, setPublishingCatalog] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState<{ exists: boolean; generatedAt?: string; clubCount?: number } | null>(null)
   const [adminApiKey, setAdminApiKey] = useState('')
-  const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false)
-  const [apiKeyPromptInput, setApiKeyPromptInput] = useState('')
-  const [apiKeyPromptError, setApiKeyPromptError] = useState('')
-  const [validatingApiKey, setValidatingApiKey] = useState(false)
+
   const [showPasswordReset, setShowPasswordReset] = useState(false)
   const [resetUsername, setResetUsername] = useState('')
   const [resetToken, setResetToken] = useState('')
@@ -210,23 +207,15 @@ export function AdminPanel() {
     console.error(`[${context}] Received 401 - API key is invalid or stale`)
     try { localStorage.removeItem('analytics:adminKey') } catch {}
     setAdminApiKey('')
-    setLoginApiKey('')
-    setApiKeyPromptInput('')
-    setApiKeyPromptError('')
-    setShowApiKeyPrompt(true)
-    showToast('You are still signed in, but your API key is invalid. Enter a valid key to continue admin operations.', 'error')
+    showToast('An authorization error occurred. Please try logging in again.', 'error')
   }
 
-  // Load admin API key from localStorage and pre-fill login form
+  // Load admin API key from localStorage
   useEffect(() => {
     try {
       const key = localStorage.getItem('analytics:adminKey')
       if (key) {
         setAdminApiKey(key)
-        // Pre-fill login form if not yet authenticated
-        if (!isAuthenticated) {
-          setLoginApiKey(key)
-        }
       }
     } catch {}
     // Announcements enabled: load from localStorage first, then server
@@ -675,79 +664,7 @@ export function AdminPanel() {
   }
 
   const saveAdminApiKey = async () => {
-    const k = adminApiKey.trim()
-    if (!k) {
-      showToast('API key cannot be empty', 'error')
-      return
-    }
-    
-    setValidatingApiKey(true)
-    try {
-      const resp = await fetch('/api/admin/validate-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: k })
-      })
-      
-      if (resp.ok) {
-        setAdminApiKey(k)
-        try { localStorage.setItem('analytics:adminKey', k) } catch {}
-        showToast('✅ API key validated and saved successfully')
-        // Reload collections to test the key works
-        await loadCollections(k)
-      } else {
-        showToast('❌ Invalid API key. Please check and try again.', 'error')
-      }
-    } catch (err) {
-      showToast('Failed to validate API key. Check your connection.', 'error')
-      console.error('API key validation error:', err)
-    } finally {
-      setValidatingApiKey(false)
-    }
-  }
-
-  const saveApiKeyFromPrompt = async () => {
-    const k = apiKeyPromptInput.trim()
-    if (!k) {
-      setApiKeyPromptError('API key cannot be empty.')
-      showToast('API key cannot be empty', 'error')
-      return
-    }
-    
-    setValidatingApiKey(true)
-    setApiKeyPromptError('')
-    try {
-      const resp = await fetch('/api/admin/validate-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: k })
-      })
-      
-      if (resp.ok) {
-        setAdminApiKey(k)
-        try { localStorage.setItem('analytics:adminKey', k) } catch {}
-        showToast('✅ API key validated and saved')
-        setShowApiKeyPrompt(false)
-        setApiKeyPromptInput('')
-        setApiKeyPromptError('')
-        // Reload collections to test
-        await loadCollections(k)
-      } else {
-        setApiKeyPromptError('Invalid API key. Please try again.')
-        showToast('❌ Invalid API key', 'error')
-      }
-    } catch (err) {
-      setApiKeyPromptError('Could not validate API key. Check your connection and try again.')
-      showToast('Failed to validate API key', 'error')
-    } finally {
-      setValidatingApiKey(false)
-    }
-  }
-
-  const skipApiKeyPrompt = () => {
-    setShowApiKeyPrompt(false)
-    setApiKeyPromptInput('')
-    setApiKeyPromptError('')
+    // Removed - API key is now auto-supplied from login
   }
 
   const savePrimaryEmail = async () => {
@@ -963,46 +880,10 @@ export function AdminPanel() {
         setPassword('')
         setIsAuthenticated(true)
         
-        // Try API key from login input first, then stored key.
-        let finalApiKey = loginApiKey?.trim()
-        if (!finalApiKey) {
-          finalApiKey = localStorage.getItem('analytics:adminKey') || ''
-        }
-
-        if (finalApiKey) {
-          try {
-            const validateResp = await fetch('/api/admin/validate-key', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ apiKey: finalApiKey })
-            })
-
-            if (validateResp.ok) {
-              setAdminApiKey(finalApiKey)
-              setApiKeyPromptInput('')
-              setApiKeyPromptError('')
-              setShowApiKeyPrompt(false)
-              try { localStorage.setItem('analytics:adminKey', finalApiKey) } catch {}
-            } else {
-              setAdminApiKey('')
-              setApiKeyPromptInput(finalApiKey)
-              setApiKeyPromptError('The API key entered at sign in is invalid. Please enter a valid key.')
-              setShowApiKeyPrompt(true)
-              try { localStorage.removeItem('analytics:adminKey') } catch {}
-              showToast('Signed in successfully, but your API key is invalid. Please update it to use protected admin features.', 'info')
-            }
-          } catch {
-            // Network hiccup while validating key: keep signed-in session and let user continue.
-            setAdminApiKey(finalApiKey)
-            try { localStorage.setItem('analytics:adminKey', finalApiKey) } catch {}
-            showToast('Signed in. Could not verify API key right now; you can continue and update it in the prompt if needed.', 'info')
-          }
-        } else {
-          // No API key provided: keep session active and prompt to add one.
-          setAdminApiKey('')
-          setApiKeyPromptInput('')
-          setApiKeyPromptError('')
-          setShowApiKeyPrompt(true)
+        // Auto-store API key from login response
+        if (data.apiKey) {
+          setAdminApiKey(data.apiKey)
+          try { localStorage.setItem('analytics:adminKey', data.apiKey) } catch {}
         }
         
         // Check if primary admin needs email setup
@@ -1025,10 +906,6 @@ export function AdminPanel() {
     setCurrentUser(null)
     setUsername('')
     setPassword('')
-    setLoginApiKey('')
-    setShowApiKeyPrompt(false)
-    setApiKeyPromptInput('')
-    setApiKeyPromptError('')
   }
 
   const toggleUserManagement = () => {
@@ -2214,7 +2091,6 @@ export function AdminPanel() {
       Boolean(editingCollectionId) ||
       Boolean(confirmClearId) ||
       showPasswordReset ||
-      showApiKeyPrompt ||
       showPrimaryEmailSetup ||
       Boolean(isOpen && options)
 
@@ -2294,10 +2170,6 @@ export function AdminPanel() {
         setShowPrimaryEmailSetup(false)
         return
       }
-
-      if (showApiKeyPrompt) {
-        skipApiKeyPrompt()
-      }
     }
 
     document.addEventListener('keydown', handleEscape)
@@ -2312,7 +2184,6 @@ export function AdminPanel() {
     isOpen,
     options,
     showAnnouncementsPanel,
-    showApiKeyPrompt,
     showClearDataModal,
     showExcelImportModal,
     showManageCollections,
@@ -2794,69 +2665,6 @@ export function AdminPanel() {
             </p>
           </div>
         </div>
-        {showApiKeyPrompt && (
-          <>
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={skipApiKeyPrompt} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-                <div className="text-center mb-4">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-3">
-                    <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Set Admin API Key
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    To manage analytics, registrations, and other admin features, please enter your admin API key.
-                  </p>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Admin API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKeyPromptInput}
-                    onChange={(e) => {
-                      setApiKeyPromptInput(e.target.value)
-                      if (apiKeyPromptError) setApiKeyPromptError('')
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && saveApiKeyFromPrompt()}
-                    className="input-field"
-                    placeholder="Enter your ADMIN_API_KEY"
-                    autoComplete="off"
-                    name="admin-api-key-prompt"
-                    data-lpignore="true"
-                    data-form-type="other"
-                    autoFocus
-                  />
-                  {apiKeyPromptError && (
-                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{apiKeyPromptError}</p>
-                  )}
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={skipApiKeyPrompt}
-                    disabled={validatingApiKey}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                  >
-                    Skip for Now
-                  </button>
-                  <button
-                    onClick={saveApiKeyFromPrompt}
-                    disabled={validatingApiKey}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  >
-                    {validatingApiKey ? 'Validating...' : 'Save Key'}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-                  You can always set this later in the admin panel.
-                </p>
-              </div>
-            </div>
-          </>
-        )}
         {showPrimaryEmailSetup && (
           <>
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50" />
@@ -2970,27 +2778,6 @@ export function AdminPanel() {
             </button>
           </div>
         </form>
-
-        <div className="mt-4">
-          <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Admin API Key
-          </label>
-          <input
-            type="password"
-            id="apiKey"
-            name="admin-api-key"
-            value={loginApiKey}
-            onChange={(e) => setLoginApiKey(e.target.value)}
-            className="input-field"
-            placeholder="Enter admin API key (optional)"
-            autoComplete="off"
-            data-lpignore="true"
-            data-form-type="other"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Required for most admin operations. You can set this now or promptly after login.
-          </p>
-        </div>
 
         {isFirstTimeSetup && (
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -3305,9 +3092,6 @@ export function AdminPanel() {
               pendingRegistrationsCount={pendingRegistrationsCount}
               approvedRegistrationsCount={approvedRegistrationsCount}
               rejectedRegistrationsCount={rejectedRegistrationsCount}
-              adminApiKey={adminApiKey}
-              setAdminApiKey={setAdminApiKey}
-              saveAdminApiKey={saveAdminApiKey}
               refreshCache={refreshCache}
               refreshingCache={refreshingCache}
               publishSnapshotNow={publishSnapshotNow}
@@ -3520,68 +3304,6 @@ export function AdminPanel() {
           )}
         </div>
       </div>
-
-      {/* API Key Prompt (authenticated mode) */}
-      {showApiKeyPrompt && (
-        <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={skipApiKeyPrompt} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-3">
-                  <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Update Admin API Key
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  You are signed in. Enter a valid API key to re-enable protected admin actions.
-                </p>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Admin API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKeyPromptInput}
-                  onChange={(e) => {
-                    setApiKeyPromptInput(e.target.value)
-                    if (apiKeyPromptError) setApiKeyPromptError('')
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && saveApiKeyFromPrompt()}
-                  className="input-field"
-                  placeholder="Enter your ADMIN_API_KEY"
-                  autoComplete="off"
-                  name="admin-api-key-prompt-auth"
-                  data-lpignore="true"
-                  data-form-type="other"
-                  autoFocus
-                />
-                {apiKeyPromptError && (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{apiKeyPromptError}</p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={skipApiKeyPrompt}
-                  disabled={validatingApiKey}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                >
-                  Skip for Now
-                </button>
-                <button
-                  onClick={saveApiKeyFromPrompt}
-                  disabled={validatingApiKey}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                  {validatingApiKey ? 'Validating...' : 'Save Key'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Modals and Dialogs */}
       {/* User Management Modal */}

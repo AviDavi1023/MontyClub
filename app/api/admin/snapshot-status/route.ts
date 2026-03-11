@@ -15,25 +15,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-
-    if (!expectedKey) {
-      console.error('[SnapshotStatus] CRITICAL: ADMIN_API_KEY not configured')
-      return NextResponse.json(
-        { error: 'Server not configured: ADMIN_API_KEY not set' },
-        { status: 500 }
-      )
-    }
-
-    if (!adminKey || adminKey !== expectedKey) {
-      console.warn('[SnapshotStatus] Unauthorized request - invalid or missing API key')
-      return NextResponse.json(
-        { error: 'Unauthorized. Please re-enter your API key after factory reset.' },
-        { status: 401 }
-      )
-    }
-
     // Check if snapshot exists
     const snapshot = await readJSONFromStorage('settings/clubs-snapshot.json')
 
@@ -65,25 +46,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-
-    if (!expectedKey) {
-      console.error('[SnapshotStatus POST] CRITICAL: ADMIN_API_KEY not configured')
-      return NextResponse.json(
-        { error: 'Server not configured: ADMIN_API_KEY not set' },
-        { status: 500 }
-      )
-    }
-
-    if (!adminKey || adminKey !== expectedKey) {
-      console.warn('[SnapshotStatus POST] Unauthorized request - invalid or missing API key')
-      return NextResponse.json(
-        { error: 'Unauthorized. Please re-enter your API key after factory reset.' },
-        { status: 401 }
-      )
-    }
-
     console.log('[Snapshot] Manual publish triggered by admin...')
 
     // Wrap entire publish in snapshot lock to prevent concurrent publishes

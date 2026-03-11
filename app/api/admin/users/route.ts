@@ -26,17 +26,6 @@ export async function GET() {
 // Create a new admin user
 export async function POST(request: Request) {
   try {
-    // Verify admin API key
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-    
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     
     if (!body?.username) {
@@ -86,17 +75,6 @@ export async function POST(request: Request) {
 // Delete an admin user
 export async function DELETE(request: Request) {
   try {
-    // Verify admin API key
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-    
-    if (!adminKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     
     if (!body?.username) {

@@ -9,14 +9,6 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = request.headers.get('x-admin-key')
-    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     const { email } = await request.json()
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {

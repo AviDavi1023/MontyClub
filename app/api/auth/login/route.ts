@@ -23,9 +23,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    // Success - return user info (without password hash)
+    // Success - return user info (without password hash) and API key
     return NextResponse.json({
       success: true,
+      apiKey: process.env.ADMIN_API_KEY,
       user: {
         username: user.username,
         createdAt: user.createdAt,

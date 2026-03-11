@@ -12,9 +12,6 @@ interface DashboardOverviewProps {
   pendingRegistrationsCount?: number
   approvedRegistrationsCount?: number
   rejectedRegistrationsCount?: number
-  adminApiKey: string
-  setAdminApiKey: (key: string) => void
-  saveAdminApiKey: () => void
   refreshCache: () => void
   refreshingCache: boolean
   publishSnapshotNow: () => void
@@ -29,9 +26,6 @@ export function DashboardOverview({
   pendingRegistrationsCount = 0,
   approvedRegistrationsCount = 0,
   rejectedRegistrationsCount = 0,
-  adminApiKey,
-  setAdminApiKey,
-  saveAdminApiKey,
   refreshCache,
   refreshingCache,
   publishSnapshotNow,
@@ -236,33 +230,6 @@ export function DashboardOverview({
           System Settings
           <InfoTooltip text="Core system configuration including API access and data management" />
         </h2>
-
-        {/* Admin API Key */}
-        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-            <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            Admin API Key
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Required for managing registrations, analytics, announcements, and other admin features.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
-              <input
-                type="password"
-                value={adminApiKey}
-                onChange={(e) => setAdminApiKey(e.target.value)}
-                className="input-field text-sm"
-                placeholder="Enter your ADMIN_API_KEY"
-              />
-            </div>
-            <button onClick={saveAdminApiKey} className="btn-primary whitespace-nowrap">
-              <Lock className="h-4 w-4 mr-2" />
-              Save Key
-            </button>
-          </div>
-        </div>
 
         {/* Snapshot Publishing - PRIMARY ACTION */}
         <div className={`p-5 rounded-lg mb-6 ${catalogStatus?.exists ? 'bg-white dark:bg-gray-800 border-2 border-primary-200 dark:border-primary-800' : 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'}`}>

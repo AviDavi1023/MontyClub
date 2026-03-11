@@ -5,17 +5,6 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    // Verify admin API key
-    const adminKey = request.headers.get('x-admin-key')
-    const expectedKey = process.env.ADMIN_API_KEY
-    
-    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     // Clear the cache
     invalidateClubsCache()
 
