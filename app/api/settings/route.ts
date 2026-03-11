@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { readData, writeData } from '@/lib/runtime-store'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,6 +22,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const body = await request.json()
     const current = await readData('settings', { announcementsEnabled: true })

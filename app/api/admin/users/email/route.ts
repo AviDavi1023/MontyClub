@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminUserByUsername, updateAdminUser } from '@/lib/admin-users-db'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,15 +9,10 @@ export const dynamic = 'force-dynamic'
  * Update an admin user's email address
  */
 export async function PUT(request: NextRequest) {
-  try {
-    const apiKey = request.headers.get('x-admin-key')
-    if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
 
+  try {
     const { username, email } = await request.json()
 
     if (!username || typeof username !== 'string') {

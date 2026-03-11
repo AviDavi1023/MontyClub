@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listCollections } from '@/lib/collections-db'
 import { listRegistrations } from '@/lib/registrations-db'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic'
  * Creates a test registration and verifies it can be queried
  */
 export async function POST(request: NextRequest) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
 
     // Get or create a test collection

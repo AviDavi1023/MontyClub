@@ -133,6 +133,7 @@ async function ensureRegistrationsMigrated(): Promise<void> {
 
     console.log(`[registrations-db] Successfully migrated ${migratedRegs.length} registrations to Postgres`)
   } catch (error) {
+    registrationsMigrationChecked = false
     console.error('[registrations-db] Migration check failed:', error)
     throw error
   }

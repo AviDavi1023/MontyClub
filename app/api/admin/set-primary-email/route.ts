@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrimaryAdmin, listAdminUsers, setPrimaryAdmin, updateAdminUser } from '@/lib/admin-users-db'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic'
  * Set or update the primary admin's email for password reset notifications
  */
 export async function POST(request: NextRequest) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const { email } = await request.json()
 

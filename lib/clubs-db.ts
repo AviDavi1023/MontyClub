@@ -111,6 +111,7 @@ async function ensureClubsMigrated(): Promise<void> {
 
     console.log(`[clubs-db] Successfully migrated ${migratedClubs.length} clubs to Postgres`)
   } catch (error) {
+    clubsMigrationChecked = false
     console.error('[clubs-db] Migration check failed:', error)
     throw error
   }

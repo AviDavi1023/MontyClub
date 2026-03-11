@@ -249,10 +249,12 @@ export function AdminPanel() {
 
   // Load renewal settings on auth
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !adminApiKey) return
     const loadRenewalSettings = async () => {
       try {
-        const resp = await fetch('/api/renewal-settings')
+        const resp = await fetch('/api/renewal-settings', {
+          headers: { 'x-admin-key': adminApiKey }
+        })
         if (resp.ok) {
           const data = await resp.json()
           setRenewalSettings(data)
@@ -260,7 +262,7 @@ export function AdminPanel() {
       } catch {}
     }
     loadRenewalSettings()
-  }, [isAuthenticated])
+  }, [isAuthenticated, adminApiKey])
 
   // Calculate pending registrations count across ALL collections using aggregated endpoint
   // CRITICAL FIX: Replaced N individual API calls with single aggregated call
@@ -520,7 +522,9 @@ export function AdminPanel() {
       // When enabling for the first time, auto-default to the most recently created prior collection
       if (nextRenewal) {
         try {
-          const settingsResp = await fetch('/api/renewal-settings')
+          const settingsResp = await fetch('/api/renewal-settings', {
+            headers: { 'x-admin-key': adminApiKey }
+          })
           if (settingsResp.ok) {
             const currentRenewalData = await settingsResp.json()
             const existing = currentRenewalData[collectionId]
@@ -577,7 +581,9 @@ export function AdminPanel() {
     } catch {
       showToast('Failed to save renewal settings', 'error')
       try {
-        const revertResp = await fetch('/api/renewal-settings')
+        const revertResp = await fetch('/api/renewal-settings', {
+          headers: { 'x-admin-key': adminApiKey }
+        })
         if (revertResp.ok) setRenewalSettings(await revertResp.json())
       } catch {}
     } finally {
@@ -892,19 +898,26 @@ export function AdminPanel() {
   // Check if this is first-time setup
   useEffect(() => {
     const checkFirstTime = async () => {
+      if (!adminApiKey) {
+        setIsFirstTimeSetup(false)
+        return
+      }
+
       try {
-        const resp = await fetch('/api/admin/users')
+        const resp = await fetch('/api/admin/users', {
+          headers: { 'x-admin-key': adminApiKey }
+        })
         if (resp.ok) {
           const data = await resp.json()
           setIsFirstTimeSetup(!data.users || data.users.length === 0)
         }
       } catch (err) {
         // If error, assume first time
-        setIsFirstTimeSetup(true)
+        setIsFirstTimeSetup(false)
       }
     }
     checkFirstTime()
-  }, [])
+  }, [adminApiKey])
 
   // Load snapshot status on mount and periodically
   useEffect(() => {
@@ -935,11 +948,17 @@ export function AdminPanel() {
     setLoading(true)
 
     try {
+      if (!loginApiKey.trim()) {
+        setError('Admin API key is required')
+        setLoading(false)
+        return
+      }
+
       // Attempt login
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, adminApiKey: loginApiKey.trim() }),
       })
 
       if (!resp.ok) {
@@ -955,12 +974,9 @@ export function AdminPanel() {
         setError('')
         setPassword('')
         setIsAuthenticated(true)
-        
-        // Auto-store API key from login response
-        if (data.apiKey) {
-          setAdminApiKey(data.apiKey)
-          try { localStorage.setItem('analytics:adminKey', data.apiKey) } catch {}
-        }
+        setAdminApiKey(loginApiKey.trim())
+        try { localStorage.setItem('analytics:adminKey', loginApiKey.trim()) } catch {}
+        setLoginApiKey('')
         
         // Check if primary admin needs email setup
         if (data.user.isPrimary && !data.user.email) {
@@ -982,6 +998,7 @@ export function AdminPanel() {
     setCurrentUser(null)
     setUsername('')
     setPassword('')
+    setLoginApiKey('')
   }
 
   const toggleUserManagement = () => {
@@ -2328,7 +2345,7 @@ export function AdminPanel() {
       console.log(`[FETCH START] Announcement ${id} fetch starting...`)
       const resp = await fetch(`/api/announcements/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
         body: JSON.stringify({ announcement: text || '' }),
         signal: controller.signal,
       })
@@ -2428,7 +2445,7 @@ export function AdminPanel() {
       console.log(`[CLEAR FETCH START] Announcement ${id} clear fetch starting...`)
       const resp = await fetch(`/api/announcements/${id}`, { 
         method: 'PATCH', 
-        headers: { 'Content-Type': 'application/json' }, 
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey }, 
         body: JSON.stringify({ announcement: '' }),
         signal: controller.signal,
       })
@@ -2538,7 +2555,7 @@ export function AdminPanel() {
       // Send update to server
       const resp = await fetch('/api/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
         body: JSON.stringify({ announcementsEnabled: newValue }),
       })
       
@@ -2828,6 +2845,22 @@ export function AdminPanel() {
             />
           </div>
 
+          <div>
+            <label htmlFor="loginApiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Admin API Key
+            </label>
+            <input
+              type="password"
+              id="loginApiKey"
+              value={loginApiKey}
+              onChange={(e) => setLoginApiKey(e.target.value)}
+              className="input-field"
+              placeholder="Enter admin API key"
+              required
+              autoComplete="off"
+            />
+          </div>
+
           {error && (
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           )}
@@ -3092,6 +3125,9 @@ export function AdminPanel() {
       
       const response = await fetch('/api/upload-excel', {
         method: 'POST',
+        headers: {
+          'x-admin-key': adminApiKey,
+        },
         body: formData,
       })
 
@@ -3407,6 +3443,7 @@ export function AdminPanel() {
               clubs={clubs}
               collections={collections}
               activeCollectionId={activeCollectionId}
+              adminApiKey={adminApiKey}
             />
           )}
         </div>
@@ -3537,7 +3574,7 @@ export function AdminPanel() {
               try {
                 const resp = await fetch('/api/announcements', {
                   method: 'DELETE',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
                   body: JSON.stringify({ ids }),
                 })
                 if (!resp.ok) throw new Error('Bulk delete failed')

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fetchAllCollectionsClubs } from '@/lib/clubs'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 /**
  * GET /api/admin/all-collections-clubs
@@ -7,7 +8,10 @@ import { fetchAllCollectionsClubs } from '@/lib/clubs'
  * Returns clubs from all collections with collection metadata.
  * Used by admin analytics page to show stats across all collections.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     console.log('[API] /all-collections-clubs - Starting fetch')
     const result = await fetchAllCollectionsClubs()

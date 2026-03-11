@@ -247,10 +247,16 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
   // Load renewal settings
   useEffect(() => {
+    if (!adminApiKey) return
+
     const loadRenewalSettings = async () => {
       setLoadingRenewalSettings(true)
       try {
-        const response = await fetch('/api/renewal-settings')
+        const response = await fetch('/api/renewal-settings', {
+          headers: {
+            'x-admin-key': adminApiKey
+          }
+        })
         if (response.ok) {
           const data = await response.json()
           setRenewalSettings(data)
@@ -336,7 +342,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       alert('Failed to save renewal settings: ' + String(err))
       // Refresh from server to get correct state
       try {
-        const resp = await fetch('/api/renewal-settings')
+        const resp = await fetch('/api/renewal-settings', {
+          headers: {
+            'x-admin-key': adminApiKey
+          }
+        })
         if (resp.ok) {
           const data = await resp.json()
           setRenewalSettings(data)

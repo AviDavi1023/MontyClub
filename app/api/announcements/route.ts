@@ -3,6 +3,7 @@ import { announcementsCache } from '@/lib/caches'
 import { createCachedGET } from '@/lib/api-patterns'
 import { invalidateClubsCache } from '@/lib/cache-utils'
 import { getAllAnnouncements, setAnnouncement, bulkClearAnnouncements } from '@/lib/announcements-db'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -16,6 +17,9 @@ export const GET = createCachedGET<Record<string, string>>(
 )
 
 export async function POST(request: NextRequest) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   return announcementsCache.withLock(async () => {
     try {
       const body = await request.json()
@@ -54,6 +58,9 @@ export async function POST(request: NextRequest) {
 
 // Bulk delete announcements: DELETE /api/announcements with JSON body { ids: string[] }
 export async function DELETE(request: NextRequest) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   return announcementsCache.withLock(async () => {
     try {
       let payload: any = null

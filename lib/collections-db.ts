@@ -87,6 +87,7 @@ async function ensureCollectionsMigrated(): Promise<void> {
 
     console.log(`[collections-db] Successfully migrated ${legacyCollections.length} collections to Postgres`)
   } catch (error) {
+    collectionsMigrationChecked = false
     console.error('[collections-db] Migration check failed:', error)
     throw error
   }

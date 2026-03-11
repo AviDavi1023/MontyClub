@@ -7,10 +7,14 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchClubsFromCollection } from '@/lib/clubs'
 import type { Club } from '@/types/club'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const { clear } = await request.json().catch(() => ({}))
 

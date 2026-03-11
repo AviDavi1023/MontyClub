@@ -5,8 +5,12 @@ import { createRegistration, listRegistrations, deleteRegistration } from '@/lib
 import { ClubRegistration } from '@/types/club'
 import { parseExcelToRegistrations } from '@/lib/clubs'
 import { nanoid } from 'nanoid'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export async function POST(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File

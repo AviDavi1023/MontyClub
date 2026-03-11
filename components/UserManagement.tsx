@@ -29,6 +29,11 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
   const USERS_BACKUP_KEY = 'montyclub:pendingUserChanges:backup'
 
   const fetchUsers = async () => {
+    if (!adminApiKey) {
+      setLoadingUsers(false)
+      return
+    }
+
     setLoadingUsers(true)
     try {
       // CRITICAL: Read pending changes from localStorage directly to avoid stale closure issues
@@ -46,7 +51,11 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
         }
       } catch {}
       
-      const resp = await fetch('/api/admin/users')
+      const resp = await fetch('/api/admin/users', {
+        headers: {
+          'x-admin-key': adminApiKey,
+        },
+      })
       if (!resp.ok) throw new Error('Failed to fetch users')
       const data = await resp.json()
       
@@ -106,7 +115,7 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
     } catch {}
     
     fetchUsers()
-  }, [])
+  }, [adminApiKey])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()

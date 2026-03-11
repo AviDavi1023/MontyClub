@@ -8,9 +8,10 @@ interface AnalyticsPanelProps {
   clubs: Club[]
   collections: RegistrationCollection[]
   activeCollectionId?: string | null
+  adminApiKey: string
 }
 
-export function AnalyticsPanel({ clubs, collections, activeCollectionId }: AnalyticsPanelProps) {
+export function AnalyticsPanel({ clubs, collections, activeCollectionId, adminApiKey }: AnalyticsPanelProps) {
   const [stats, setStats] = useState<any>({})
   const [categoryBreakdown, setCategoryBreakdown] = useState<Array<{ name: string; count: number }>>([])
   const [collectionStats, setCollectionStats] = useState<Array<{ name: string; count: number }>>([])
@@ -25,15 +26,20 @@ export function AnalyticsPanel({ clubs, collections, activeCollectionId }: Analy
   }, [activeCollectionId])
 
   useEffect(() => {
+    if (!adminApiKey) return
     loadAnalytics()
-  }, [selectedCollectionId])
+  }, [selectedCollectionId, adminApiKey])
 
   const loadAnalytics = async () => {
     try {
       setLoading(true)
 
       // Fetch all collections' clubs for accurate stats
-      const response = await fetch('/api/admin/all-collections-clubs')
+      const response = await fetch('/api/admin/all-collections-clubs', {
+        headers: {
+          'x-admin-key': adminApiKey,
+        },
+      })
       if (!response.ok) {
         const errorText = await response.text()
         console.error('[AnalyticsPanel] API error:', response.status, errorText)

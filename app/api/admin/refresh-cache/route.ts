@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { invalidateClubsCache } from '@/lib/cache-utils'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     // Clear the cache
     invalidateClubsCache()

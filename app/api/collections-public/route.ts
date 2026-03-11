@@ -31,11 +31,11 @@ export async function GET() {
         }
       })
       .filter(c => {
-        const accepted = c.accepting
-        if (!accepted) {
+        const visible = c.accepting || c.renewalEnabled
+        if (!visible) {
           console.log('[Collections Public API] Filtering out non-accepting collection:', c.name)
         }
-        return accepted
+        return visible
       })
       .sort((a, b) => 
         new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()

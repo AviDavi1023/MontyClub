@@ -3,11 +3,15 @@ import { announcementsCache } from '@/lib/caches'
 import { setAnnouncement, getAllAnnouncements, clearAnnouncement } from '@/lib/announcements-db'
 import { invalidateClubsCache } from '@/lib/cache-utils'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   return announcementsCache.withLock(async () => {
     try {
       const { id } = await params
@@ -64,7 +68,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   })
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   return announcementsCache.withLock(async () => {
     try {
       const { id } = await params

@@ -76,7 +76,17 @@ export async function GET(request: Request) {
     allClubs.sort((a, b) => a.clubName.localeCompare(b.clubName))
     
     // Limit to MAX_CLUBS to prevent huge responses
-    const limitedClubs = allClubs.slice(0, MAX_CLUBS)
+    const limitedClubs = allClubs.slice(0, MAX_CLUBS).map((club) => ({
+      id: club.id,
+      clubName: club.clubName,
+      advisorName: club.advisorName,
+      statementOfPurpose: club.statementOfPurpose,
+      location: club.location,
+      meetingDay: club.meetingDay,
+      meetingFrequency: club.meetingFrequency,
+      category: club.category,
+      socialMedia: club.socialMedia,
+    }))
 
     console.log('[Renewal API] Returning', limitedClubs.length, 'clubs')
     

@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { AdminUser, hashPassword, generatePassword } from '@/lib/auth'
 import { countAdminUsers, createAdminUser, deleteAdminUser, getAdminUserByUsername, listAdminUsers } from '@/lib/admin-users-db'
+import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 // Get all admin users (requires authentication in real app - simplified for now)
-export async function GET() {
+export async function GET(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const users = await listAdminUsers()
 
@@ -25,6 +29,9 @@ export async function GET() {
 
 // Create a new admin user
 export async function POST(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const body = await request.json()
     
@@ -74,6 +81,9 @@ export async function POST(request: Request) {
 
 // Delete an admin user
 export async function DELETE(request: Request) {
+  const authError = requireAdminApiKey(request)
+  if (authError) return authError
+
   try {
     const body = await request.json()
     
