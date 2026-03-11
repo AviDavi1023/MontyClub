@@ -159,14 +159,16 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     setLoadingRenewalChanges(prev => ({ ...prev, [renewalReg.id]: true }))
     
     try {
-      // Fetch all clubs to find the original one
-      const response = await fetch('/api/clubs')
-      if (!response.ok) throw new Error('Failed to fetch clubs')
-      const clubs = await response.json()
-      
-      // Find the original club by ID
-      const originalClub = clubs.find((c: any) => c.id === renewalReg.renewedFromId)
-      if (!originalClub) {
+      // Fetch the original registration by its ID using the admin endpoint
+      const response = await fetch(`/api/admin/registration-by-id?id=${encodeURIComponent(renewalReg.renewedFromId)}`, {
+        headers: { 'x-admin-key': adminApiKey }
+      })
+      if (!response.ok) {
+        setRenewalChanges(prev => ({ ...prev, [renewalReg.id]: null }))
+        return
+      }
+      const { registration: originalReg } = await response.json()
+      if (!originalReg) {
         setRenewalChanges(prev => ({ ...prev, [renewalReg.id]: null }))
         return
       }
@@ -187,7 +189,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ]
       
       fieldsToCompare.forEach(({ key, label }) => {
-        const oldValue = originalClub[key] || ''
+        const oldValue = originalReg[key] || ''
         const newValue = renewalReg[key as keyof ClubRegistration] || ''
         if (oldValue !== newValue) {
           changes[key] = { label, old: oldValue, new: newValue }

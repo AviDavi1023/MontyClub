@@ -47,6 +47,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [meetingFrequency, setMeetingFrequency] = useState('')
   const [customFrequency, setCustomFrequency] = useState('')
   const [meetingDay, setMeetingDay] = useState('')
+  const [location, setLocation] = useState('')
   const [socialMedia, setSocialMedia] = useState('')
   const [statementOfPurpose, setStatementOfPurpose] = useState('')
 
@@ -171,6 +172,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
     setMeetingFrequency(club.meetingFrequency || '')
     setCustomFrequency('')
     setMeetingDay(club.meetingDay || '')
+    setLocation(club.location || '')
     setSocialMedia(club.socialMedia || '')
     setStatementOfPurpose(club.statementOfPurpose || '')
     
@@ -248,6 +250,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           advisorEmail,
           studentContactName,
           studentContactEmail,
+          location,
           socialMedia,
           statementOfPurpose,
           agreements: {
@@ -555,6 +558,13 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                   />
                 )}
               </div>
+
+              <Input
+                label="Location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., Room 204"
+              />
 
               <Input
                 label="Social Media (optional)"
