@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ChangeEvent } from 'react'
 import { ClubRegistration } from '@/types/club'
 import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, X, Table as TableIcon, LayoutList, Filter, Search, AlertCircle, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui'
@@ -13,6 +13,8 @@ interface RegistrationsListProps {
   collectionName: string
   collectionId: string
   collections: Array<{ id: string; name: string; createdAt: string; accepting?: boolean; renewalEnabled?: boolean }>
+  importingExcel?: boolean
+  onImportExcel?: (e: ChangeEvent<HTMLInputElement>) => void
   onActionComplete?: () => void
 }
 
@@ -30,7 +32,7 @@ const CATEGORY_OPTIONS = [
   'Other',
 ]
 
-export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections, onActionComplete }: RegistrationsListProps) {
+export function RegistrationsList({ adminApiKey, collectionSlug, collectionName, collectionId, collections, importingExcel = false, onImportExcel, onActionComplete }: RegistrationsListProps) {
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
   const [registrations, setRegistrations] = useState<ClubRegistration[]>([])
   const [loading, setLoading] = useState(true)
@@ -1411,6 +1413,24 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           >
             <RefreshCw className="h-5 w-5" />
           </button>
+
+          {/* Import Excel button */}
+          {onImportExcel && (
+            <label
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              title="Upload an Excel file to import registrations"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {importingExcel ? 'Importing...' : 'Import Excel'}
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={onImportExcel}
+                disabled={importingExcel}
+                className="hidden"
+              />
+            </label>
+          )}
 
           {/* Export CSV button */}
           <button

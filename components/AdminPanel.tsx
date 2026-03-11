@@ -3253,17 +3253,14 @@ export function AdminPanel() {
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                       {/* Left: Collection Selector & Status */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-amber-600 dark:text-amber-400 text-lg leading-none">⚠</span>
-                            <label className="text-sm font-bold text-amber-800 dark:text-amber-300 whitespace-nowrap">
-                              Viewing Collection:
-                            </label>
-                          </div>
+                        <div className="flex items-center gap-3 flex-wrap p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
+                          <label className="text-sm font-bold text-blue-800 dark:text-blue-300 whitespace-nowrap">
+                            Viewing Collection:
+                          </label>
                           <select
                             value={activeCollectionId || ''}
                             onChange={(e) => setActiveCollectionId(e.target.value)}
-                            className="input-field text-sm font-semibold min-w-[200px] max-w-xs border-amber-300 dark:border-amber-600"
+                            className="input-field text-sm font-semibold min-w-[200px] max-w-xs border-blue-300 dark:border-blue-600"
                           >
                             {!activeCollectionId && <option value="">Select a collection...</option>}
                             {collections.map((col) => (
@@ -3272,7 +3269,7 @@ export function AdminPanel() {
                               </option>
                             ))}
                           </select>
-                          <span className="text-xs text-amber-700 dark:text-amber-400">All actions below apply to this collection.</span>
+                          <span className="text-xs text-blue-700 dark:text-blue-300">All actions below apply to this collection.</span>
                         </div>
                         
                         {/* Status Badges */}
@@ -3285,26 +3282,36 @@ export function AdminPanel() {
                           
                           return (
                             <>
-                              <div className="flex items-center gap-2 mt-3">
+                              <div className="flex items-center gap-2 mt-3 flex-wrap">
                                 {isDisplay && (
                                   <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                     Public Catalog
                                   </span>
                                 )}
-                                {isAccepting ? (
-                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                    ✓ Accepting Registrations
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                                    Registration Disabled
-                                  </span>
-                                )}
-                                {isRenewal && (
-                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                    Renewals Enabled
-                                  </span>
-                                )}
+                                <button
+                                  onClick={() => toggleCollectionAccepting(activeCol.id)}
+                                  disabled={togglingCollection === activeCol.id}
+                                  title={isAccepting ? 'Click to disable registration form' : 'Click to enable registration form'}
+                                  className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+                                    isAccepting
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                                  } ${togglingCollection === activeCol.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90 cursor-pointer'}`}
+                                >
+                                  {isAccepting ? '✓ Accepting Registrations' : 'Registration Disabled'}
+                                </button>
+                                <button
+                                  onClick={() => toggleCollectionRenewal(activeCol.id)}
+                                  disabled={togglingCollection === activeCol.id}
+                                  title={isRenewal ? 'Click to disable renewal form' : 'Click to enable renewal form'}
+                                  className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+                                    isRenewal
+                                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                                  } ${togglingCollection === activeCol.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90 cursor-pointer'}`}
+                                >
+                                  {isRenewal ? 'Renewals Enabled' : 'Renewal Disabled'}
+                                </button>
                               </div>
 
                             </>
@@ -3353,19 +3360,6 @@ export function AdminPanel() {
                           Manage Collections
                         </button>
                         
-                        {activeCollectionId && (
-                          <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors text-sm font-medium" title="Upload an Excel file to import registrations">
-                            <FileSpreadsheet className="h-4 w-4" />
-                            {importingExcel ? 'Importing...' : 'Import Excel'}
-                            <input
-                              type="file"
-                              accept=".xlsx"
-                              onChange={handleExcelImport}
-                              disabled={importingExcel || !activeCollectionId}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -3377,6 +3371,8 @@ export function AdminPanel() {
                       collectionId={activeCollectionId}
                       collections={collections}
                       adminApiKey={adminApiKey}
+                      importingExcel={importingExcel}
+                      onImportExcel={handleExcelImport}
                       collectionSlug={(() => {
                         return slugifyName(collections.find(c => c.id === activeCollectionId)?.name || '')
                       })()}
