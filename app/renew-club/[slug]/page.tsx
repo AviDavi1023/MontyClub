@@ -24,7 +24,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
-  const [visibleClubsCount, setVisibleClubsCount] = useState(20)
   const { toasts, removeToast, showSuccess } = useToast()
 
   // Form fields - Required updates
@@ -280,13 +279,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
     club.advisorName?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const visibleClubs = filteredClubs.slice(0, visibleClubsCount)
-  const hasMoreClubs = visibleClubsCount < filteredClubs.length
-
-  const loadMore = () => {
-    setVisibleClubsCount(prev => Math.min(prev + 20, filteredClubs.length))
-  }
-
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
@@ -365,7 +357,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
             ) : (
               <>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {visibleClubs.map((club) => (
+                  {filteredClubs.map((club) => (
                     <button
                       key={club.id}
                       onClick={() => selectClub(club)}
@@ -381,14 +373,6 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
                     </button>
                   ))}
                 </div>
-                {hasMoreClubs && (
-                  <button
-                    onClick={loadMore}
-                    className="w-full mt-4 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                  >
-                    Load More ({visibleClubsCount} of {filteredClubs.length})
-                  </button>
-                )}
               </>
             )}
           </div>
