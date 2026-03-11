@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listPaths, removePaths } from '@/lib/supabase'
 import { verifyPassword } from '@/lib/auth'
 import { deleteAllAdminUsers, listAdminUsers } from '@/lib/admin-users-db'
+import { deleteAllCollections } from '@/lib/collections-db'
+import { deleteAllRegistrations } from '@/lib/registrations-db'
 import fs from 'fs'
 import path from 'path'
 
@@ -95,7 +97,22 @@ export async function POST(request: NextRequest) {
       console.warn('[FACTORY RESET] Failed to clear admin users table:', err)
     }
 
-    // 5. Clear runtime store data directory if it exists
+    // 5. Clear all registrations and collections from Postgres
+    try {
+      await deleteAllRegistrations()
+      console.log('[FACTORY RESET] Deleted all registrations from Postgres')
+    } catch (err) {
+      console.warn('[FACTORY RESET] Failed to delete registrations from Postgres:', err)
+    }
+
+    try {
+      await deleteAllCollections()
+      console.log('[FACTORY RESET] Deleted all collections from Postgres')
+    } catch (err) {
+      console.warn('[FACTORY RESET] Failed to delete collections from Postgres:', err)
+    }
+
+    // 6. Clear runtime store data directory if it exists
     try {
       const dataDir = path.join(process.cwd(), 'data')
       if (fs.existsSync(dataDir)) {
