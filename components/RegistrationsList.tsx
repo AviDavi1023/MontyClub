@@ -1459,7 +1459,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto overflow-y-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
               <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
