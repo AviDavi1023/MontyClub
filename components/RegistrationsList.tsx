@@ -251,16 +251,21 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
           const data = await response.json()
           setRenewalSettings(data)
           
-          // Auto-select most recent other collection if no sources configured for this collection
+          // Auto-select the most recently created collection that predates this one
           const currentSettings = data[collectionId]
           if (!currentSettings || !currentSettings.sourceCollections || currentSettings.sourceCollections.length === 0) {
-            // Find the most recent other collection (excluding current)
-            const otherCollections = collections
-              .filter(c => c.id !== collectionId)
+            const currentTime = new Date(collections.find(c => c.id === collectionId)?.createdAt ?? 0).getTime()
+            const priorCollections = collections
+              .filter(c => c.id !== collectionId && new Date(c.createdAt).getTime() < currentTime)
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            
+            const otherCollections = priorCollections.length > 0
+              ? priorCollections
+              : collections
+                  .filter(c => c.id !== collectionId)
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
             if (otherCollections.length > 0) {
-              // Auto-select the most recent collection
+              // Auto-select the most recently created prior collection
               const mostRecentId = otherCollections[0].id
               const updatedSettings = {
                 ...data,

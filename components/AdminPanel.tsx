@@ -516,6 +516,39 @@ export function AdminPanel() {
         user: currentUser || undefined
       })
       await loadCollections()
+
+      // When enabling for the first time, auto-default to the most recently created prior collection
+      if (nextRenewal) {
+        try {
+          const settingsResp = await fetch('/api/renewal-settings')
+          if (settingsResp.ok) {
+            const currentRenewalData = await settingsResp.json()
+            const existing = currentRenewalData[collectionId]
+            if (!existing || !existing.sourceCollections || existing.sourceCollections.length === 0) {
+              const collectionTime = new Date(collection.createdAt).getTime()
+              const priorCollections = collections
+                .filter(c => c.id !== collectionId && new Date(c.createdAt).getTime() < collectionTime)
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              const candidates = priorCollections.length > 0
+                ? priorCollections
+                : collections
+                    .filter(c => c.id !== collectionId)
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              if (candidates.length > 0) {
+                const updated = { ...currentRenewalData, [collectionId]: { sourceCollections: [candidates[0].id] } }
+                const saveResp = await fetch('/api/renewal-settings', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+                  body: JSON.stringify(updated)
+                })
+                if (saveResp.ok) setRenewalSettings(await saveResp.json())
+              }
+            } else {
+              setRenewalSettings(currentRenewalData)
+            }
+          }
+        } catch {}
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to update renewal', 'error')
     } finally {
@@ -3220,14 +3253,17 @@ export function AdminPanel() {
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                       {/* Left: Collection Selector & Status */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                            Viewing Collection:
-                          </label>
+                        <div className="flex items-center gap-3 flex-wrap p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-amber-600 dark:text-amber-400 text-lg leading-none">⚠</span>
+                            <label className="text-sm font-bold text-amber-800 dark:text-amber-300 whitespace-nowrap">
+                              Viewing Collection:
+                            </label>
+                          </div>
                           <select
                             value={activeCollectionId || ''}
                             onChange={(e) => setActiveCollectionId(e.target.value)}
-                            className="input-field text-sm font-medium min-w-[200px] max-w-xs"
+                            className="input-field text-sm font-semibold min-w-[200px] max-w-xs border-amber-300 dark:border-amber-600"
                           >
                             {!activeCollectionId && <option value="">Select a collection...</option>}
                             {collections.map((col) => (
@@ -3236,6 +3272,7 @@ export function AdminPanel() {
                               </option>
                             ))}
                           </select>
+                          <span className="text-xs text-amber-700 dark:text-amber-400">All actions below apply to this collection.</span>
                         </div>
                         
                         {/* Status Badges */}
