@@ -66,7 +66,8 @@ For this deployment only, the system performs a complete data wipe on first load
 
 ### After Factory Reset
 1. Visit the admin panel
-2. Log in with the default admin account (username: `admin`, password: `admin123`)
+2. Go through the initial setup process to create your admin account (if it's the first time)
+3. Log in with your admin credentials
 3. Set your primary admin email when prompted
 4. Set your admin API key
 5. Change the default password immediately

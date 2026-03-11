@@ -856,9 +856,6 @@ export function AdminPanel() {
     setLoading(true)
 
     try {
-      // First, ensure default admin exists (for first-time setup)
-      await fetch('/api/auth/init', { method: 'POST' })
-
       // Attempt login
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
@@ -1012,7 +1009,7 @@ export function AdminPanel() {
 
     const confirmed = await confirm({
       title: 'Complete Factory Reset',
-      message: '⚠️ This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to start from scratch with the default admin account (admin/admin123). This CANNOT be undone. Are you absolutely sure?',
+      message: '⚠️ This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to go through the initial setup process again. This CANNOT be undone. Are you absolutely sure?',
       confirmText: 'DELETE EVERYTHING',
       cancelText: 'Cancel',
       variant: 'danger',
@@ -2782,10 +2779,7 @@ export function AdminPanel() {
         {isFirstTimeSetup && (
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>First-time setup:</strong> Default admin account will be created automatically. Use username: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin</code> and password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123</code>
-            </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-              After logging in, you'll be prompted to set your email for password recovery, change the default password, and configure your admin API key.
+              <strong>Note:</strong> You're on the first-time setup. After login, you may be prompted to set your primary admin email for password recovery.
             </p>
           </div>
         )}

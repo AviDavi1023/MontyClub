@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       resetInstructions: [
         '1. Refresh your browser',
         '2. Clear browser localStorage to remove cached data',
-        '3. Log in with default admin account (admin/admin123)',
+        '3. Go through the initial setup process to create your admin account',
         '4. Set up primary admin email',
         '5. Configure admin API key',
         '6. Change default password immediately'
