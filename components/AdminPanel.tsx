@@ -302,9 +302,9 @@ export function AdminPanel() {
     fetchPendingCount()
   }, [adminApiKey])
 
-  const loadCollections = async (apiKeyOverride?: string) => {
+  const loadCollections = async (apiKeyOverride?: string): Promise<RegistrationCollection[]> => {
     const effectiveApiKey = (apiKeyOverride ?? adminApiKey).trim()
-    if (!effectiveApiKey) return
+    if (!effectiveApiKey) return []
     try {
       setLoadingCollections(true)
       const resp = await fetch('/api/registration-collections', {
@@ -312,28 +312,32 @@ export function AdminPanel() {
       })
       if (resp.status === 401) {
         handle401Error('LoadCollections')
-        return
+        return []
       }
       if (!resp.ok) throw new Error('Failed to load collections')
       const data = await resp.json()
-      setCollections(data.collections || [])
+      const nextCollections: RegistrationCollection[] = data.collections || []
+      setCollections(nextCollections)
       
       // Preserve current selection when it still exists; otherwise choose a sensible default.
-      if (data.collections && data.collections.length > 0) {
+      if (nextCollections.length > 0) {
         setActiveCollectionId((previousId) => {
-          if (previousId && data.collections.some((c: RegistrationCollection) => c.id === previousId)) {
+          if (previousId && nextCollections.some((c: RegistrationCollection) => c.id === previousId)) {
             return previousId
           }
 
-          const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
-          const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-          return displayCol?.id || enabledCol?.id || data.collections[0].id
+          const displayCol = nextCollections.find((c: RegistrationCollection) => c.display)
+          const enabledCol = nextCollections.find((c: RegistrationCollection) => c.enabled)
+          return displayCol?.id || enabledCol?.id || nextCollections[0].id
         })
       } else {
         setActiveCollectionId(null)
       }
+
+      return nextCollections
     } catch (err) {
       showToast(`Failed to load collections: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+      return []
     } finally {
       setLoadingCollections(false)
     }
@@ -397,8 +401,13 @@ export function AdminPanel() {
     const collection = collections.find(c => c.id === collectionId)
     if (!collection) return
 
+    if (collection.display) {
+      showToast('This collection is already the public catalog', 'info')
+      return
+    }
+
     setTogglingCollection(collectionId)
-    const nextDisplay = !collection.display
+    const nextDisplay = true
 
     try {
       const resp = await fetch('/api/registration-collections', {
@@ -426,18 +435,12 @@ export function AdminPanel() {
       
       await loadCollections()
       
-      // Auto-republish if enabling display
-      if (nextDisplay) {
-        try {
-          setPublishingCatalog(true)
-          await publishSnapshotNow()
-          showToast('Catalog republished', 'success')
-        } catch (publishErr) {
-          console.error('Auto-republish failed:', publishErr)
-          showToast('Display updated but catalog republish failed', 'error')
-        } finally {
-          setPublishingCatalog(false)
-        }
+      // Auto-republish after changing the displayed collection.
+      try {
+        await publishSnapshotNow()
+      } catch (publishErr) {
+        console.error('Auto-republish failed:', publishErr)
+        showToast('Display updated but catalog republish failed', 'error')
       }
     } catch (err) {
       showToast('Failed to update display', 'error')
@@ -673,6 +676,9 @@ export function AdminPanel() {
     })
     if (!ok) return
 
+    const deletedCollection = collections.find(c => c.id === collectionId)
+    const deletedWasDisplay = Boolean(deletedCollection?.display)
+
     try {
       setDeletingCollectionId(collectionId)
 
@@ -705,7 +711,16 @@ export function AdminPanel() {
         user: currentUser || undefined
       })
       
-      await loadCollections()
+      const refreshedCollections = await loadCollections()
+
+      if (deletedWasDisplay && refreshedCollections.length > 0) {
+        try {
+          await publishSnapshotNow()
+        } catch (publishErr) {
+          console.error('Auto-republish after delete failed:', publishErr)
+          showToast('Collection deleted, but catalog republish failed', 'error')
+        }
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to delete collection', 'error')
     } finally {
@@ -3322,13 +3337,20 @@ export function AdminPanel() {
                             ))}
                           </select>
                           <span className="text-xs text-blue-700 dark:text-blue-300">All actions below apply to this collection.</span>
+                          <button
+                            onClick={() => setShowManageCollections(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-200 bg-white/80 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-600 rounded-md hover:bg-white dark:hover:bg-blue-900/60 transition-colors"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Manage Collections
+                          </button>
                         </div>
                         
                         {/* Status Badges */}
                         {activeCollectionId && (() => {
                           const activeCol = collections.find(c => c.id === activeCollectionId)
                           if (!activeCol) return null
-                          const isDisplay = activeCol.display || (!activeCol.display && !activeCol.accepting && activeCol.enabled)
+                          const isDisplay = Boolean(activeCol.display)
                           const isAccepting = Boolean(activeCol.accepting)
                           const isRenewal = Boolean(activeCol.renewalEnabled)
                           
@@ -3404,14 +3426,6 @@ export function AdminPanel() {
                             </>
                           )
                         })()}
-                        <button
-                          onClick={() => setShowManageCollections(true)}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <Settings className="h-4 w-4" />
-                          Manage Collections
-                        </button>
-                        
                       </div>
                     </div>
                   </div>
@@ -3885,7 +3899,7 @@ export function AdminPanel() {
                                 <div className="flex items-center gap-2">
                                   <h5 className="font-medium text-gray-900 dark:text-white truncate">{collection.name}</h5>
                                   {(() => {
-                                    const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                                    const isDisplay = Boolean(collection.display)
                                     const isAccepting = Boolean(collection.accepting)
                                     return (
                                       <>
@@ -3946,7 +3960,7 @@ export function AdminPanel() {
                                     <input
                                       type="radio"
                                       name="displayCollection"
-                                      checked={collection.display || (!collection.display && !collection.accepting && collection.enabled)}
+                                      checked={Boolean(collection.display)}
                                       onChange={() => toggleCollectionDisplay(collection.id)}
                                       disabled={togglingCollection === collection.id}
                                       className="w-3.5 h-3.5"
@@ -4439,7 +4453,7 @@ export function AdminPanel() {
                 ) : (
                   <div className="space-y-3">
                     {collections.map((collection) => {
-                      const isDisplay = collection.display || (!collection.display && !collection.accepting && collection.enabled)
+                      const isDisplay = Boolean(collection.display)
                       const isAccepting = Boolean(collection.accepting)
                       const isRenewal = Boolean(collection.renewalEnabled)
                       

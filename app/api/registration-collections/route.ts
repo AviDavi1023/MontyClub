@@ -207,6 +207,18 @@ export async function DELETE(request: NextRequest) {
     // Delete collection itself
     await deleteCollection(collectionId)
 
+    // If the deleted collection was public, promote a fallback display collection.
+    if (collection.display) {
+      const remainingCollections = await listCollections()
+      if (remainingCollections.length > 0) {
+        const replacement =
+          remainingCollections.find(c => c.accepting) ||
+          remainingCollections.find(c => c.enabled) ||
+          remainingCollections[0]
+        await ensureSingleDisplay(replacement.id)
+      }
+    }
+
     return NextResponse.json({ success: true, message: 'Collection deleted successfully' })
   } catch (error) {
     console.error('Error deleting collection:', error)
