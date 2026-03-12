@@ -40,7 +40,7 @@ export function DashboardOverview({
     if (!catalogStatus?.exists) return { status: 'warning', message: 'No catalog published', color: 'yellow' }
     if (pendingRegistrationsCount > 20) return { status: 'warning', message: `${pendingRegistrationsCount} pending registrations`, color: 'orange' }
     if (acceptingCollections === 0) return { status: 'info', message: 'No collections accepting registrations', color: 'blue' }
-    return { status: 'healthy', message: 'All systems operational', color: 'green' }
+    return null
   }
 
   const health = getHealthStatus()
@@ -53,26 +53,26 @@ export function DashboardOverview({
         <p className="text-lg text-gray-600 dark:text-gray-400">Welcome to the admin panel. Here's your overview.</p>
       </div>
 
-      {/* Health Status */}
-      <div className={`card border-l-4 p-6 ${
-        health.color === 'green' ? 'border-l-green-500 bg-green-50 dark:bg-green-900/10' :
-        health.color === 'yellow' ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/10' :
-        health.color === 'orange' ? 'border-l-orange-500 bg-orange-50 dark:bg-orange-900/10' :
-        'border-l-blue-500 bg-blue-50 dark:bg-blue-900/10'
-      }`}>
-        <div className="flex items-center gap-4">
-          <AlertCircle className={`h-8 w-8 flex-shrink-0 ${
-            health.color === 'green' ? 'text-green-600' :
-            health.color === 'yellow' ? 'text-yellow-600' :
-            health.color === 'orange' ? 'text-orange-600' :
-            'text-blue-600'
-          }`} />
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">System Status</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{health.message}</p>
+      {/* Health Status (only shown when attention is required) */}
+      {health && (
+        <div className={`card border-l-4 p-6 ${
+          health.color === 'yellow' ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/10' :
+          health.color === 'orange' ? 'border-l-orange-500 bg-orange-50 dark:bg-orange-900/10' :
+          'border-l-blue-500 bg-blue-50 dark:bg-blue-900/10'
+        }`}>
+          <div className="flex items-center gap-4">
+            <AlertCircle className={`h-8 w-8 flex-shrink-0 ${
+              health.color === 'yellow' ? 'text-yellow-600' :
+              health.color === 'orange' ? 'text-orange-600' :
+              'text-blue-600'
+            }`} />
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">System Status</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{health.message}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -200,12 +200,22 @@ export function DashboardOverview({
                   <div className="flex gap-1">
                     {collection.display && (
                       <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                        Display
+                        Public Catalog
                       </span>
                     )}
                     {collection.accepting && (
                       <span className="px-2 py-0.5 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        Active
+                        Accepting Registrations
+                      </span>
+                    )}
+                    {collection.renewalEnabled && (
+                      <span className="px-2 py-0.5 text-xs rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                        Renewals Enabled
+                      </span>
+                    )}
+                    {!collection.display && !collection.accepting && !collection.renewalEnabled && (
+                      <span className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                        No Public Forms
                       </span>
                     )}
                   </div>

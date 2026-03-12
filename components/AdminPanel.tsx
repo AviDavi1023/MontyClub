@@ -316,11 +316,17 @@ export function AdminPanel() {
       const data = await resp.json()
       setCollections(data.collections || [])
       
-      // Auto-select: prefer display → enabled → first
+      // Preserve current selection when it still exists; otherwise choose a sensible default.
       if (data.collections && data.collections.length > 0) {
-        const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
-        const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
-        setActiveCollectionId(displayCol?.id || enabledCol?.id || data.collections[0].id)
+        setActiveCollectionId((previousId) => {
+          if (previousId && data.collections.some((c: RegistrationCollection) => c.id === previousId)) {
+            return previousId
+          }
+
+          const displayCol = data.collections.find((c: RegistrationCollection) => c.display)
+          const enabledCol = data.collections.find((c: RegistrationCollection) => c.enabled)
+          return displayCol?.id || enabledCol?.id || data.collections[0].id
+        })
       } else {
         setActiveCollectionId(null)
       }

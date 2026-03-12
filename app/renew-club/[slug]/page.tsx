@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, FormEvent } from 'react'
-import { Search, CheckCircle2, RefreshCw, Send } from 'lucide-react'
+import { Search, CheckCircle2, RefreshCw, Send, XCircle } from 'lucide-react'
 import { ClubRegistration, RegistrationCollection } from '@/types/club'
 import BackButton from '@/components/BackButton'
 import { Button, Input, Textarea } from '@/components/ui'
@@ -62,6 +62,8 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
     'Other'
   ]
 
+  const invalidLinkMessage = 'Collection not found or not accepting registrations. Please use a valid registration link.'
+
   useEffect(() => {
     const resolveParams = async () => {
       const { slug: paramSlug } = await params
@@ -117,7 +119,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
           renewalEnabled: c.renewalEnabled,
           accepting: c.accepting 
         })))
-        setError('Collection not found. Please check the renewal link and try again.')
+        setError(invalidLinkMessage)
         return
       }
       
@@ -126,7 +128,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       // Check if renewal is enabled for this collection
       if (!targetCollection.renewalEnabled) {
         console.warn('[Renewal Form] Renewal not enabled for collection:', collectionSlug)
-        setError('Club renewal is not available for this collection')
+        setError(invalidLinkMessage)
         return
       }
       
@@ -303,6 +305,24 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
               Return to Home
             </Button>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error === invalidLinkMessage && !collection) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="h-10 w-10 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Invalid Link
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            {invalidLinkMessage}
+          </p>
         </div>
       </div>
     )
