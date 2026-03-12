@@ -210,6 +210,14 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'Collection deleted successfully' })
   } catch (error) {
     console.error('Error deleting collection:', error)
+    const code = (error as any)?.code
+    if (code === '23503') {
+      return NextResponse.json(
+        { error: 'Collection has registrations and cannot be deleted without deleting them first.' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json({ error: 'Failed to delete collection', detail: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }

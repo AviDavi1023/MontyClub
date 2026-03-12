@@ -672,7 +672,7 @@ export function AdminPanel() {
     if (!ok) return
 
     try {
-      const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=false`, {
+      const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=true`, {
         method: 'DELETE',
         headers: { 'x-admin-key': adminApiKey }
       })
