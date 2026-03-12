@@ -6,15 +6,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    if (!body?.username || !body?.password || !body?.adminApiKey) {
-      return NextResponse.json({ error: 'Username, password, and admin API key required' }, { status: 400 })
+    if (!body?.username || !body?.password) {
+      return NextResponse.json({ error: 'Username and password required' }, { status: 400 })
     }
 
-    const { username, password, adminApiKey } = body
-
-    if (!process.env.ADMIN_API_KEY || adminApiKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
-    }
+    const { username, password } = body
 
     const user = await getAdminUserByUsername(username)
 
@@ -27,9 +23,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    // Success - return user info only
+    // Success - return user info and API key for authenticated admin operations.
     return NextResponse.json({
       success: true,
+      apiKey: process.env.ADMIN_API_KEY,
       user: {
         username: user.username,
         createdAt: user.createdAt,

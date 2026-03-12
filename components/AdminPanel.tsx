@@ -103,7 +103,6 @@ export function AdminPanel() {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [loginApiKey, setLoginApiKey] = useState('')
   const [activeSection, setActiveSection] = useState('dashboard')
   const [showUserManagement, setShowUserManagement] = useState(false)
   const [clubs, setClubs] = useState<Club[]>([])
@@ -948,17 +947,11 @@ export function AdminPanel() {
     setLoading(true)
 
     try {
-      if (!loginApiKey.trim()) {
-        setError('Admin API key is required')
-        setLoading(false)
-        return
-      }
-
       // Attempt login
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, adminApiKey: loginApiKey.trim() }),
+        body: JSON.stringify({ username, password }),
       })
 
       if (!resp.ok) {
@@ -974,9 +967,12 @@ export function AdminPanel() {
         setError('')
         setPassword('')
         setIsAuthenticated(true)
-        setAdminApiKey(loginApiKey.trim())
-        try { localStorage.setItem('analytics:adminKey', loginApiKey.trim()) } catch {}
-        setLoginApiKey('')
+
+        // Auto-store API key from login response
+        if (data.apiKey) {
+          setAdminApiKey(data.apiKey)
+          try { localStorage.setItem('analytics:adminKey', data.apiKey) } catch {}
+        }
         
         // Check if primary admin needs email setup
         if (data.user.isPrimary && !data.user.email) {
@@ -998,7 +994,6 @@ export function AdminPanel() {
     setCurrentUser(null)
     setUsername('')
     setPassword('')
-    setLoginApiKey('')
   }
 
   const toggleUserManagement = () => {
@@ -2842,22 +2837,6 @@ export function AdminPanel() {
               placeholder="Enter password"
               required
               autoComplete="current-password"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="loginApiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Admin API Key
-            </label>
-            <input
-              type="password"
-              id="loginApiKey"
-              value={loginApiKey}
-              onChange={(e) => setLoginApiKey(e.target.value)}
-              className="input-field"
-              placeholder="Enter admin API key"
-              required
-              autoComplete="off"
             />
           </div>
 
