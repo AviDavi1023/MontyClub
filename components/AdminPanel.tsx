@@ -155,8 +155,10 @@ export function AdminPanel() {
   const [showExcelImportModal, setShowExcelImportModal] = useState(false)
   const [pendingExcelFile, setPendingExcelFile] = useState<File | null>(null)
   const [excelImportCollectionId, setExcelImportCollectionId] = useState<string | null>(null)
+  const [excelImportStatus, setExcelImportStatus] = useState<{ fileName: string; collectionName: string; mode: 'append' | 'replace' } | null>(null)
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [togglingCollection, setTogglingCollection] = useState<string | null>(null)
+  const [deletingCollectionId, setDeletingCollectionId] = useState<string | null>(null)
   const [loadingCollections, setLoadingCollections] = useState(false)
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set())
   const [updatingBatch, setUpdatingBatch] = useState(false)
@@ -672,6 +674,8 @@ export function AdminPanel() {
     if (!ok) return
 
     try {
+      setDeletingCollectionId(collectionId)
+
       const resp = await fetch(`/api/registration-collections?id=${collectionId}&deleteRegistrations=true`, {
         method: 'DELETE',
         headers: { 'x-admin-key': adminApiKey }
@@ -688,6 +692,9 @@ export function AdminPanel() {
         setActiveCollectionId(replacement ? replacement.id : null)
       }
 
+      // Reflect deletion immediately in UI, then sync from server.
+      setCollections(prev => prev.filter(c => c.id !== collectionId))
+
       showToast('Collection deleted')
       
       logActivity({
@@ -701,6 +708,8 @@ export function AdminPanel() {
       await loadCollections()
     } catch (err: any) {
       showToast(err.message || 'Failed to delete collection', 'error')
+    } finally {
+      setDeletingCollectionId(null)
     }
   }
 
@@ -3100,6 +3109,12 @@ export function AdminPanel() {
 
     try {
       setImportingExcel(true)
+      setExcelImportStatus({
+        fileName: file.name,
+        collectionName: targetCollection.name,
+        mode,
+      })
+
       logActivity({
         type: 'import',
         action: 'Excel Import Started',
@@ -3156,6 +3171,7 @@ export function AdminPanel() {
       })
     } finally {
       setImportingExcel(false)
+      setExcelImportStatus(null)
     }
   }
 
@@ -3176,6 +3192,21 @@ export function AdminPanel() {
       {/* Main Content Area */}
       <div className="flex-1">
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8 pb-8 max-w-full">
+          {importingExcel && excelImportStatus && (
+            <div className="mb-4 p-4 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+              <div className="flex items-start gap-3">
+                <RefreshCw className="h-5 w-5 text-blue-700 dark:text-blue-300 animate-spin mt-0.5" />
+                <div>
+                  <p className="font-semibold text-blue-900 dark:text-blue-100">Importing Excel data...</p>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    {excelImportStatus.mode === 'replace' ? 'Replacing' : 'Appending'} records from <strong>{excelImportStatus.fileName}</strong> into <strong>{excelImportStatus.collectionName}</strong>.
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Please keep this page open until import completes.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Route to different sections based on activeSection */}
           {activeSection === 'dashboard' && (
             <DashboardOverview
@@ -3824,6 +3855,12 @@ export function AdminPanel() {
                         onChange={handleExcelImport}
                         className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       />
+                      {importingExcel && (
+                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-medium">
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          Import in progress...
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -3949,11 +3986,21 @@ export function AdminPanel() {
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); deleteCollection(collection.id) }}
-                                  className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium"
+                                  disabled={deletingCollectionId === collection.id}
+                                  className="mt-2 p-1.5 w-full text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Delete collection"
                                 >
-                                  <Trash2 className="h-4 w-4 inline mr-1" />
-                                  Delete Collection
+                                  {deletingCollectionId === collection.id ? (
+                                    <>
+                                      <RefreshCw className="h-4 w-4 inline mr-1 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-4 w-4 inline mr-1" />
+                                      Delete Collection
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -4412,21 +4459,15 @@ export function AdminPanel() {
                             </div>
                             
                             <button
-                              onClick={async () => {
-                                const confirmed = await confirm({
-                                  title: 'Delete Collection',
-                                  message: `Delete collection "${collection.name}"? All registrations in this collection will be permanently deleted. This cannot be undone.`,
-                                  confirmText: 'Delete',
-                                  variant: 'danger'
-                                })
-                                if (confirmed) {
-                                  deleteCollection(collection.id)
-                                }
-                              }}
-                              disabled={togglingCollection === collection.id}
+                              onClick={() => deleteCollection(collection.id)}
+                              disabled={togglingCollection === collection.id || deletingCollectionId === collection.id}
                               className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {deletingCollectionId === collection.id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </button>
                           </div>
 
