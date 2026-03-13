@@ -10,7 +10,8 @@ import {
   Activity,
   Trash2,
   RefreshCw,
-  Upload
+  Upload,
+  X
 } from 'lucide-react'
 
 interface AdminSidebarProps {
@@ -22,6 +23,8 @@ interface AdminSidebarProps {
   publishSnapshotNow?: () => void
   publishingCatalog?: boolean
   catalogStatus?: { exists: boolean; generatedAt?: string; clubCount?: number } | null
+  isOpen?: boolean
+  onClose?: () => void
 }
 
 export function AdminSidebar({ 
@@ -32,7 +35,9 @@ export function AdminSidebar({
   refreshingCache = false,
   publishSnapshotNow,
   publishingCatalog = false,
-  catalogStatus
+  catalogStatus,
+  isOpen = false,
+  onClose
 }: AdminSidebarProps) {
   const menuItems = [
     { 
@@ -89,8 +94,36 @@ export function AdminSidebar({
   ]
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 sticky top-16 left-0 z-10 h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden box-border">
-      <nav className="flex-1 min-h-0 overflow-y-auto py-4 px-3">
+    <>
+      {/* Mobile backdrop overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          aria-hidden="true"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={`
+        flex flex-col w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+        fixed top-0 left-0 h-full z-50 overflow-hidden box-border
+        transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-4rem)] lg:w-64 lg:translate-x-0 lg:z-10
+      `}>
+        {/* Mobile-only close button header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 lg:hidden">
+          <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Admin Menu</span>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 min-h-0 overflow-y-auto py-4 px-3">
         <div className="space-y-1">
           {menuItems.map((item, index) => {
             const Icon = item.icon
@@ -104,7 +137,7 @@ export function AdminSidebar({
                 )}
                 <button
                   key={item.id}
-                  onClick={() => onSectionChange(item.id)}
+                  onClick={() => { onSectionChange(item.id); onClose?.() }}
                   className={`
                     w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left transition-colors group
                     ${isActive && item.variant !== 'danger'
@@ -190,5 +223,6 @@ export function AdminSidebar({
         </div>
       </div>
     </aside>
+    </>
   )
 }

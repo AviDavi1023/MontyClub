@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown, AlertTriangle, Settings, X } from 'lucide-react'
+import { Lock, Unlock, RefreshCw, Megaphone, Trash2, UserPlus, Users, BarChart3, FileSpreadsheet, Plus, ExternalLink, Edit3, ChevronDown, AlertTriangle, Settings, X, Menu } from 'lucide-react'
 import { Club, RegistrationCollection } from '@/types/club'
 import { getClubs } from '@/lib/clubs-client'
 import { Toast, ToastContainer } from '@/components/Toast'
@@ -104,6 +104,7 @@ export function AdminPanel() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [activeSection, setActiveSection] = useState('dashboard')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showUserManagement, setShowUserManagement] = useState(false)
   const [clubs, setClubs] = useState<Club[]>([])
   const [updates, setUpdates] = useState<any[]>([])
@@ -128,7 +129,7 @@ export function AdminPanel() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [refreshingCache, setRefreshingCache] = useState(false)
   const [publishingCatalog, setPublishingCatalog] = useState(false)
-  const [catalogStatus, setCatalogStatus] = useState<{ exists: boolean; generatedAt?: string; clubCount?: number } | null>(null)
+  const [catalogStatus, setCatalogStatus] = useState<{ exists: boolean; generatedAt?: string; clubCount?: number; collectionId?: string; collectionName?: string } | null>(null)
   const [adminApiKey, setAdminApiKey] = useState('')
 
   const [showPasswordReset, setShowPasswordReset] = useState(false)
@@ -2619,7 +2620,7 @@ export function AdminPanel() {
     }
   }
 
-  const refreshCache = async () => {
+  const refreshCache = async (options?: { skipSnapshotCheck?: boolean; silent?: boolean }) => {
     try {
       setRefreshingCache(true)
       
@@ -2635,13 +2636,16 @@ export function AdminPanel() {
         throw new Error(errorData.error || 'Failed to refresh cache')
       }
       
-      const data = await resp.json()
-      showToast('Cache cleared! The next page load will fetch fresh data.', 'success')
+      if (!options?.silent) {
+        showToast('Cache cleared! The next page load will fetch fresh data.', 'success')
+      }
       
       // Optionally refresh clubs data in this panel too
       await refreshData()
-      // Refresh snapshot status too
-      await checkSnapshotStatus()
+      // Refresh snapshot status — unless caller already set catalogStatus from publish response
+      if (!options?.skipSnapshotCheck) {
+        await checkSnapshotStatus()
+      }
     } catch (err) {
       console.error('Error refreshing cache:', err)
       showToast(`Failed to refresh cache: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
@@ -2693,11 +2697,26 @@ export function AdminPanel() {
       }
       
       const data = await resp.json()
+
+      // Update sidebar immediately from the publish response — never re-read from storage
+      // (storage reads can return a CDN-cached old version right after a write)
+      setCatalogStatus({
+        exists: true,
+        generatedAt: data.snapshot.generatedAt,
+        clubCount: data.snapshot.clubCount,
+        collectionId: data.snapshot.collectionId,
+        collectionName: data.snapshot.collectionName,
+      })
+
       showToast(`✅ Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
-      
-      // Refresh snapshot status and clear cache
-      await checkSnapshotStatus()
-      await refreshCache()
+
+      // Tell all open tabs (including the public page) to reload clubs
+      broadcast('clubs', 'refresh')
+
+      // Invalidate server-side in-memory cache and refresh admin clubs list.
+      // skipSnapshotCheck so we don't overwrite the correct status we just set.
+      // silent so we don't show a second toast.
+      await refreshCache({ skipSnapshotCheck: true, silent: true })
     } catch (err) {
       console.error('Error publishing snapshot:', err)
       showToast(`Failed to publish snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
@@ -2722,16 +2741,22 @@ export function AdminPanel() {
       }
 
       const data = await response.json()
-      showToast(`Catalog published! ${data.clubCount} clubs now instantly available.`, 'success')
-      
-      // Update status
+
+      // Update sidebar immediately from publish response (don't re-read storage)
       setCatalogStatus({
         exists: true,
         generatedAt: data.generatedAt,
         clubCount: data.clubCount,
+        collectionId: data.collectionId,
+        collectionName: data.collectionName,
       })
-      
-      // Refresh clubs to show updated catalog
+
+      showToast(`Catalog published! ${data.clubCount} clubs now instantly available.`, 'success')
+
+      // Tell all open tabs (including the public page) to reload clubs
+      broadcast('clubs', 'refresh')
+
+      // Refresh clubs in admin panel; skip snapshot re-read (status already set above)
       await refreshData()
     } catch (err) {
       showToast(`Failed to publish catalog: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
@@ -3202,10 +3227,23 @@ export function AdminPanel() {
         publishSnapshotNow={publishSnapshotNow}
         publishingCatalog={publishingCatalog}
         catalogStatus={catalogStatus}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       
       {/* Main Content Area */}
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
+        {/* Mobile-only top bar with hamburger */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-30">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Admin Panel</span>
+        </div>
         <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8 pb-8 max-w-full">
           {importingExcel && excelImportStatus && (
             <div className="mb-4 p-4 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">

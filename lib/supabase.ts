@@ -65,27 +65,19 @@ export async function writeJSONToStorage(path: string, data: any) {
   try {
     const jsonString = JSON.stringify(data, null, 2)
     console.log(`[writeJSONToStorage] Writing to ${path}, size: ${jsonString.length} bytes`)
-    
-    // For Supabase Storage, we need to check if file exists and update accordingly
-    // First, try to remove existing file to avoid conflicts
-    try {
-      await client.storage.from('club-data').remove([path])
-      console.log(`[writeJSONToStorage] Removed existing file: ${path}`)
-    } catch (removeError) {
-      // File might not exist, that's fine
-      console.log(`[writeJSONToStorage] No existing file to remove (this is normal)`)
-    }
 
     // Convert to Buffer for proper binary handling
     const buffer = Buffer.from(jsonString, 'utf-8')
 
-    // Now upload fresh
+    // Upsert atomically — no need for a remove() first.
+    // cacheControl '0' prevents any CDN/gateway from caching the file so reads
+    // immediately after a write always return the new version.
     const { data: uploadData, error } = await client.storage
       .from('club-data')
       .upload(path, buffer, {
         contentType: 'application/json',
-        cacheControl: '3600',
-        upsert: false // We removed it above, so always insert fresh
+        cacheControl: '0',
+        upsert: true
       })
 
     if (error) {

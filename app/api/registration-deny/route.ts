@@ -51,10 +51,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Append denial reason to notes
+    const denialNote = `[Denied: ${reason || 'No reason provided'}]`
+    const existingNotes = registration.notes || ''
+    const newNotes = existingNotes ? `${existingNotes}\n${denialNote}` : denialNote
+
     // Update status to rejected
     await updateRegistration(registrationId, {
       status: 'rejected',
       denialReason: reason || 'No reason provided',
+      notes: newNotes,
     })
 
     // Invalidate cache to force refresh on next publish

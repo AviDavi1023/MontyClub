@@ -51,10 +51,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Strip any denial note lines from notes
+    const currentNotes = registration.notes || ''
+    const strippedNotes = currentNotes
+      .split('\n')
+      .filter(line => !/^\[Denied:[^\]]*\]$/.test(line.trim()))
+      .join('\n')
+      .trim()
+
     // Update status to approved
     await updateRegistration(registrationId, {
       status: 'approved',
       approvedAt: new Date().toISOString(),
+      notes: strippedNotes,
     })
 
     // Invalidate cache to force refresh on next publish

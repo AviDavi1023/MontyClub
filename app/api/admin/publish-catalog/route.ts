@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
         message: `Catalog published successfully`,
         clubCount: snapshot.clubCount,
         generatedAt: snapshot.generatedAt,
+        collectionId: snapshot.collectionId,
+        collectionName: snapshot.collectionName,
       })
     })
   } catch (error) {
