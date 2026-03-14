@@ -341,8 +341,8 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
             onClick={() => setStatusFilter('rejected')}
             className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
               statusFilter === 'rejected'
-                ? 'bg-amber-600 dark:bg-amber-500 text-white'
-                : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100'
+                ? 'bg-red-600 dark:bg-red-500 text-white'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100'
             }`}
           >
             <XCircle className="h-4 w-4" />
@@ -390,7 +390,7 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
                       <span className={`px-2 py-1 text-xs rounded-full font-medium ${
                         req.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
                         req.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                        'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                       }`}>
                         {req.status && typeof req.status === 'string' 
                           ? req.status.charAt(0).toUpperCase() + req.status.slice(1)
@@ -458,7 +458,7 @@ export function UpdateRequestsPanel({ clubs, adminApiKey }: UpdateRequestsPanelP
                       onClick={() => handleReject(req.id)}
                       disabled={processingId === req.id}
                       className={`action-btn action-btn-md action-btn-reject ${
-                        req.status === 'rejected' ? 'ring-2 ring-amber-300 dark:ring-amber-700' : ''
+                        req.status === 'rejected' ? 'ring-2 ring-red-300 dark:ring-red-700' : ''
                       }`}
                     >
                       <XCircle className="h-4 w-4" />
