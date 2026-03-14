@@ -130,6 +130,10 @@ export function AdminPanel() {
   const [refreshingCache, setRefreshingCache] = useState(false)
   const [publishingCatalog, setPublishingCatalog] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState<{ exists: boolean; generatedAt?: string; clubCount?: number; collectionId?: string; collectionName?: string } | null>(null)
+  const snapshotStatusRequestIdRef = useRef(0)
+  const snapshotStatusInFlightRef = useRef(false)
+  const snapshotPublishGuardUntilRef = useRef(0)
+  const latestPublishedAtRef = useRef(0)
   const [adminApiKey, setAdminApiKey] = useState('')
 
   const [showPasswordReset, setShowPasswordReset] = useState(false)
@@ -912,7 +916,7 @@ export function AdminPanel() {
       }
       // Handle clubs domain messages
       if (message.domain === 'clubs') {
-        refreshData()
+        refreshData(true)
       }
       // Handle collections domain messages
       if (message.domain === 'collections') {
@@ -1176,7 +1180,7 @@ export function AdminPanel() {
     }
   }
 
-  const refreshData = async () => {
+  const refreshData = async (forceFresh: boolean = false) => {
     // Skip if not authenticated yet
     if (!isAuthenticated) {
       console.log('Skipping refreshData: not authenticated')
@@ -1185,7 +1189,7 @@ export function AdminPanel() {
     
     setLoading(true)
     try {
-      const data = await getClubs()
+      const data = await getClubs({ forceFresh })
       setClubs(data)
     } catch (error) {
       console.error('Error refreshing data:', error)
@@ -2601,7 +2605,7 @@ export function AdminPanel() {
       showToast(`Announcements ${newValue ? 'enabled' : 'disabled'}`)
       
       // Refresh club data to apply changes
-      await refreshData()
+      await refreshData(true)
     } catch (err) {
       console.error('Error toggling announcements:', err)
       // Revert to previous value on error
@@ -2641,7 +2645,7 @@ export function AdminPanel() {
       }
       
       // Optionally refresh clubs data in this panel too
-      await refreshData()
+      await refreshData(true)
       // Refresh snapshot status — unless caller already set catalogStatus from publish response
       if (!options?.skipSnapshotCheck) {
         await checkSnapshotStatus()
@@ -2655,15 +2659,28 @@ export function AdminPanel() {
   }
 
   const checkSnapshotStatus = async () => {
+    if (snapshotStatusInFlightRef.current) return
     try {
       if (!adminApiKey) return
+
+      // Immediately after publishing, skip polling reads that may still see older storage state.
+      if (Date.now() < snapshotPublishGuardUntilRef.current) return
+
+      snapshotStatusInFlightRef.current = true
+      const requestId = ++snapshotStatusRequestIdRef.current
       
-      const resp = await fetch('/api/admin/snapshot-status', {
+      const resp = await fetch(`/api/admin/snapshot-status?_=${Date.now()}`, {
         method: 'GET',
+        cache: 'no-store',
         headers: {
-          'x-admin-key': adminApiKey
+          'x-admin-key': adminApiKey,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
       })
+
+      // A newer request started while this one was in flight; ignore stale response.
+      if (requestId !== snapshotStatusRequestIdRef.current) return
       
       if (!resp.ok) {
         console.warn('Failed to check snapshot status')
@@ -2672,16 +2689,30 @@ export function AdminPanel() {
       }
       
       const data = await resp.json()
+
+      // Never allow an older snapshot payload to overwrite a freshly published status.
+      const statusGeneratedAt = data?.generatedAt ? Date.parse(String(data.generatedAt)) : 0
+      if (latestPublishedAtRef.current > 0 && statusGeneratedAt > 0 && statusGeneratedAt < latestPublishedAtRef.current) {
+        return
+      }
+
       setCatalogStatus(data)
     } catch (err) {
       console.error('Error checking snapshot status:', err)
       setCatalogStatus(null)
+    } finally {
+      snapshotStatusInFlightRef.current = false
     }
   }
 
   const publishSnapshotNow = async () => {
     try {
       setPublishingCatalog(true)
+
+      // Invalidate any in-flight status poll so stale results can't overwrite this publish.
+      snapshotStatusRequestIdRef.current += 1
+      // Give storage-backed status checks time to converge before polling again.
+      snapshotPublishGuardUntilRef.current = Date.now() + 8000
       
       const resp = await fetch('/api/admin/snapshot-status', {
         method: 'POST',
@@ -2697,6 +2728,13 @@ export function AdminPanel() {
       }
       
       const data = await resp.json()
+      const publishedAtMs = data?.snapshot?.generatedAt
+        ? Date.parse(String(data.snapshot.generatedAt))
+        : Date.now()
+      latestPublishedAtRef.current = Math.max(
+        latestPublishedAtRef.current,
+        Number.isFinite(publishedAtMs) ? publishedAtMs : Date.now()
+      )
 
       // Update sidebar immediately from the publish response — never re-read from storage
       // (storage reads can return a CDN-cached old version right after a write)
@@ -2766,21 +2804,7 @@ export function AdminPanel() {
   }
 
   const checkCatalogStatus = async () => {
-    try {
-      const response = await fetch('/api/admin/publish-catalog', {
-        method: 'GET',
-        headers: {
-          'x-admin-key': adminApiKey,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setCatalogStatus(data)
-      }
-    } catch (err) {
-      console.error('Failed to check catalog status:', err)
-    }
+    await checkSnapshotStatus()
   }
 
   // Handler to show publish reminder toast after registration actions

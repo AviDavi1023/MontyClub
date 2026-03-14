@@ -6,6 +6,12 @@ import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
+const noCacheHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+}
+
 /**
  * Admin endpoint to publish a static catalog snapshot
  * Generates clubs-snapshot.json from approved registrations in Postgres
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest) {
         generatedAt: snapshot.generatedAt,
         collectionId: snapshot.collectionId,
         collectionName: snapshot.collectionName,
-      })
+      }, { headers: noCacheHeaders })
     })
   } catch (error) {
     console.error('[Publish Catalog] Error:', error)
@@ -65,13 +71,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         exists: false,
         message: 'No published catalog found'
-      })
+      }, { headers: noCacheHeaders })
     }
 
     return NextResponse.json({
       exists: true,
       ...snapshot.metadata
-    })
+    }, { headers: noCacheHeaders })
   } catch (error) {
     console.error('[Publish Catalog] Error checking status:', error)
     return NextResponse.json(

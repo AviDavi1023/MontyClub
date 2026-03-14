@@ -6,6 +6,12 @@ import { requireAdminApiKey } from '@/lib/admin-api-key'
 
 export const dynamic = 'force-dynamic'
 
+const noCacheHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+}
+
 /**
  * GET: Check snapshot status (exists, timestamp, club count)
  * POST: Manually trigger snapshot publish using Postgres data
@@ -26,7 +32,7 @@ export async function GET(request: NextRequest) {
         clubCount: null,
         collectionId: null,
         collectionName: null,
-      })
+      }, { headers: noCacheHeaders })
     }
 
     return NextResponse.json({
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
       clubCount: snapshot.metadata?.clubCount || snapshot.clubs?.length || 0,
       collectionId: snapshot.metadata?.collectionId || null,
       collectionName: snapshot.metadata?.collectionName || null,
-    })
+    }, { headers: noCacheHeaders })
   } catch (error) {
     console.error('[Snapshot Status] Error checking status:', error)
     return NextResponse.json(
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest) {
           collectionId: snapshot.collectionId,
           collectionName: snapshot.collectionName,
         }
-      })
+      }, { headers: noCacheHeaders })
     })
   } catch (error) {
     console.error('[Snapshot] Error during manual publish:', error)

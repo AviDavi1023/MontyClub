@@ -94,10 +94,10 @@ export function ClubsList() {
 
   // Exposed loader so we can re-run it from other event handlers (e.g. BroadcastChannel)
   const isMountedRef = useRef(true)
-  async function loadClubs() {
+  async function loadClubs(forceFresh: boolean = false) {
     try {
       setLoading(true)  // Show loading state while refreshing
-      const data = await getClubs()
+      const data = await getClubs({ forceFresh })
       if (isMountedRef.current) {
         setClubs(data)
         setUpdateCounter(prev => prev + 1)  // Increment counter to force re-render
@@ -137,7 +137,7 @@ export function ClubsList() {
 
     // Listen for clubs domain events (e.g., collection changes)
     const cleanupClubs = createDomainListener('clubs', (action) => {
-      loadClubs()
+      loadClubs(true)
     })
 
     // Listen for same-tab updates (custom event)
@@ -164,7 +164,7 @@ export function ClubsList() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       dataSourceChannel = new window.BroadcastChannel('clubDataSource')
       dataSourceChannel.onmessage = (event) => {
-        if (event.data === 'changed') loadClubs()
+        if (event.data === 'changed' || event.data === 'reload') loadClubs(true)
       }
     }
 
@@ -187,7 +187,7 @@ export function ClubsList() {
             setAnnouncementsEnabled(e.newValue === 'true')
           }
         } else if (e.key === 'montyclub:clubDataSource') {
-          loadClubs()
+          loadClubs(true)
         }
       } catch (err) {
         // ignore

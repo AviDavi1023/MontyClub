@@ -88,8 +88,12 @@ function getMockClubs(): Club[] {
 }
 
 // This will be used for client-side components
-export async function getClubs(): Promise<Club[]> {
+export async function getClubs(options?: { forceFresh?: boolean }): Promise<Club[]> {
   try {
+    if (options?.forceFresh) {
+      deduplicator.invalidate('clubs')
+    }
+
     // Use deduplicator to collapse concurrent requests
     // If multiple components request clubs simultaneously, they'll get the same promise
     return await deduplicator.dedupe('clubs', async () => {
