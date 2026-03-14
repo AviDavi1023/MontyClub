@@ -1471,8 +1471,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       ) : (
         <>
           {viewMode === 'table' ? (
-            <div className="w-full overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '1100px' }}>
+            <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="table-fixed divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 w-full" style={{ minWidth: '100%' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
                   <col style={{ width: '70px' }} />
@@ -1590,7 +1590,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             <button 
                               onClick={() => handleApprove(reg)} 
                               disabled={processingId === reg.id}
-                              className="px-1 py-0.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              className="action-btn action-btn-xs action-btn-approve whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span className="hidden xl:inline">Approve</span>
@@ -1607,7 +1607,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             <button
                               onClick={() => handleApprove(reg)}
                               disabled={processingId === reg.id}
-                              className="px-1 py-0.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-0.5 whitespace-nowrap"
+                              className="action-btn action-btn-xs action-btn-approve whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span className="hidden xl:inline">Approve</span>
@@ -1616,7 +1616,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             <button 
                               onClick={() => handleDeny(reg)} 
                               disabled={processingId === reg.id}
-                              className="px-1 py-0.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                              className="action-btn action-btn-xs action-btn-reject whitespace-nowrap"
                             >
                               Deny
                             </button>
@@ -1624,7 +1624,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <button
                             onClick={() => handleDelete(reg)}
                             disabled={processingId === reg.id}
-                            className="px-1 py-0.5 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+                            className="action-btn action-btn-xs action-btn-delete whitespace-nowrap"
                           >
                             Delete
                           </button>
@@ -1980,7 +1980,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <button
                             onClick={() => handleApprove(reg)}
                             disabled={processingId === reg.id}
-                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1"
+                            className="action-btn action-btn-sm action-btn-approve"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Approve
@@ -1997,7 +1997,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <button
                             onClick={() => handleApprove(reg)}
                             disabled={processingId === reg.id}
-                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors flex items-center gap-1"
+                            className="action-btn action-btn-sm action-btn-approve"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Approve
@@ -2006,7 +2006,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <button
                             onClick={() => handleDeny(reg)}
                             disabled={processingId === reg.id}
-                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                            className="action-btn action-btn-sm action-btn-reject"
                           >
                             Deny
                           </button>
@@ -2014,7 +2014,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         <button
                           onClick={() => handleDelete(reg)}
                           disabled={processingId === reg.id}
-                          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition-colors"
+                          className="action-btn action-btn-sm action-btn-delete"
                         >
                           Delete
                         </button>
@@ -2277,7 +2277,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                 </button>
                 <button
                   onClick={confirmDeny}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                  className="action-btn action-btn-md action-btn-reject"
                 >
                   Confirm Denial
                 </button>
@@ -2416,7 +2416,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     }
                   }}
                   disabled={isBulkProcessing}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  className="action-btn action-btn-md action-btn-approve"
                 >
                   <CheckCircle2 className="h-5 w-5" />
                   Approve Selected
@@ -2429,7 +2429,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     setShowDenyModal(true)
                   }}
                   disabled={isBulkProcessing}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  className="action-btn action-btn-md action-btn-reject"
                 >
                   <XCircle className="h-5 w-5" />
                   Deny Selected
@@ -2486,7 +2486,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     }
                   }}
                   disabled={isBulkProcessing}
-                  className="px-4 py-2 bg-gray-900 hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  className="action-btn action-btn-md action-btn-delete"
                 >
                   <Trash2 className="h-5 w-5" />
                   Delete Selected

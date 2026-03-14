@@ -491,7 +491,7 @@ export function UserManagement({ currentUser, adminApiKey, showToast }: UserMana
               {user.username !== currentUser && (
                 <button
                   onClick={() => handleDeleteUser(user.username)}
-                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                  className="action-btn action-btn-xs action-btn-delete"
                 >
                   Delete
                 </button>
