@@ -40,11 +40,29 @@ const securityHeaders = [
 
 const nextConfig = {
   // App Router is enabled by default in Next.js 13+
+
+  // Compress responses (gzip/brotli) – on by default but explicit reinforces intent
+  compress: true,
+
+  // Reduce client-side JS bundle size by removing React prop-types in production
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production'
+      ? { exclude: ['error', 'warn'] }
+      : false,
+  },
+
   async headers() {
     return [
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+      // Long-lived caching for Next.js static assets (hashed filenames)
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
       },
     ]
   },

@@ -98,8 +98,7 @@ export async function getClubs(options?: { forceFresh?: boolean }): Promise<Club
     // If multiple components request clubs simultaneously, they'll get the same promise
     return await deduplicator.dedupe('clubs', async () => {
       // Always use relative URL so it works in any environment (and on vercel preview)
-      const ts = Date.now()
-      const response = await fetch(`/api/clubs?_=${ts}`, {
+      const response = await fetch('/api/clubs', {
         method: 'GET',
         // Ensure no caching at the fetch / browser layer
         cache: 'no-store',

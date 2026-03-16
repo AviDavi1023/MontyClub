@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fetchClubs } from '@/lib/clubs'
+import { getCachedClubs, setClubsCache } from '@/lib/cache-utils'
 
 // Ensure this route is always dynamic and never statically cached
 export const dynamic = 'force-dynamic'
@@ -7,15 +8,27 @@ export const revalidate = 0
 
 export async function GET() {
   try {
-    // Always fetch from current source-of-truth to avoid cross-instance stale data.
+    // Serve from in-memory cache when available (invalidated on publish/announcements changes)
+    const cached = getCachedClubs()
+    if (cached) {
+      return new NextResponse(JSON.stringify(cached.data), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store, max-age=0',
+          'X-Cache': 'HIT',
+        },
+      })
+    }
+
     const clubs = await fetchClubs()
+    setClubsCache(clubs)
 
     const json = JSON.stringify(clubs)
     return new NextResponse(json, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store, max-age=0',
-        'X-Cache': 'BYPASS',
+        'X-Cache': 'MISS',
       },
     })
   } catch (error) {

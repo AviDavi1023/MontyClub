@@ -37,31 +37,26 @@ async function syncClubsToPostgres(clubs: Club[]): Promise<void> {
       return
     }
 
-    // Insert clubs into Postgres
-    for (const club of clubs) {
-      try {
-        await (client.from('clubs') as any)
-          .insert({
-            id: club.id,
-            name: club.name,
-            category: club.category,
-            description: club.description,
-            advisor: club.advisor,
-            student_leader: club.studentLeader,
-            meeting_time: club.meetingTime,
-            meeting_frequency: club.meetingFrequency || null,
-            location: club.location,
-            contact: club.contact,
-            social_media: club.socialMedia,
-            active: club.active,
-            notes: club.notes || null,
-            announcement: club.announcement || null,
-            keywords: club.keywords || [],
-          })
-      } catch (e: any) {
-        // Club insertion failed or already exists
-      }
-    }
+    // Bulk upsert all clubs in a single round-trip
+    const rows = clubs.map(club => ({
+      id: club.id,
+      name: club.name,
+      category: club.category,
+      description: club.description,
+      advisor: club.advisor,
+      student_leader: club.studentLeader,
+      meeting_time: club.meetingTime,
+      meeting_frequency: club.meetingFrequency || null,
+      location: club.location,
+      contact: club.contact,
+      social_media: club.socialMedia,
+      active: club.active,
+      notes: club.notes || null,
+      announcement: club.announcement || null,
+      keywords: club.keywords || [],
+    }))
+
+    await (client.from('clubs') as any).upsert(rows, { onConflict: 'id' })
   } catch (error) {
     console.error('[clubs-sync] Error syncing clubs to Postgres:', error)
     // Don't throw - this is a background sync operation

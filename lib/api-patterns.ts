@@ -61,14 +61,6 @@ export function createCachedGET<T>(
       if (!noCache && !forceNoCache) {
         const cached = cache.get(maxAge)
         if (cached !== null) {
-          try {
-            console.log(JSON.stringify({ 
-              tag: 'api-pattern', 
-              pattern: 'cached-get', 
-              result: 'cache-hit',
-              age: cache.getAge()
-            }))
-          } catch {}
           // Return cached data with no-cache headers to prevent browser caching
           return NextResponse.json(cached, {
             headers: {
@@ -79,16 +71,6 @@ export function createCachedGET<T>(
           })
         }
       }
-
-      // Cache miss or disabled - fetch fresh data
-      try {
-        console.log(JSON.stringify({ 
-          tag: 'api-pattern', 
-          pattern: 'cached-get', 
-          result: 'cache-miss',
-          reason: noCache ? 'disabled' : 'stale-or-empty'
-        }))
-      } catch {}
 
       const data = await fetchFn(request)
       cache.set(data)

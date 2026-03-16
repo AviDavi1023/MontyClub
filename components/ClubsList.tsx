@@ -14,11 +14,16 @@ import { createDomainListener } from '@/lib/broadcast'
 import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
 import { EmptyState, LoadingState, Chip, Button } from '@/components/ui'
 
-export function ClubsList() {
-  const [clubs, setClubs] = useState<Club[]>([])
-  const [loading, setLoading] = useState(true)
+interface ClubsListProps {
+  initialClubs?: Club[]
+  initialAnnouncementsEnabled?: boolean
+}
+
+export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: ClubsListProps = {}) {
+  const [clubs, setClubs] = useState<Club[]>(initialClubs || [])
+  const [loading, setLoading] = useState(!initialClubs || initialClubs.length === 0)
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
-  const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(true)
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(initialAnnouncementsEnabled)
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
@@ -97,22 +102,24 @@ export function ClubsList() {
   async function loadClubs(forceFresh: boolean = false) {
     try {
       setLoading(true)  // Show loading state while refreshing
-      const data = await getClubs({ forceFresh })
+      // Fetch clubs and settings in parallel to halve the wait time
+      const [data, settingsResp] = await Promise.all([
+        getClubs({ forceFresh }),
+        fetch('/api/settings', { cache: 'no-store' }).catch(() => null),
+      ])
       if (isMountedRef.current) {
         setClubs(data)
         setUpdateCounter(prev => prev + 1)  // Increment counter to force re-render
       }
-      // Also refresh announcementsEnabled and dataSource from server
-      try {
-        const resp = await fetch('/api/settings', { cache: 'no-store' })
-        if (resp.ok) {
-          const s = await resp.json()
+      if (settingsResp?.ok) {
+        try {
+          const s = await settingsResp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
           if (s.clubDataSource === 'excel' || s.clubDataSource === 'collection') {
             setClubDataSource(s.clubDataSource)
           }
-        }
-      } catch {}
+        } catch {}
+      }
     } catch (error) {
       console.error('Error loading clubs:', error)
     } finally {
@@ -120,8 +127,13 @@ export function ClubsList() {
     }
   }
 
+  // Skip initial fetch when the server already sent us fresh data
+  const hasInitialDataRef = useRef(!!initialClubs && initialClubs.length > 0)
+
   useEffect(() => {
-    loadClubs()
+    if (!hasInitialDataRef.current) {
+      loadClubs()
+    }
 
     // Listen for announcements updates across tabs
     const cleanupAnnouncements = createDomainListener('announcements', (action) => {

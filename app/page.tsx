@@ -2,12 +2,30 @@ import { Suspense } from 'react'
 import { Header } from '@/components/Header'
 import { ClubsList } from '@/components/ClubsList'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { fetchClubs } from '@/lib/clubs'
+import { readData } from '@/lib/runtime-store'
+import { Club } from '@/types/club'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Prefetch clubs and settings on the server so the first render shows real data
+  // (uses in-memory cache when warm – effectively free after the first request)
+  let initialClubs: Club[] = []
+  let initialAnnouncementsEnabled = true
+  try {
+    const [clubs, settings] = await Promise.all([
+      fetchClubs(),
+      readData('settings', { announcementsEnabled: true }),
+    ])
+    initialClubs = clubs
+    initialAnnouncementsEnabled = settings?.announcementsEnabled !== false
+  } catch {
+    // Fall through – ClubsList will fetch on the client as fallback
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
@@ -22,7 +40,10 @@ export default function HomePage() {
         </div>
         
         <Suspense fallback={<LoadingSpinner />}>
-          <ClubsList />
+          <ClubsList
+            initialClubs={initialClubs}
+            initialAnnouncementsEnabled={initialAnnouncementsEnabled}
+          />
         </Suspense>
       </main>
     </div>

@@ -31,44 +31,16 @@ export class ApiCache<T> {
   get(maxAgeMs: number = 10000): T | null {
     if (this.cache === null) {
       this.misses++
-      try {
-        console.log(JSON.stringify({ 
-          tag: 'api-cache', 
-          cache: this.name, 
-          action: 'get', 
-          result: 'miss', 
-          reason: 'not-initialized' 
-        }))
-      } catch {}
       return null
     }
 
     const age = Date.now() - this.timestamp
     if (age >= maxAgeMs) {
       this.misses++
-      try {
-        console.log(JSON.stringify({ 
-          tag: 'api-cache', 
-          cache: this.name, 
-          action: 'get', 
-          result: 'miss', 
-          reason: 'stale',
-          age 
-        }))
-      } catch {}
       return null
     }
 
     this.hits++
-    try {
-      console.log(JSON.stringify({ 
-        tag: 'api-cache', 
-        cache: this.name, 
-        action: 'get', 
-        result: 'hit',
-        age 
-      }))
-    } catch {}
     return this.cache
   }
 
@@ -96,14 +68,6 @@ export class ApiCache<T> {
   set(data: T): void {
     this.cache = data
     this.timestamp = Date.now()
-    try {
-      console.log(JSON.stringify({ 
-        tag: 'api-cache', 
-        cache: this.name, 
-        action: 'set',
-        timestamp: this.timestamp 
-      }))
-    } catch {}
   }
 
   /**
@@ -112,13 +76,6 @@ export class ApiCache<T> {
   clear(): void {
     this.cache = null
     this.timestamp = 0
-    try {
-      console.log(JSON.stringify({ 
-        tag: 'api-cache', 
-        cache: this.name, 
-        action: 'clear' 
-      }))
-    } catch {}
   }
 
   /**
@@ -128,37 +85,15 @@ export class ApiCache<T> {
    * @returns Result of the function
    */
   async withLock<R>(fn: () => Promise<R>): Promise<R> {
-    const operationId = `${this.name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    
-    console.log(`\n[LOCK-WAIT] ${this.name} - Operation ${operationId}`)
-    console.log(`Timestamp: ${new Date().toISOString()}`)
-
     // Create a new operation that waits for the previous one to complete
     const currentOperation = (async () => {
-      // First, wait for the previous operation to complete
-      console.log(`[LOCK-WAITING] ${this.name} - ${operationId} - Waiting for previous operation...`)
       await this.updateLock.catch(() => {})
-      
-      console.log(`[LOCK-ACQUIRED] ${this.name} - ${operationId}`)
-      console.log(`Timestamp: ${new Date().toISOString()}`)
-
-      try {
-        console.log(`[LOCK-EXECUTING] ${this.name} - ${operationId} - Running function...`)
-        const result = await fn()
-        console.log(`[LOCK-EXEC-SUCCESS] ${this.name} - ${operationId} - Function completed successfully`)
-        return result
-      } finally {
-        console.log(`[LOCK-RELEASED] ${this.name} - ${operationId}`)
-        console.log(`Timestamp: ${new Date().toISOString()}\n`)
-      }
+      return fn()
     })()
 
     // Update lock to point to current operation BEFORE returning
     // This ensures the next request will wait for this one
-    console.log(`[LOCK-CHAINING] ${this.name} - ${operationId} - Setting up lock chain`)
-    this.updateLock = currentOperation.catch(() => {
-      console.log(`[LOCK-ERROR-CAUGHT] ${this.name} - ${operationId} - Error caught in lock`)
-    })
+    this.updateLock = currentOperation.catch(() => {})
 
     return currentOperation
   }
