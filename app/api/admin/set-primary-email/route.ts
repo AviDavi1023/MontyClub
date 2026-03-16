@@ -41,8 +41,6 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase()
     await updateAdminUser(targetUsername, { email: normalizedEmail })
 
-    console.log(`[Admin] Primary admin email set to: ${email}`)
-
     return NextResponse.json({
       success: true,
       message: 'Primary admin email updated successfully',

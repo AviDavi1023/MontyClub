@@ -35,10 +35,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       arr[idx] = { ...arr[idx], ...allowed }
 
-      console.log(`[PATCH /api/updates/${id}] Updating to:`, allowed)
-      const writeResult = await writeData('updates', arr)
+      await writeData('updates', arr)
       updatesCache.set(arr)
-      console.log(`[PATCH /api/updates/${id}] Write result:`, writeResult)
 
       return NextResponse.json(arr[idx], {
         headers: {
@@ -78,10 +76,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       }
 
       const removed = arr.splice(idx, 1)[0]
-      console.log(`[DELETE /api/updates/${id}] Deleting update`)
-      const writeResult = await writeData('updates', arr)
+      await writeData('updates', arr)
       updatesCache.set(arr)
-      console.log(`[DELETE /api/updates/${id}] Write result:`, writeResult)
 
       return NextResponse.json(removed, {
         headers: {

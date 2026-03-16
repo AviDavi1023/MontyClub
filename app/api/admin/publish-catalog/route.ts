@@ -22,8 +22,6 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   try {
-    console.log('[Publish Catalog] Starting catalog generation...')
-
     // Verify Supabase is configured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[Publish Catalog] Supabase not configured properly')
@@ -36,8 +34,6 @@ export async function POST(request: NextRequest) {
     // Wrap entire publish in snapshot lock to prevent concurrent publishes
     return await withSnapshotLock(async () => {
       const snapshot = await publishCatalogSnapshot({ autoAssignDisplayCollection: true })
-
-      console.log(`[Publish Catalog] Successfully published ${snapshot.clubCount} clubs`)
 
       return NextResponse.json({
         success: true,

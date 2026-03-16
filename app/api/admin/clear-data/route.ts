@@ -90,6 +90,14 @@ interface ClearDataResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    const destructiveActionsEnabled = process.env.ALLOW_DESTRUCTIVE_ADMIN_ACTIONS === 'true'
+    if (process.env.NODE_ENV === 'production' && !destructiveActionsEnabled) {
+      return NextResponse.json(
+        { error: 'Clear data is disabled in production. Set ALLOW_DESTRUCTIVE_ADMIN_ACTIONS=true to enable.' },
+        { status: 403 }
+      )
+    }
+
     const body: ClearDataRequest = await request.json()
     const { password, adminApiKey, clearOptions } = body
 

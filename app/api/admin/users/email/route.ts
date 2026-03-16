@@ -41,8 +41,6 @@ export async function PUT(request: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase()
     await updateAdminUser(existingUser.username, { email: normalizedEmail })
 
-    console.log(`[Admin] Updated email for user ${existingUser.username} to ${normalizedEmail}`)
-
     return NextResponse.json({
       success: true,
       message: 'Email updated successfully',

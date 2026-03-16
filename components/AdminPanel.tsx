@@ -20,81 +20,23 @@ import { DashboardOverview } from '@/components/DashboardOverview'
 import { UpdateRequestsPanel } from '@/components/UpdateRequestsPanel'
 import { AnalyticsPanel } from '@/components/AnalyticsPanel'
 
-/**
- * DEBUGGING: Paste these commands in the browser console to collect logs
- */
-if (typeof window !== 'undefined') {
-  (window as any).getLogs = () => {
-    console.group('=== SYNC DEBUG LOGS ===')
-    console.log('Copy the entire console output above to share with support')
-    console.groupEnd()
-  }
+const isDebugLoggingEnabled = process.env.NODE_ENV !== 'production'
 
-  (window as any).getAnnouncementsPending = () => {
-    const pending = localStorage.getItem('montyclub:pendingAnnouncements')
-    const announcements = localStorage.getItem('montyclub:announcements')
-    console.group('=== ANNOUNCEMENTS STATE ===')
-    console.log('Pending announcements:', JSON.parse(pending || '{}'))
-    console.log('Current announcements:', JSON.parse(announcements || '{}'))
-    console.groupEnd()
+const debugLog = (...args: unknown[]) => {
+  if (isDebugLoggingEnabled) {
+    console.log(...args)
   }
+}
 
-  (window as any).getUpdatesPending = () => {
-    const pending = localStorage.getItem('montyclub:pendingUpdateChanges')
-    console.group('=== UPDATES PENDING STATE ===')
-    console.log('Pending updates:', JSON.parse(pending || '{}'))
-    console.groupEnd()
+const debugGroup = (label: string) => {
+  if (isDebugLoggingEnabled) {
+    console.group(label)
   }
+}
 
-  (window as any).getCollectionsPending = () => {
-    const pending = localStorage.getItem('montyclub:pendingCollectionChanges')
-    console.group('=== COLLECTIONS PENDING STATE ===')
-    console.log('Pending collections:', JSON.parse(pending || '{}'))
+const debugGroupEnd = () => {
+  if (isDebugLoggingEnabled) {
     console.groupEnd()
-  }
-
-  (window as any).getAllPending = () => {
-    console.group('=== ALL PENDING CHANGES ===')
-    const pending1 = localStorage.getItem('montyclub:pendingAnnouncements')
-    const pending2 = localStorage.getItem('montyclub:pendingUpdateChanges')
-    const pending3 = localStorage.getItem('montyclub:pendingCollectionChanges')
-    console.log('Announcements pending:', JSON.parse(pending1 || '{}'))
-    console.log('Updates pending:', JSON.parse(pending2 || '{}'))
-    console.log('Collections pending:', JSON.parse(pending3 || '{}'))
-    console.groupEnd()
-  }
-
-  (window as any).syncDiagnostics = () => {
-    const report = {
-      timestamp: new Date().toISOString(),
-      announcements: {
-        pending: localStorage.getItem('montyclub:pendingAnnouncements') ? JSON.parse(localStorage.getItem('montyclub:pendingAnnouncements')!) : {},
-        current: localStorage.getItem('montyclub:announcements') ? JSON.parse(localStorage.getItem('montyclub:announcements')!) : {}
-      },
-      updates: {
-        pending: localStorage.getItem('montyclub:pendingUpdateChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingUpdateChanges')!) : {}
-      },
-      collections: {
-        pending: localStorage.getItem('montyclub:pendingCollectionChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingCollectionChanges')!) : {}
-      },
-      registrations: {
-        pending: localStorage.getItem('montyclub:pendingRegistrationChanges') ? JSON.parse(localStorage.getItem('montyclub:pendingRegistrationChanges')!) : {}
-      }
-    }
-    console.group('=== COMPLETE SYNC DIAGNOSTICS ===')
-    console.log(JSON.stringify(report, null, 2))
-    console.groupEnd()
-    return report
-  }
-
-  // Helper to export all console logs for debugging
-  (window as any).exportLogs = () => {
-    console.log(JSON.stringify({ 
-      tag: 'log-export', 
-      step: 'instructions',
-      message: 'To export logs: 1) Open DevTools Console, 2) Right-click and "Save as...", or 3) Copy all JSON log lines and paste them here'
-    }))
-    return 'Check console for instructions. All logs are in JSON format with tags: toggle-single, fetch-updates, autoclear, collection-toggle, registration-approve, reg-autoclear'
   }
 }
 
@@ -662,13 +604,13 @@ export function AdminPanel() {
         registrationCount = (data.registrations || []).length
       }
     } catch (err) {
-      console.log('Could not check registration count')
+      debugLog('Could not check registration count')
     }
 
     // Build confirmation message
     let confirmMessage = 'Are you sure you want to delete this collection?'
     if (registrationCount > 0) {
-      confirmMessage = `⚠️ This collection has ${registrationCount} registration(s). These will also be deleted. Are you sure?`
+      confirmMessage = `[Warning] This collection has ${registrationCount} registration(s). These will also be deleted. Are you sure?`
     }
     confirmMessage += '\n\nThis cannot be undone.'
 
@@ -806,7 +748,7 @@ export function AdminPanel() {
       
       const data = await resp.json()
       if (resp.ok) {
-        showToast('✅ Primary admin email set successfully')
+        showToast('[Success] Primary admin email set successfully')
         setShowPrimaryEmailSetup(false)
         setPrimaryEmail('')
       } else {
@@ -877,7 +819,7 @@ export function AdminPanel() {
       
       const data = await resp.json()
       if (resp.ok) {
-        showToast('✅ Password reset successfully! Please log in with your new password.', 'success')
+        showToast('[Success] Password reset successfully! Please log in with your new password.', 'success')
         handleLogout()
         setShowPasswordReset(false)
         setResetUsername('')
@@ -1135,7 +1077,7 @@ export function AdminPanel() {
 
     const confirmed = await confirm({
       title: 'Complete Factory Reset',
-      message: '⚠️ This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to go through the initial setup process again. This CANNOT be undone. Are you absolutely sure?',
+      message: '[Warning] This will DELETE EVERYTHING including all admin users, clubs, registrations, and settings. You will need to go through the initial setup process again. This CANNOT be undone. Are you absolutely sure?',
       confirmText: 'DELETE EVERYTHING',
       cancelText: 'Cancel',
       variant: 'danger',
@@ -1160,7 +1102,7 @@ export function AdminPanel() {
         throw new Error(data.error || 'Factory reset failed')
       }
 
-      showToast(`✨ Complete factory reset successful! ${data.filesDeleted} files deleted. Redirecting to setup...`, 'success')
+      showToast(`Success: Complete factory reset successful! ${data.filesDeleted} files deleted. Redirecting to setup...`, 'success')
       
       // Clear all localStorage
       localStorage.clear()
@@ -1183,7 +1125,7 @@ export function AdminPanel() {
   const refreshData = async (forceFresh: boolean = false) => {
     // Skip if not authenticated yet
     if (!isAuthenticated) {
-      console.log('Skipping refreshData: not authenticated')
+      debugLog('Skipping refreshData: not authenticated')
       return
     }
     
@@ -1201,7 +1143,7 @@ export function AdminPanel() {
   const fetchUpdates = async (forceFresh: boolean = false, retryCount: number = 0) => {
     // Skip fetch if not authenticated or API key not set
     if (!isAuthenticated || !adminApiKey) {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'fetch-updates', 
         step: 'skipped', 
         reason: !isAuthenticated ? 'not-authenticated' : 'no-api-key'
@@ -1210,7 +1152,7 @@ export function AdminPanel() {
     }
 
     const fetchId = `fetch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'fetch-updates', 
       step: 'start', 
       fetchId, 
@@ -1237,7 +1179,7 @@ export function AdminPanel() {
       
       const fetchDuration = Date.now() - fetchStartTime
       
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'fetch-updates', 
         step: 'response-received', 
         fetchId, 
@@ -1253,7 +1195,7 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error(`Failed to fetch updates: ${resp.status}`)
       const data = await resp.json()
       
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'fetch-updates', 
         step: 'data-parsed', 
         fetchId, 
@@ -1266,7 +1208,7 @@ export function AdminPanel() {
       // server vs local state when deciding when to clear pending changes.
       setUpdates(data)
       
-      console.log(JSON.stringify({
+      debugLog(JSON.stringify({
         tag: 'fetch-updates', 
         step: 'state-updated', 
         fetchId,
@@ -1284,7 +1226,7 @@ export function AdminPanel() {
       // Retry with exponential backoff (max 2 retries)
       if (retryCount < 2) {
         const delay = Math.pow(2, retryCount) * 1000 // 1s, 2s
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'fetch-updates', 
           step: 'retry-scheduled', 
           fetchId, 
@@ -1306,7 +1248,7 @@ export function AdminPanel() {
       }
     } finally {
       setRefreshingUpdates(false)
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'fetch-updates', 
         step: 'complete', 
         fetchId 
@@ -1317,7 +1259,7 @@ export function AdminPanel() {
   // Fresh single-item handlers with optimistic UI via localPendingChanges only
   const handleToggleSingle = async (item: any) => {
     const operationId = `toggle-${item.id}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'toggle-single', 
       step: 'start', 
       operationId, 
@@ -1334,7 +1276,7 @@ export function AdminPanel() {
       : item.reviewed
     const nextReviewed = !currentReviewed
 
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'toggle-single', 
       step: 'calculated-next', 
       operationId, 
@@ -1348,7 +1290,7 @@ export function AdminPanel() {
         ...prev,
         [id]: { ...(prev[id] || {}), reviewed: nextReviewed, _timestamp: Date.now() },
       }
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'pending-set', 
         operationId, 
@@ -1360,7 +1302,7 @@ export function AdminPanel() {
       try {
         localStorage.setItem(PENDING_KEY, JSON.stringify(newPending))
         localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: newPending }))
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'toggle-single', 
           step: 'localStorage-saved', 
           operationId, 
@@ -1379,7 +1321,7 @@ export function AdminPanel() {
     })
 
     try {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'api-call-start', 
         operationId, 
@@ -1396,7 +1338,7 @@ export function AdminPanel() {
         body: JSON.stringify({ reviewed: nextReviewed }),
       })
       const apiDuration = Date.now() - apiStartTime
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'api-call-complete', 
         operationId, 
@@ -1408,7 +1350,7 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const updated = await resp.json()
       const confirmedReviewed = !!updated.reviewed
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'api-success', 
         operationId, 
@@ -1419,7 +1361,7 @@ export function AdminPanel() {
       
       // CRITICAL: Mark this operation as confirmed - API response is source of truth
       confirmedOperationsRef.current.set(id, { reviewed: confirmedReviewed, timestamp: Date.now() })
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'operation-confirmed', 
         operationId, 
@@ -1433,7 +1375,7 @@ export function AdminPanel() {
       setLocalPendingChanges(prev => {
         const cleared = { ...prev }
         delete cleared[id]
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'toggle-single', 
           step: 'immediate-clear', 
           operationId, 
@@ -1477,7 +1419,7 @@ export function AdminPanel() {
       setLocalPendingChanges(prev => {
         const revertPending = { ...prev }
         delete revertPending[id]
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'toggle-single', 
           step: 'revert-pending', 
           operationId, 
@@ -1506,7 +1448,7 @@ export function AdminPanel() {
       showToast('Failed to update status', 'error')
     } finally {
       setSingleProcessingId(null)
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'toggle-single', 
         step: 'complete', 
         operationId, 
@@ -1674,7 +1616,7 @@ export function AdminPanel() {
         })
       }
       
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'batch', 
         step: 'operations-confirmed', 
         batchOperationId, 
@@ -1696,7 +1638,7 @@ export function AdminPanel() {
         })
         
         if (hasCleared) {
-          console.log(JSON.stringify({ 
+          debugLog(JSON.stringify({ 
             tag: 'batch', 
             step: 'immediate-clear', 
             batchOperationId, 
@@ -1805,7 +1747,7 @@ export function AdminPanel() {
       // Check if pending has a timestamp and if it's stale
       const pendingTimestamp = pending._timestamp
       if (pendingTimestamp && (now - pendingTimestamp) > staleThreshold) {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'updates-pending', 
           step: 'remove-stale', 
           id, 
@@ -1826,15 +1768,15 @@ export function AdminPanel() {
       if (Object.keys(localPendingChanges).length === 0) {
         localStorage.removeItem(PENDING_KEY)
         localStorage.removeItem(PENDING_BACKUP_KEY)
-        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'cleared' })) } catch {}
+        try { debugLog(JSON.stringify({ tag: 'updates-pending', step: 'cleared' })) } catch {}
       } else {
         const serialized = JSON.stringify(localPendingChanges)
         localStorage.setItem(PENDING_KEY, serialized)
         localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingChanges }))
-        try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'persisted', count: Object.keys(localPendingChanges).length })) } catch {}
+        try { debugLog(JSON.stringify({ tag: 'updates-pending', step: 'persisted', count: Object.keys(localPendingChanges).length })) } catch {}
       }
     } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'updates-pending', step: 'persist-fail', error: String(e) })) } catch {}
+      try { debugLog(JSON.stringify({ tag: 'updates-pending', step: 'persist-fail', error: String(e) })) } catch {}
     }
   }, [localPendingChanges, localStorageLoaded])
 
@@ -1844,7 +1786,7 @@ export function AdminPanel() {
     
     // CRITICAL: Don't run until localStorage has been loaded on mount
     if (!localStorageLoaded) {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'autoclear', 
         step: 'skip-not-loaded', 
         autoClearId 
@@ -1852,7 +1794,7 @@ export function AdminPanel() {
       return
     }
     if (Object.keys(localPendingChanges).length === 0) {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'autoclear', 
         step: 'skip-no-pending', 
         autoClearId 
@@ -1869,7 +1811,7 @@ export function AdminPanel() {
       
       if (hasConfirmed) {
         // We have confirmed operations - clear them even without database data
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'clear-confirmed-without-db', 
           autoClearId,
@@ -1877,7 +1819,7 @@ export function AdminPanel() {
         }))
         // This will be handled in the main loop
       } else {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'skip-no-updates', 
           autoClearId 
@@ -1886,7 +1828,7 @@ export function AdminPanel() {
       }
     }
 
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'autoclear', 
       step: 'start', 
       autoClearId,
@@ -1913,7 +1855,7 @@ export function AdminPanel() {
       
       const canAutoClear = confirmed || age >= MIN_AGE_MS
 
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'autoclear', 
         step: 'checking', 
         autoClearId,
@@ -1927,7 +1869,7 @@ export function AdminPanel() {
       
       // Skip auto-clear if not confirmed and too recent
       if (!canAutoClear) {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'skip-too-recent', 
           autoClearId, 
@@ -1946,7 +1888,7 @@ export function AdminPanel() {
         if (age < 300000) {
           // Check if pending matches confirmed state
           if (pending.reviewed !== undefined && confirmed.reviewed === pending.reviewed) {
-            console.log(JSON.stringify({ 
+            debugLog(JSON.stringify({ 
               tag: 'autoclear', 
               step: 'clear-confirmed', 
               autoClearId, 
@@ -1960,7 +1902,7 @@ export function AdminPanel() {
             // Keep confirmed for a bit longer in case of page refresh
             return
           } else if (pending.deleted && confirmed.deleted) {
-            console.log(JSON.stringify({ 
+            debugLog(JSON.stringify({ 
               tag: 'autoclear', 
               step: 'clear-confirmed-deleted', 
               autoClearId, 
@@ -1981,7 +1923,7 @@ export function AdminPanel() {
       // OR if deletion was confirmed by API
       if (pending.deleted) {
         if (!dbItem || confirmed?.deleted) {
-          console.log(JSON.stringify({ 
+          debugLog(JSON.stringify({ 
             tag: 'autoclear', 
             step: 'clear-deleted', 
             autoClearId, 
@@ -1995,7 +1937,7 @@ export function AdminPanel() {
       }
       // PRIORITY 3: If reviewed state matches DB, clear it
       else if (dbItem && pending.reviewed !== undefined && dbItem.reviewed === pending.reviewed) {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'clear-match', 
           autoClearId, 
@@ -2006,7 +1948,7 @@ export function AdminPanel() {
         hasCleared = true
         clearedIds.push(id)
       } else {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'autoclear', 
           step: 'still-pending', 
           autoClearId, 
@@ -2020,7 +1962,7 @@ export function AdminPanel() {
     })
 
     if (hasCleared) {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'autoclear', 
         step: 'updating-state', 
         autoClearId,
@@ -2034,7 +1976,7 @@ export function AdminPanel() {
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(PENDING_KEY)
           localStorage.removeItem(PENDING_BACKUP_KEY)
-          console.log(JSON.stringify({ 
+          debugLog(JSON.stringify({ 
             tag: 'autoclear', 
             step: 'localStorage-cleared', 
             autoClearId 
@@ -2042,7 +1984,7 @@ export function AdminPanel() {
         } else {
           localStorage.setItem(PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          console.log(JSON.stringify({ 
+          debugLog(JSON.stringify({ 
             tag: 'autoclear', 
             step: 'localStorage-updated', 
             autoClearId,
@@ -2058,7 +2000,7 @@ export function AdminPanel() {
         }))
       }
     } else {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'autoclear', 
         step: 'no-changes', 
         autoClearId,
@@ -2074,7 +2016,7 @@ export function AdminPanel() {
       const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
       if (primary) {
         const parsed = JSON.parse(primary)
-        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'primary', actionId, count: Object.keys(parsed||{}).length })) } catch {}
+        try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'primary', actionId, count: Object.keys(parsed||{}).length })) } catch {}
         setLocalPendingAnnouncements(parsed)
       } else {
         const backup = localStorage.getItem(ANNOUNCEMENTS_BACKUP_KEY)
@@ -2082,23 +2024,23 @@ export function AdminPanel() {
           try {
             const backupParsed = JSON.parse(backup)
             if (backupParsed && backupParsed.data) {
-              try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup', actionId, count: Object.keys(backupParsed.data||{}).length })) } catch {}
+              try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'backup', actionId, count: Object.keys(backupParsed.data||{}).length })) } catch {}
               setLocalPendingAnnouncements(backupParsed.data)
             } else {
-              try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup-malformed', actionId })) } catch {}
+              try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'backup-malformed', actionId })) } catch {}
             }
           } catch (e) {
-            try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'backup-parse-fail', actionId, error: String(e) })) } catch {}
+            try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'backup-parse-fail', actionId, error: String(e) })) } catch {}
           }
         } else {
-          try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'none', actionId })) } catch {}
+          try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'none', actionId })) } catch {}
         }
       }
     } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'load-fail', actionId, error: String(e) })) } catch {}
+      try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'load-fail', actionId, error: String(e) })) } catch {}
     } finally {
       setAnnouncementsStorageLoaded(true)
-      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'loaded', actionId })) } catch {}
+      try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'loaded', actionId })) } catch {}
     }
   }, [])
 
@@ -2109,15 +2051,15 @@ export function AdminPanel() {
       if (Object.keys(localPendingAnnouncements).length === 0) {
         localStorage.removeItem(ANNOUNCEMENTS_PENDING_KEY)
         localStorage.removeItem(ANNOUNCEMENTS_BACKUP_KEY)
-        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'cleared' })) } catch {}
+        try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'cleared' })) } catch {}
       } else {
         const serialized = JSON.stringify(localPendingAnnouncements)
         localStorage.setItem(ANNOUNCEMENTS_PENDING_KEY, serialized)
         localStorage.setItem(ANNOUNCEMENTS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: localPendingAnnouncements }))
-        try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'persisted', count: Object.keys(localPendingAnnouncements).length })) } catch {}
+        try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'persisted', count: Object.keys(localPendingAnnouncements).length })) } catch {}
       }
     } catch (e) {
-      try { console.log(JSON.stringify({ tag: 'ann-pending', step: 'persist-fail', error: String(e) })) } catch {}
+      try { debugLog(JSON.stringify({ tag: 'ann-pending', step: 'persist-fail', error: String(e) })) } catch {}
     }
   }, [localPendingAnnouncements, announcementsStorageLoaded])
 
@@ -2358,21 +2300,21 @@ export function AdminPanel() {
 
     let responseReceived = false
     try {
-      console.group(`[API CALL] Sending PATCH request for announcement ${id}`)
-      console.log(`URL: /api/announcements/${id}`)
-      console.log(`Method: PATCH`)
-      console.log(`Body: ${JSON.stringify({ announcement: text || '' })}`)
-      console.log(`Timestamp: ${new Date().toISOString()}`)
-      console.groupEnd()
+      debugGroup(`[API CALL] Sending PATCH request for announcement ${id}`)
+      debugLog(`URL: /api/announcements/${id}`)
+      debugLog(`Method: PATCH`)
+      debugLog(`Body: ${JSON.stringify({ announcement: text || '' })}`)
+      debugLog(`Timestamp: ${new Date().toISOString()}`)
+      debugGroupEnd()
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
-        console.log(`[FETCH TIMEOUT] Announcement ${id} fetch timed out after 10 seconds`)
+        debugLog(`[FETCH TIMEOUT] Announcement ${id} fetch timed out after 10 seconds`)
         controller.abort()
       }, 10000) // 10 second timeout
       
       const fetchStartTime = Date.now()
-      console.log(`[FETCH START] Announcement ${id} fetch starting...`)
+      debugLog(`[FETCH START] Announcement ${id} fetch starting...`)
       const resp = await fetch(`/api/announcements/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
@@ -2383,13 +2325,13 @@ export function AdminPanel() {
       const fetchEndTime = Date.now()
       
       responseReceived = true
-      console.log(`[FETCH COMPLETE] Announcement ${id} fetch completed in ${fetchEndTime - fetchStartTime}ms`)
+      debugLog(`[FETCH COMPLETE] Announcement ${id} fetch completed in ${fetchEndTime - fetchStartTime}ms`)
       
-      console.group(`[API RESPONSE] Response received for announcement ${id}`)
-      console.log(`Status: ${resp.status} ${resp.statusText}`)
-      console.log(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
-      console.log(`Timestamp: ${new Date().toISOString()}`)
-      console.groupEnd()
+      debugGroup(`[API RESPONSE] Response received for announcement ${id}`)
+      debugLog(`Status: ${resp.status} ${resp.statusText}`)
+      debugLog(`Time taken: ${fetchEndTime - fetchStartTime}ms`)
+      debugLog(`Timestamp: ${new Date().toISOString()}`)
+      debugGroupEnd()
 
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => ({}))
@@ -2397,7 +2339,7 @@ export function AdminPanel() {
       }
       
       const responseData = await resp.json()
-      console.log(`[API SUCCESS] Announcement ${id} response data:`, responseData)
+      debugLog(`[API SUCCESS] Announcement ${id} response data:`, responseData)
       
       // Success: show toast immediately
       showToast('Announcement saved successfully')
@@ -2472,7 +2414,7 @@ export function AdminPanel() {
       }, 10000) // 10 second timeout
       
       const fetchStartTime = Date.now()
-      console.log(`[CLEAR FETCH START] Announcement ${id} clear fetch starting...`)
+      debugLog(`[CLEAR FETCH START] Announcement ${id} clear fetch starting...`)
       const resp = await fetch(`/api/announcements/${id}`, { 
         method: 'PATCH', 
         headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey }, 
@@ -2521,14 +2463,14 @@ export function AdminPanel() {
         showToast('Could not clear announcement', 'error')
       }
     } finally {
-      console.log(`[CLEAR FINALLY] Setting savingAnnouncements[${id}] = false`)
-      console.log(`[CLEAR FINALLY] Current savingAnnouncements BEFORE:`, savingAnnouncements)
+      debugLog(`[CLEAR FINALLY] Setting savingAnnouncements[${id}] = false`)
+      debugLog(`[CLEAR FINALLY] Current savingAnnouncements BEFORE:`, savingAnnouncements)
       setSavingAnnouncements(prev => {
         const updated = { ...prev, [id]: false }
-        console.log(`[CLEAR FINALLY] savingAnnouncements updated: ${id} = false`, updated)
+        debugLog(`[CLEAR FINALLY] savingAnnouncements updated: ${id} = false`, updated)
         return updated
       })
-      console.log(`[CLEAR DONE] Clearing announcement ${id} completed`)
+      debugLog(`[CLEAR DONE] Clearing announcement ${id} completed`)
     }
   }
 
@@ -2548,7 +2490,7 @@ export function AdminPanel() {
           // Only override with server value if they match (confirming the update completed)
           // Otherwise, keep the optimistic local value
           if (localEnabled !== serverEnabled) {
-            console.log('[Settings] Using optimistic local value during sync:', localEnabled)
+            debugLog('[Settings] Using optimistic local value during sync:', localEnabled)
             setAnnouncementsEnabled(localEnabled)
             return // Don't overwrite localStorage with stale server data
           }
@@ -2646,7 +2588,7 @@ export function AdminPanel() {
       
       // Optionally refresh clubs data in this panel too
       await refreshData(true)
-      // Refresh snapshot status — unless caller already set catalogStatus from publish response
+      // Refresh snapshot status unless caller already set catalogStatus from publish response
       if (!options?.skipSnapshotCheck) {
         await checkSnapshotStatus()
       }
@@ -2736,7 +2678,7 @@ export function AdminPanel() {
         Number.isFinite(publishedAtMs) ? publishedAtMs : Date.now()
       )
 
-      // Update sidebar immediately from the publish response — never re-read from storage
+      // Update sidebar immediately from the publish response and never re-read from storage
       // (storage reads can return a CDN-cached old version right after a write)
       setCatalogStatus({
         exists: true,
@@ -2746,7 +2688,7 @@ export function AdminPanel() {
         collectionName: data.snapshot.collectionName,
       })
 
-      showToast(`✅ Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
+      showToast(`[Success] Published ${data.snapshot.clubCount} clubs to catalog!`, 'success')
 
       // Tell all open tabs (including the public page) to reload clubs
       broadcast('clubs', 'refresh')
@@ -3434,7 +3376,7 @@ export function AdminPanel() {
                                       : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                                   } ${togglingCollection === activeCol.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90 cursor-pointer'}`}
                                 >
-                                  {isAccepting ? '✓ Accepting Registrations' : 'Registration Disabled'}
+                                  {isAccepting ? 'Accepting Registrations' : 'Registration Disabled'}
                                 </button>
                                 <button
                                   onClick={() => toggleCollectionRenewal(activeCol.id)}
@@ -3921,7 +3863,7 @@ export function AdminPanel() {
                       </p>
                       {activeCollectionId?.startsWith('temp-col-') && (
                         <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2 font-medium">
-                          ⏳ Collection is being created... Please wait a moment before importing.
+                          (Creating...) Collection is being created. Please wait a moment before importing.
                         </p>
                       )}
                       <input
@@ -4115,7 +4057,7 @@ export function AdminPanel() {
               Clear Data (Factory Reset)
             </h3>
             <p className="text-sm text-red-700 dark:text-red-300 mb-4 font-semibold">
-              ⚠️ WARNING: This action permanently deletes selected data and cannot be undone!
+              [Warning] This action permanently deletes selected data and cannot be undone.
             </p>
 
             {/* Info note */}
@@ -4223,7 +4165,7 @@ export function AdminPanel() {
                   />
                   <div>
                     <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">All Registrations</div>
-                    <div className="text-xs text-red-700 dark:text-red-300">⚠️ Delete all club registration submissions</div>
+                    <div className="text-xs text-red-700 dark:text-red-300">[Warning] Delete all club registration submissions</div>
                   </div>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">
@@ -4236,7 +4178,7 @@ export function AdminPanel() {
                   />
                   <div>
                     <div className="text-sm font-medium text-red-600 dark:text-red-400 font-semibold">Admin Users</div>
-                    <div className="text-xs text-red-700 dark:text-red-300">⚠️ Delete all admin user accounts (requires re-setup)</div>
+                    <div className="text-xs text-red-700 dark:text-red-300">[Warning] Delete all admin user accounts (requires re-setup)</div>
                   </div>
                 </label>
               </div>
@@ -4289,7 +4231,7 @@ export function AdminPanel() {
                         You will start from scratch with default credentials (admin/admin123).
                       </p>
                       <p className="text-xs text-red-800 dark:text-red-200 font-semibold">
-                        ⚠️ This action CANNOT be undone!
+                        [Warning] This action CANNOT be undone.
                       </p>
                     </div>
                   </div>
@@ -4944,7 +4886,7 @@ function AnnounceEditor({
                 className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 <div className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">{m.name}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">{m.category} — {m.meetingTime}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{m.category} - {m.meetingTime}</div>
               </button>
             ))}
           </div>

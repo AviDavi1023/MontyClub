@@ -29,10 +29,8 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const current = await readData('renewal-settings', {} as Record<string, { sourceCollections: string[] }>)
     const updated = { ...current, ...body }
-    
-    console.log('[PATCH /api/renewal-settings] Updating renewal settings to:', updated)
-    const writeResult = await writeData('renewal-settings', updated)
-    console.log('[PATCH /api/renewal-settings] Write result:', writeResult)
+
+    await writeData('renewal-settings', updated)
     
     return NextResponse.json(updated, {
       headers: {

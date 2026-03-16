@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "backup:export": "node scripts/backup-export.mjs",
+    "backup:verify": "node scripts/backup-verify.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.79.0",

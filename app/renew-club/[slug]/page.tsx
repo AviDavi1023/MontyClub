@@ -8,6 +8,12 @@ import { Button, Input, Textarea } from '@/components/ui'
 import { useToast } from '@/lib/use-toast'
 import { ToastContainer } from '@/components/Toast'
 
+const debugLog = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(...args)
+  }
+}
+
 interface RenewClubPageProps {
   params: Promise<{
     slug: string
@@ -85,10 +91,10 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       setLoading(true)
       setError('')
       
-      console.log('[Renewal Form] Starting load for collection:', collectionSlug)
+      debugLog('[Renewal Form] Starting load for collection:', collectionSlug)
       
       // Fetch the collection to verify renewal is enabled (using public endpoint)
-      console.log('[Renewal Form] Fetching collections from /api/collections-public')
+      debugLog('[Renewal Form] Fetching collections from /api/collections-public')
       const collectionsRes = await fetch('/api/collections-public')
       
       if (!collectionsRes.ok) {
@@ -98,7 +104,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       }
       
       const collectionsData = await collectionsRes.json()
-      console.log('[Renewal Form] Received collections:', collectionsData.collections?.length)
+      debugLog('[Renewal Form] Received collections:', collectionsData.collections?.length)
       
       // Try matching by ID first (preferred), then by name slug (legacy compatibility)
       let targetCollection = collectionsData.collections?.find((c: any) => c.id === collectionSlug)
@@ -123,7 +129,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
         return
       }
       
-      console.log('[Renewal Form] Found collection:', targetCollection.name, 'renewalEnabled:', targetCollection.renewalEnabled)
+      debugLog('[Renewal Form] Found collection:', targetCollection.name, 'renewalEnabled:', targetCollection.renewalEnabled)
       
       // Check if renewal is enabled for this collection
       if (!targetCollection.renewalEnabled) {
@@ -136,7 +142,7 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       
       // Fetch clubs for renewal from the configured source collections
       // Use the actual collection ID (not the slug) for the API call
-      console.log('[Renewal Form] Fetching renewal clubs for:', targetCollection.id)
+      debugLog('[Renewal Form] Fetching renewal clubs for:', targetCollection.id)
       const clubsRes = await fetch(`/api/renewal-clubs?collectionId=${encodeURIComponent(targetCollection.id)}`)
       
       if (!clubsRes.ok) {
@@ -148,14 +154,14 @@ export default function RenewClubPage({ params }: RenewClubPageProps) {
       }
       
       const clubsData = await clubsRes.json()
-      console.log('[Renewal Form] Received clubs:', clubsData.clubs?.length)
+      debugLog('[Renewal Form] Received clubs:', clubsData.clubs?.length)
       
       if (!clubsData.clubs || clubsData.clubs.length === 0) {
         console.warn('[Renewal Form] No clubs available for renewal')
         setError('No clubs available for renewal')
         setClubs([])
       } else {
-        console.log('[Renewal Form] Successfully loaded', clubsData.clubs.length, 'clubs')
+        debugLog('[Renewal Form] Successfully loaded', clubsData.clubs.length, 'clubs')
         setClubs(clubsData.clubs)
       }
     } catch (err) {

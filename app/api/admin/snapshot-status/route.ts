@@ -56,13 +56,9 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   try {
-    console.log('[Snapshot] Manual publish triggered by admin...')
-
     // Wrap entire publish in snapshot lock to prevent concurrent publishes
     return await withSnapshotLock(async () => {
       const snapshot = await publishCatalogSnapshot({ autoAssignDisplayCollection: false })
-
-      console.log(`[Snapshot] ✅ Manual publish successful: ${snapshot.clubCount} clubs`)
 
       return NextResponse.json({
         success: true,

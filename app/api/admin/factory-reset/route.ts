@@ -17,6 +17,14 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
+    const destructiveActionsEnabled = process.env.ALLOW_DESTRUCTIVE_ADMIN_ACTIONS === 'true'
+    if (process.env.NODE_ENV === 'production' && !destructiveActionsEnabled) {
+      return NextResponse.json(
+        { error: 'Factory reset is disabled in production. Set ALLOW_DESTRUCTIVE_ADMIN_ACTIONS=true to enable.' },
+        { status: 403 }
+      )
+    }
+
     // Parse request body for authentication
     const body = await request.json()
     const { password, adminApiKey } = body

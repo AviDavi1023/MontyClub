@@ -80,8 +80,6 @@ export async function POST(request: Request) {
     // Save to Postgres
     await createRegistration(registration)
 
-    console.log('[POST /api/club-renewal] Created renewal registration:', registration.id)
-
     return NextResponse.json({ 
       message: 'Club renewal submitted successfully',
       registration 

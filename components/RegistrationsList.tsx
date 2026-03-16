@@ -7,6 +7,12 @@ import { ConfirmDialog } from '@/components/ui'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 import { logActivity } from '@/components/ActivityLog'
 
+const debugLog = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(...args)
+  }
+}
+
 interface RegistrationsListProps {
   adminApiKey: string
   collectionSlug: string
@@ -426,15 +432,15 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     const autoClearId = `reg-autoclear-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     
     if (!registrationStorageLoaded) {
-      console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-not-loaded', autoClearId }))
+      debugLog(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-not-loaded', autoClearId }))
       return
     }
     if (Object.keys(localPendingRegistrationChanges).length === 0) {
-      console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-no-pending', autoClearId }))
+      debugLog(JSON.stringify({ tag: 'reg-autoclear', step: 'skip-no-pending', autoClearId }))
       return
     }
 
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'reg-autoclear', 
       step: 'start', 
       autoClearId,
@@ -453,7 +459,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       const pending = stillPending[id]
       const dbItem = registrations.find(r => r.id === id)
 
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'reg-autoclear', 
         step: 'checking', 
         autoClearId,
@@ -464,14 +470,14 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
 
       // If marked deleted locally but no longer exists in DB, clear it
       if (pending.deleted && !dbItem) {
-        console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'clear-deleted', autoClearId, id }))
+        debugLog(JSON.stringify({ tag: 'reg-autoclear', step: 'clear-deleted', autoClearId, id }))
         delete stillPending[id]
         hasCleared = true
         clearedIds.push(id)
       }
       // If status matches DB, clear it
       else if (dbItem && pending.status !== undefined && dbItem.status === pending.status) {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'reg-autoclear', 
           step: 'clear-match', 
           autoClearId, 
@@ -482,7 +488,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         hasCleared = true
         clearedIds.push(id)
       } else {
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'reg-autoclear', 
           step: 'still-pending', 
           autoClearId, 
@@ -496,7 +502,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     })
 
     if (hasCleared) {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'reg-autoclear', 
         step: 'updating-state', 
         autoClearId,
@@ -510,11 +516,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         if (Object.keys(stillPending).length === 0) {
           localStorage.removeItem(REGISTRATIONS_PENDING_KEY)
           localStorage.removeItem(REGISTRATIONS_BACKUP_KEY)
-          console.log(JSON.stringify({ tag: 'reg-autoclear', step: 'localStorage-cleared', autoClearId }))
+          debugLog(JSON.stringify({ tag: 'reg-autoclear', step: 'localStorage-cleared', autoClearId }))
         } else {
           localStorage.setItem(REGISTRATIONS_PENDING_KEY, JSON.stringify(stillPending))
           localStorage.setItem(REGISTRATIONS_BACKUP_KEY, JSON.stringify({ t: Date.now(), data: stillPending }))
-          console.log(JSON.stringify({ 
+          debugLog(JSON.stringify({ 
             tag: 'reg-autoclear', 
             step: 'localStorage-updated', 
             autoClearId,
@@ -525,7 +531,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         console.error(JSON.stringify({ tag: 'reg-autoclear', step: 'localStorage-error', autoClearId, error: String(e) }))
       }
     } else {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'reg-autoclear', 
         step: 'no-changes', 
         autoClearId,
@@ -652,7 +658,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     if (!confirmed) return
 
     const operationId = `approve-${reg.id}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    console.log(JSON.stringify({ 
+    debugLog(JSON.stringify({ 
       tag: 'registration-approve', 
       step: 'start', 
       operationId, 
@@ -665,7 +671,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     // Use functional update to avoid stale closures
     setLocalPendingRegistrationChanges(prev => {
       const newPending = { ...prev, [reg.id]: { status: 'approved' } }
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'pending-set', 
         operationId, 
@@ -687,7 +693,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
     })
 
     try {
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'api-call-start', 
         operationId, 
@@ -706,7 +712,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         })
       })
       const apiDuration = Date.now() - apiStartTime
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'api-call-complete', 
         operationId, 
@@ -719,7 +725,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
         throw new Error('Failed to approve registration')
       }
 
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'api-success', 
         operationId, 
@@ -741,13 +747,13 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       // Trigger parent callback for publish reminder
       onActionComplete?.()
       
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'load-registrations-start', 
         operationId 
       }))
       await loadRegistrations()
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'load-registrations-complete', 
         operationId 
@@ -772,7 +778,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       setLocalPendingRegistrationChanges(prev => {
         const revertPending = { ...prev }
         delete revertPending[reg.id]
-        console.log(JSON.stringify({ 
+        debugLog(JSON.stringify({ 
           tag: 'registration-approve', 
           step: 'revert-pending', 
           operationId, 
@@ -799,7 +805,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
       alert(err.message || 'Failed to approve registration')
     } finally {
       setProcessingId(null)
-      console.log(JSON.stringify({ 
+      debugLog(JSON.stringify({ 
         tag: 'registration-approve', 
         step: 'complete', 
         operationId, 
@@ -1509,7 +1515,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <div className="flex items-center gap-1">
                         Status
                         {sortBy === 'status' && (
-                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '^' : 'v'}</span>
                         )}
                       </div>
                     </th>
@@ -1521,7 +1527,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <div className="flex items-center gap-1">
                         Submitted
                         {sortBy === 'submitted' && (
-                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '^' : 'v'}</span>
                         )}
                       </div>
                     </th>
@@ -1532,7 +1538,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <div className="flex items-center gap-1">
                         Club
                         {sortBy === 'name' && (
-                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '^' : 'v'}</span>
                         )}
                       </div>
                     </th>
@@ -1544,7 +1550,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <div className="flex items-center gap-1">
                         Category
                         {sortBy === 'category' && (
-                          <span className="text-primary-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          <span className="text-primary-600">{sortDirection === 'asc' ? '^' : 'v'}</span>
                         )}
                       </div>
                     </th>
@@ -1580,7 +1586,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             {getStatusIcon(reg.status)}
                           </span>
                           {localPendingRegistrationChanges[reg.id] && (
-                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">⟳</span>
+                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">*</span>
                           )}
                         </div>
                       </td>
@@ -1694,7 +1700,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       </td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400 relative" onClick={(e) => e.stopPropagation()}>
                         <div className="truncate group cursor-help">
-                          {reg.statementOfPurpose || '—'}
+                          {reg.statementOfPurpose || '-'}
                           {reg.statementOfPurpose && reg.statementOfPurpose.length > 30 && (
                             <div className="invisible group-hover:visible absolute left-full top-0 ml-2 z-[100] p-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl w-96 text-sm leading-relaxed text-gray-800 dark:text-gray-200 whitespace-normal animate-in fade-in zoom-in-95 duration-150">
                               {reg.statementOfPurpose}
@@ -1723,7 +1729,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded px-1 -mx-1 inline-block text-xs"
                             title="Double-click to edit"
                           >
-                            {reg.category || '—'}
+                            {reg.category || '-'}
                           </span>
                         )}
                       </td>
@@ -1732,7 +1738,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         <div className="truncate">{reg.studentContactName}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.studentContactEmail}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '—'}</td>
+                      <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400 truncate">{reg.location || '-'}</td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate">{reg.meetingDay}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.meetingFrequency}</div>
@@ -1742,11 +1748,11 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <a href={reg.socialMedia.startsWith('http') ? reg.socialMedia : `https://${reg.socialMedia}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate block">
                             {reg.socialMedia.length > 12 ? reg.socialMedia.substring(0, 12) + '...' : reg.socialMedia}
                           </a>
-                        ) : '—'}
+                        ) : '-'}
                       </td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate" title={reg.notes}>
-                          {reg.notes || '—'}
+                          {reg.notes || '-'}
                         </div>
                       </td>
                     </tr>
@@ -1763,7 +1769,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             const isLoadingChanges = loadingRenewalChanges[reg.id] || changes === undefined
                             return (
                               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
+                                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Changed Fields from Previous Year</h4>
                                 {isLoadingChanges ? (
                                   <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
                                 ) : changes === null ? (
@@ -1777,7 +1783,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                         <span className="font-semibold text-blue-900 dark:text-blue-300">{change.label}:</span>
                                         <div className="flex items-center gap-2">
                                           <span className="text-gray-600 dark:text-gray-400 line-through">{change.old || '(empty)'}</span>
-                                          <span className="text-blue-700 dark:text-blue-400">→</span>
+                                          <span className="text-blue-700 dark:text-blue-400">-&gt;</span>
                                           <span className="text-blue-900 dark:text-blue-200 font-medium">{change.new || '(empty)'}</span>
                                         </div>
                                       </div>
@@ -1874,7 +1880,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       <div className="space-y-2 text-sm">
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Category:</span>
-                          <span className="text-gray-900 dark:text-white font-medium">{reg.category || '—'}</span>
+                          <span className="text-gray-900 dark:text-white font-medium">{reg.category || '-'}</span>
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor:</span>
@@ -1901,7 +1907,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               const isLoadingChanges = loadingRenewalChanges[reg.id] || changes === undefined
                               return (
                                 <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📝 Changed Fields from Previous Year</h4>
+                                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Changed Fields from Previous Year</h4>
                                   {isLoadingChanges ? (
                                     <p className="text-xs text-blue-700 dark:text-blue-400">Loading changes...</p>
                                   ) : changes === null ? (
@@ -1915,7 +1921,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                           <span className="font-semibold text-blue-900 dark:text-blue-300">{change.label}:</span>
                                           <div className="flex items-center gap-2">
                                             <span className="text-gray-600 dark:text-gray-400 line-through">{change.old || '(empty)'}</span>
-                                            <span className="text-blue-700 dark:text-blue-400">→</span>
+                                            <span className="text-blue-700 dark:text-blue-400">-&gt;</span>
                                             <span className="text-blue-900 dark:text-blue-200 font-medium">{change.new || '(empty)'}</span>
                                           </div>
                                         </div>
@@ -1973,7 +1979,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         onClick={() => setExpandedId(isExpanded ? null : reg.id)}
                         className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium"
                       >
-                        {isExpanded ? '▼ Less' : '▶ More'}
+                        {isExpanded ? 'v Less' : '> More'}
                       </button>
                       <div className="flex gap-2 flex-wrap justify-end">
                         {reg.status === 'pending' && (

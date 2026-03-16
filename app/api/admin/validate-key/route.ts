@@ -35,11 +35,9 @@ export async function POST(request: NextRequest) {
     const isValid = apiKey.trim() === expectedKey.trim()
 
     if (isValid) {
-      console.log('[ValidateKey] ✅ Valid API key provided')
       return NextResponse.json({ valid: true })
     } else {
-      console.log('[ValidateKey] ❌ Invalid API key provided')
-      console.log(`[ValidateKey] Key length: ${apiKey.trim().length}, Expected length: ${expectedKey.trim().length}`)
+      console.warn('[ValidateKey] Invalid API key provided')
       return NextResponse.json(
         { valid: false, error: 'Invalid API key. After factory reset, keys must be re-entered.' },
         { status: 401 }
