@@ -26,6 +26,9 @@ function getAdminClient() {
 
 // Ensure registrations migration happens on first call
 let registrationsMigrationChecked = false
+// Cache whether the DB has the advisor_email column to avoid repeated errors
+let advisorEmailColumnChecked = false
+let advisorEmailColumnPresent = true
 
 async function ensureRegistrationsMigrated(): Promise<void> {
   if (registrationsMigrationChecked) return
@@ -103,33 +106,50 @@ async function ensureRegistrationsMigrated(): Promise<void> {
       return
     }
 
-    // Insert all registrations into Postgres
+    // Insert all registrations into Postgres. If the DB doesn't have the
+    // `advisor_email` column yet (older schemas), retry the insert without it
+    // and cache that information to avoid repeated failures.
     for (const reg of migratedRegs) {
-      await (client.from('club_registrations') as any)
-        .insert({
-          id: reg.id,
-          email: reg.email,
-          club_name: reg.clubName,
-              advisor_email: reg.advisorEmail || null,
-          advisor_name: reg.advisorName,
-          statement_of_purpose: reg.statementOfPurpose,
-          location: reg.location,
-          meeting_day: reg.meetingDay,
-          meeting_frequency: reg.meetingFrequency,
-          student_contact_name: reg.studentContactName,
-          student_contact_email: reg.studentContactEmail,
-          advisor_agreement_date: reg.advisorAgreementDate,
-          club_agreement_date: reg.clubAgreementDate,
-          submitted_at: reg.submittedAt,
-          status: reg.status,
-          collection_id: reg.collectionId,
-          denial_reason: reg.denialReason || null,
-          approved_at: reg.approvedAt || null,
-          social_media: reg.socialMedia || null,
-          category: reg.category,
-          notes: reg.notes || null,
-          renewed_from_id: reg.renewedFromId || null,
-        })
+      const row = {
+        id: reg.id,
+        email: reg.email,
+        advisor_email: reg.advisorEmail || null,
+        advisor_name: reg.advisorName,
+        statement_of_purpose: reg.statementOfPurpose,
+        location: reg.location,
+        meeting_day: reg.meetingDay,
+        meeting_frequency: reg.meetingFrequency,
+        student_contact_name: reg.studentContactName,
+        student_contact_email: reg.studentContactEmail,
+        advisor_agreement_date: reg.advisorAgreementDate,
+        club_agreement_date: reg.clubAgreementDate,
+        submitted_at: reg.submittedAt,
+        status: reg.status,
+        collection_id: reg.collectionId,
+        denial_reason: reg.denialReason || null,
+        approved_at: reg.approvedAt || null,
+        social_media: reg.socialMedia || null,
+        category: reg.category,
+        notes: reg.notes || null,
+        renewed_from_id: reg.renewedFromId || null,
+      }
+
+      try {
+        const { error } = await (client.from('club_registrations') as any).insert(row)
+        if (error) throw error
+      } catch (e: any) {
+        const msg = String(e?.message || e)
+        if (!advisorEmailColumnChecked && /advisor_email/.test(msg)) {
+          advisorEmailColumnChecked = true
+          advisorEmailColumnPresent = false
+          const fallback = { ...row }
+          delete (fallback as any).advisor_email
+          const { error: err2 } = await (client.from('club_registrations') as any).insert(fallback)
+          if (err2) throw err2
+        } else {
+          throw e
+        }
+      }
     }
 
     console.log(`[registrations-db] Successfully migrated ${migratedRegs.length} registrations to Postgres`)
@@ -233,33 +253,47 @@ export async function createRegistration(reg: ClubRegistration): Promise<void> {
   await ensureRegistrationsMigrated()
   
   const client = getAdminClient()
-  const { error } = await (client.from('club_registrations') as any)
-    .insert({
-      id: reg.id,
-      email: reg.email,
-      advisor_email: reg.advisorEmail || null,
-      club_name: reg.clubName,
-      advisor_name: reg.advisorName,
-      statement_of_purpose: reg.statementOfPurpose,
-      location: reg.location,
-      meeting_day: reg.meetingDay,
-      meeting_frequency: reg.meetingFrequency,
-      student_contact_name: reg.studentContactName,
-      student_contact_email: reg.studentContactEmail,
-      advisor_agreement_date: reg.advisorAgreementDate,
-      club_agreement_date: reg.clubAgreementDate,
-      submitted_at: reg.submittedAt,
-      status: reg.status,
-      collection_id: reg.collectionId,
-      denial_reason: reg.denialReason || null,
-      approved_at: reg.approvedAt || null,
-      social_media: reg.socialMedia || null,
-      category: reg.category,
-      notes: reg.notes || null,
-      renewed_from_id: reg.renewedFromId || null,
-    })
+  const row = {
+    id: reg.id,
+    email: reg.email,
+    advisor_email: reg.advisorEmail || null,
+    club_name: reg.clubName,
+    advisor_name: reg.advisorName,
+    statement_of_purpose: reg.statementOfPurpose,
+    location: reg.location,
+    meeting_day: reg.meetingDay,
+    meeting_frequency: reg.meetingFrequency,
+    student_contact_name: reg.studentContactName,
+    student_contact_email: reg.studentContactEmail,
+    advisor_agreement_date: reg.advisorAgreementDate,
+    club_agreement_date: reg.clubAgreementDate,
+    submitted_at: reg.submittedAt,
+    status: reg.status,
+    collection_id: reg.collectionId,
+    denial_reason: reg.denialReason || null,
+    approved_at: reg.approvedAt || null,
+    social_media: reg.socialMedia || null,
+    category: reg.category,
+    notes: reg.notes || null,
+    renewed_from_id: reg.renewedFromId || null,
+  }
 
-  if (error) throw error
+  try {
+    const { error } = await (client.from('club_registrations') as any).insert(row)
+    if (error) throw error
+  } catch (e: any) {
+    const msg = String(e?.message || e)
+    if (!advisorEmailColumnChecked && /advisor_email/.test(msg)) {
+      advisorEmailColumnChecked = true
+      advisorEmailColumnPresent = false
+      const fallback = { ...row }
+      delete (fallback as any).advisor_email
+      const { error: err2 } = await (client.from('club_registrations') as any).insert(fallback)
+      if (err2) throw err2
+    } else {
+      throw e
+    }
+  }
 }
 
 export async function updateRegistration(id: string, updates: Partial<ClubRegistration>): Promise<void> {
@@ -290,11 +324,26 @@ export async function updateRegistration(id: string, updates: Partial<ClubRegist
 
   dbUpdates.updated_at = new Date().toISOString()
 
-  const { error } = await (client.from('club_registrations') as any)
-    .update(dbUpdates)
-    .eq('id', id)
+  try {
+    const { error } = await (client.from('club_registrations') as any)
+      .update(dbUpdates)
+      .eq('id', id)
 
-  if (error) throw error
+    if (error) throw error
+  } catch (e: any) {
+    const msg = String(e?.message || e)
+    if (!advisorEmailColumnChecked && /advisor_email/.test(msg)) {
+      advisorEmailColumnChecked = true
+      advisorEmailColumnPresent = false
+      if (dbUpdates.advisor_email !== undefined) delete dbUpdates.advisor_email
+      const { error: err2 } = await (client.from('club_registrations') as any)
+        .update(dbUpdates)
+        .eq('id', id)
+      if (err2) throw err2
+    } else {
+      throw e
+    }
+  }
 }
 
 export async function deleteRegistration(id: string): Promise<void> {
