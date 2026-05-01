@@ -1733,7 +1733,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           </span>
                         )}
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white truncate">{reg.advisorName}</td>
+                      <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white">
+                        <div className="truncate">{reg.advisorName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate break-all">{reg.advisorEmail || reg.email || '-'}</div>
+                      </td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate">{reg.studentContactName}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{reg.studentContactEmail}</div>
@@ -1803,6 +1806,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               <span className="font-semibold text-gray-700 dark:text-gray-300">Additional Details:</span>
                               <div className="mt-1 space-y-1 text-gray-600 dark:text-gray-400">
                                 <p><strong>Advisor:</strong> {reg.advisorName}</p>
+                                <p><strong>Advisor Email:</strong> {reg.advisorEmail || reg.email || '-'}</p>
                                 <p><strong>Student Contact:</strong> {reg.studentContactName} ({reg.studentContactEmail})</p>
                                 <p><strong>Location:</strong> {reg.location}</p>
                                 <p><strong>Meeting:</strong> {reg.meetingDay} - {reg.meetingFrequency}</p>
@@ -1884,7 +1888,10 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor:</span>
-                          <span className="text-gray-900 dark:text-white">{reg.advisorName}</span>
+                          <div className="min-w-0">
+                            <div className="text-gray-900 dark:text-white">{reg.advisorName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{reg.advisorEmail || reg.email || '-'}</div>
+                          </div>
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Leader:</span>
@@ -1933,8 +1940,8 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                             })()}
                             
                             <div className="flex items-start gap-2">
-                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Email:</span>
-                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.email}</span>
+                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor Email:</span>
+                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.advisorEmail || reg.email || '-'}</span>
                             </div>
                             <div className="flex items-start gap-2">
                               <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Contact:</span>
@@ -2125,6 +2132,16 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                     onChange={(e) => handleEditField('advisorName', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Advisor Email</label>
+                  <input
+                    type="email"
+                    value={editFields.email || ''}
+                    onChange={(e) => handleEditField('email', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Saved to the registration email field.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student Contact Name</label>
