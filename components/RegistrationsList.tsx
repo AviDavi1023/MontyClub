@@ -1735,7 +1735,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                       </td>
                       <td className="px-1.5 py-2 text-xs text-gray-900 dark:text-white">
                         <div className="truncate">{reg.advisorName}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate break-all">{reg.advisorEmail || reg.email || '-'}</div>
+                        {reg.advisorEmail && (
+                          <div className="text-xs text-gray-500 dark:text-gray-500 truncate break-all">{reg.advisorEmail}</div>
+                        )}
                       </td>
                       <td className="px-1.5 py-2 text-xs text-gray-600 dark:text-gray-400">
                         <div className="truncate">{reg.studentContactName}</div>
@@ -1806,7 +1808,7 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               <span className="font-semibold text-gray-700 dark:text-gray-300">Additional Details:</span>
                               <div className="mt-1 space-y-1 text-gray-600 dark:text-gray-400">
                                 <p><strong>Advisor:</strong> {reg.advisorName}</p>
-                                <p><strong>Advisor Email:</strong> {reg.advisorEmail || reg.email || '-'}</p>
+                                {reg.advisorEmail && <p><strong>Advisor Email:</strong> {reg.advisorEmail}</p>}
                                 <p><strong>Student Contact:</strong> {reg.studentContactName} ({reg.studentContactEmail})</p>
                                 <p><strong>Location:</strong> {reg.location}</p>
                                 <p><strong>Meeting:</strong> {reg.meetingDay} - {reg.meetingFrequency}</p>
@@ -1890,7 +1892,9 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor:</span>
                           <div className="min-w-0">
                             <div className="text-gray-900 dark:text-white">{reg.advisorName}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{reg.advisorEmail || reg.email || '-'}</div>
+                            {reg.advisorEmail && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{reg.advisorEmail}</div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-start gap-2">
@@ -1939,10 +1943,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                               )
                             })()}
                             
-                            <div className="flex items-start gap-2">
-                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor Email:</span>
-                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.advisorEmail || reg.email || '-'}</span>
-                            </div>
+                            {reg.advisorEmail && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Advisor Email:</span>
+                                <span className="text-gray-900 dark:text-white break-all text-xs">{reg.advisorEmail}</span>
+                              </div>
+                            )}
                             <div className="flex items-start gap-2">
                               <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Contact:</span>
                               <span className="text-gray-900 dark:text-white break-all text-xs">{reg.studentContactEmail}</span>
