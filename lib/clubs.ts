@@ -400,6 +400,7 @@ function parseExcelData(rows: any[][]): Club[] {
     category: cellToString(row[2]),
     description: cellToString(row[3]),
     advisor: cellToString(row[4]),
+    advisorEmail: row[14] ? cellToString(row[14]).trim() : '',
     studentLeader: cellToString(row[5]),
     meetingTime: cellToString(row[6]),
     // Optional meetingFrequency column (if present in Excel it can be used to capture
@@ -455,6 +456,7 @@ export function parseExcelToRegistrations(rows: any[][]): Partial<ClubRegistrati
       category: cellToString(row[2]),
       statementOfPurpose: cellToString(row[3]),
       advisorName: cellToString(row[4]),
+      advisorEmail: row[14] ? cellToString(row[14]).trim() : '',
       studentContactName: cellToString(row[5]),
       meetingDay: cellToString(row[6]),
       location: cellToString(row[7]),

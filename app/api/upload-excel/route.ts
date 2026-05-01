@@ -136,9 +136,10 @@ export async function POST(request: Request) {
           const registration: ClubRegistration = {
             id: nanoid(),
             collectionId: collectionId,
-            email: regData.studentContactEmail || '',
+            email: regData.advisorEmail || regData.studentContactEmail || '',
             clubName: regData.clubName || '',
             advisorName: regData.advisorName || '',
+            advisorEmail: regData.advisorEmail || '',
             statementOfPurpose: regData.statementOfPurpose || '',
             location: regData.location || '',
             meetingDay: regData.meetingDay || '',

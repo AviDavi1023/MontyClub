@@ -4,6 +4,7 @@ export interface Club {
   category: string
   description: string
   advisor: string
+  advisorEmail?: string
   studentLeader: string
   meetingTime: string
   // Free-text meeting frequency (examples: "Weekly", "1st and 3rd weeks of the month", "Once per quarter")
@@ -50,6 +51,7 @@ export interface ClubRegistration {
   email: string
   clubName: string
   advisorName: string // "Last Name (First Initial)"
+  advisorEmail?: string
   statementOfPurpose: string
   location: string
   meetingDay: string
