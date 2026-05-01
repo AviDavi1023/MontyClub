@@ -134,8 +134,13 @@ async function ensureRegistrationsMigrated(): Promise<void> {
         renewed_from_id: reg.renewedFromId || null,
       }
 
+      // If we've already detected the DB lacks advisor_email, don't include it
+      const insertRow = advisorEmailColumnChecked && !advisorEmailColumnPresent
+        ? ((): any => { const r = { ...row }; delete r.advisor_email; return r })()
+        : row
+
       try {
-        const { error } = await (client.from('club_registrations') as any).insert(row)
+        const { error } = await (client.from('club_registrations') as any).insert(insertRow)
         if (error) throw error
       } catch (e: any) {
         const msg = String(e?.message || e)
@@ -279,7 +284,11 @@ export async function createRegistration(reg: ClubRegistration): Promise<void> {
   }
 
   try {
-    const { error } = await (client.from('club_registrations') as any).insert(row)
+    const insertRow = advisorEmailColumnChecked && !advisorEmailColumnPresent
+      ? ((): any => { const r = { ...row }; delete r.advisor_email; return r })()
+      : row
+
+    const { error } = await (client.from('club_registrations') as any).insert(insertRow)
     if (error) throw error
   } catch (e: any) {
     const msg = String(e?.message || e)
@@ -323,6 +332,10 @@ export async function updateRegistration(id: string, updates: Partial<ClubRegist
   if (updates.renewedFromId !== undefined) dbUpdates.renewed_from_id = updates.renewedFromId
 
   dbUpdates.updated_at = new Date().toISOString()
+  // If we've detected the DB lacks advisor_email, remove it from updates
+  if (advisorEmailColumnChecked && !advisorEmailColumnPresent && dbUpdates.advisor_email !== undefined) {
+    delete dbUpdates.advisor_email
+  }
 
   try {
     const { error } = await (client.from('club_registrations') as any)
