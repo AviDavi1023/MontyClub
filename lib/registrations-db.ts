@@ -110,6 +110,7 @@ async function ensureRegistrationsMigrated(): Promise<void> {
           id: reg.id,
           email: reg.email,
           club_name: reg.clubName,
+              advisor_email: reg.advisorEmail || null,
           advisor_name: reg.advisorName,
           statement_of_purpose: reg.statementOfPurpose,
           location: reg.location,
@@ -166,6 +167,7 @@ export async function listRegistrations(
   return (data || []).map((row: any) => ({
     id: row.id,
     email: row.email,
+      advisorEmail: row.advisor_email,
     clubName: row.club_name,
     advisorName: row.advisor_name,
     statementOfPurpose: row.statement_of_purpose,
@@ -204,6 +206,7 @@ export async function getRegistrationById(id: string): Promise<ClubRegistration 
   return {
     id: data.id,
     email: data.email,
+    advisorEmail: data.advisor_email,
     clubName: data.club_name,
     advisorName: data.advisor_name,
     statementOfPurpose: data.statement_of_purpose,
@@ -234,6 +237,7 @@ export async function createRegistration(reg: ClubRegistration): Promise<void> {
     .insert({
       id: reg.id,
       email: reg.email,
+      advisor_email: reg.advisorEmail || null,
       club_name: reg.clubName,
       advisor_name: reg.advisorName,
       statement_of_purpose: reg.statementOfPurpose,
@@ -266,6 +270,7 @@ export async function updateRegistration(id: string, updates: Partial<ClubRegist
   const dbUpdates: Record<string, any> = {}
   if (updates.email !== undefined) dbUpdates.email = updates.email
   if (updates.clubName !== undefined) dbUpdates.club_name = updates.clubName
+  if (updates.advisorEmail !== undefined) dbUpdates.advisor_email = updates.advisorEmail
   if (updates.advisorName !== undefined) dbUpdates.advisor_name = updates.advisorName
   if (updates.statementOfPurpose !== undefined) dbUpdates.statement_of_purpose = updates.statementOfPurpose
   if (updates.location !== undefined) dbUpdates.location = updates.location
