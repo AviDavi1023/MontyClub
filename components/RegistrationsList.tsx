@@ -1688,7 +1688,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{reg.email}</div>
                           </div>
                         )}
                         {reg.status === 'pending' && detectDuplicates(reg.clubName, reg.id, reg.collectionId) && (
@@ -1899,7 +1898,12 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Leader:</span>
-                          <span className="text-gray-900 dark:text-white">{reg.studentContactName}</span>
+                          <div className="min-w-0">
+                            <div className="text-gray-900 dark:text-white">{reg.studentContactName}</div>
+                            {reg.studentContactEmail && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{reg.studentContactEmail}</div>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Meeting:</span>
@@ -1949,10 +1953,6 @@ export function RegistrationsList({ adminApiKey, collectionSlug, collectionName,
                                 <span className="text-gray-900 dark:text-white break-all text-xs">{reg.advisorEmail}</span>
                               </div>
                             )}
-                            <div className="flex items-start gap-2">
-                              <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Contact:</span>
-                              <span className="text-gray-900 dark:text-white break-all text-xs">{reg.studentContactEmail}</span>
-                            </div>
                             <div className="flex items-start gap-2">
                               <span className="text-gray-600 dark:text-gray-400 min-w-fit font-medium">Location:</span>
                               <span className="text-gray-900 dark:text-white">{reg.location}</span>
