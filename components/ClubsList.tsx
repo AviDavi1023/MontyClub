@@ -904,9 +904,17 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
         ) : viewMode === 'grid' ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {visibleClubs.map(club => (
-                  {(() => { const c = { ...club }; (c as any).__showStatus = displayCollectionStatusEnabled; return <ClubCard key={club.id} club={c} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} /> })()}
-              ))}
+              {visibleClubs.map(club => {
+                const c = { ...club }
+                (c as any).__showStatus = displayCollectionStatusEnabled
+                return (
+                  <ClubCard 
+                    key={club.id} 
+                    club={c} 
+                    hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} 
+                  />
+                )
+              })}
             </div>
           </>
         ) : (
