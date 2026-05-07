@@ -20,6 +20,7 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   const [copied, setCopied] = useState(false)
   const [hasPendingAnnouncement, setHasPendingAnnouncement] = useState(false)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
+  const [statusUIEnabled, setStatusUIEnabled] = useState(true)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
 
   // Check if this club has a pending announcement in localStorage
@@ -40,11 +41,12 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
           setHasPendingAnnouncement(true)
         }
       }
-      // Also load server setting once
+      // Also load server settings once
       fetch('/api/settings', { cache: 'no-store' }).then(async (resp) => {
         if (resp.ok) {
           const s = await resp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
+          setStatusUIEnabled(s.statusUIEnabled !== false)
         }
       }).catch(() => {})
       // Listen for storage events to update enabled flag
@@ -53,6 +55,9 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
           if (!e.key) return
           if (e.key === 'settings:announcementsEnabled' && typeof e.newValue === 'string') {
             setAnnouncementsEnabled(e.newValue === 'true')
+          }
+          if (e.key === 'settings:statusUIEnabled' && typeof e.newValue === 'string') {
+            setStatusUIEnabled(e.newValue === 'true')
           }
         } catch {}
       }
@@ -121,15 +126,17 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
               <span className="px-2.5 sm:px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full">
                 {club.category}
               </span>
-              <span
-                className={`px-2.5 sm:px-3 py-1 rounded-full ${
-                  club.active
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                }`}
-              >
-                {club.active ? 'Open' : 'Closed'}
-              </span>
+              {statusUIEnabled && (
+                <span
+                  className={`px-2.5 sm:px-3 py-1 rounded-full ${
+                    club.active
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                  }`}
+                >
+                  {club.active ? 'Open' : 'Closed'}
+                </span>
+              )}
             </div>
           </div>
           

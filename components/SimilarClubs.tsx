@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState, useEffect } from 'react'
 import { Club } from '@/types/club'
 import { ClubCard } from '@/components/ClubCard'
 
@@ -14,6 +14,39 @@ interface ScoredClub {
 }
 
 function SimilarClubsComponent({ currentClub, allClubs }: SimilarClubsProps) {
+  const [statusUIEnabled, setStatusUIEnabled] = useState(true)
+
+  // Load global status UI setting
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      // Try localStorage first for quick override
+      try {
+        const override = localStorage.getItem('settings:statusUIEnabled')
+        if (override === 'true' || override === 'false') {
+          setStatusUIEnabled(override === 'true')
+        }
+      } catch {}
+      // Load server setting
+      fetch('/api/settings', { cache: 'no-store' }).then(async (resp) => {
+        if (resp.ok) {
+          const s = await resp.json()
+          setStatusUIEnabled(s.statusUIEnabled !== false)
+        }
+      }).catch(() => {})
+      // Listen for storage events to sync setting changes
+      const onStorage = (e: StorageEvent) => {
+        try {
+          if (e.key === 'settings:statusUIEnabled' && typeof e.newValue === 'string') {
+            setStatusUIEnabled(e.newValue === 'true')
+          }
+        } catch {}
+      }
+      window.addEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
+    } catch {}
+  }, [])
+  
   // Category hierarchy for related clubs (groups of similar categories)
   const categoryRelations = useMemo(() => new Map<string, Set<string>>([
     ['Academic', new Set(['Academic', 'STEM', 'Education', 'Debate/Political'])],
@@ -171,7 +204,7 @@ function SimilarClubsComponent({ currentClub, allClubs }: SimilarClubsProps) {
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {similarClubs.map(club => (
-          <ClubCard key={club.id} club={club} />
+          <ClubCard key={club.id} club={club} showStatus={statusUIEnabled} />
         ))}
       </div>
     </div>
