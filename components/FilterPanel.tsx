@@ -13,9 +13,10 @@ interface FilterPanelProps {
   onToggle?: () => void
   showToggle?: boolean
   canClear?: boolean
+  showStatus?: boolean
 }
 
-export function FilterPanel({ filters, setFilters, categories, frequencies, onClear, onToggle, showToggle = false, canClear = true }: FilterPanelProps) {
+export function FilterPanel({ filters, setFilters, categories, frequencies, onClear, onToggle, showToggle = false, canClear = true, showStatus = true }: FilterPanelProps) {
   const meetingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
@@ -170,18 +171,22 @@ export function FilterPanel({ filters, setFilters, categories, frequencies, onCl
 
         {/* Status Filter */}
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Status
-          </label>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="input-field text-xs sm:text-sm py-2"
-          >
-            <option value="">All Status</option>
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
-          </select>
+          {showStatus && (
+            <>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Status
+              </label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                className="input-field text-xs sm:text-sm py-2"
+              >
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+              </select>
+            </>
+          )}
         </div>
 
         {/* (Grade level removed — all clubs are for all grades) */}

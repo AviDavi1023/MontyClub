@@ -517,6 +517,45 @@ export function AdminPanel() {
     }
   }
 
+  const toggleGlobalStatusUI = async () => {
+    if (!adminApiKey) {
+      showToast('Set admin API key first', 'error')
+      return
+    }
+    const nextStatus = !statusUIEnabled
+    setStatusUIEnabled(nextStatus)
+
+    try {
+      const resp = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminApiKey },
+        body: JSON.stringify({ statusUIEnabled: nextStatus })
+      })
+
+      if (resp.status === 401) {
+        handle401Error('ToggleGlobalStatusUI')
+        setStatusUIEnabled(!nextStatus)
+        return
+      }
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to update status UI setting')
+      }
+      showToast(`Status UI ${nextStatus ? 'enabled' : 'disabled'}`)
+      logActivity({
+        type: 'settings',
+        action: nextStatus ? 'Status UI Enabled' : 'Status UI Disabled',
+        details: `${nextStatus ? 'Enabled' : 'Disabled'} global status UI`,
+        status: 'info',
+        user: currentUser || undefined
+      })
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update status UI setting', 'error')
+      setStatusUIEnabled(!nextStatus)
+    }
+  }
+
   const toggleModalRenewalSourceCollection = async (targetCollectionId: string, sourceCollectionId: string) => {
     const currentSettings = renewalSettings[targetCollectionId] || { sourceCollections: [] }
     const currentSources = currentSettings.sourceCollections || []
@@ -3193,6 +3232,8 @@ export function AdminPanel() {
         publishSnapshotNow={publishSnapshotNow}
         publishingCatalog={publishingCatalog}
         catalogStatus={catalogStatus}
+        statusUIEnabled={statusUIEnabled}
+        onToggleStatusUI={toggleGlobalStatusUI}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -3994,6 +4035,7 @@ export function AdminPanel() {
                                     />
                                   </div>
                                 </div>
+
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setEditingCollectionId(collection.id); setEditingCollectionName(collection.name) }}
                                   className="mt-2 p-1.5 w-full text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded transition-colors text-xs font-medium"

@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       display: false,
       accepting: false,
       renewalEnabled: false,
+      statusEnabled: true,
     }
 
     await createCollection(newCollection)
@@ -114,7 +115,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, name, enabled, accepting, display, renewalEnabled } = body
+    const { id, name, enabled, accepting, display, renewalEnabled, statusEnabled } = body
 
     if (!id) {
       return NextResponse.json({ error: 'Collection ID is required' }, { status: 400 })
@@ -146,6 +147,7 @@ export async function PATCH(request: NextRequest) {
     if (enabled !== undefined) updates.enabled = Boolean(enabled)
     if (accepting !== undefined) updates.accepting = Boolean(accepting)
     if (renewalEnabled !== undefined) updates.renewalEnabled = Boolean(renewalEnabled)
+    if (statusEnabled !== undefined) updates.statusEnabled = Boolean(statusEnabled)
 
     if (display !== undefined && display === true) {
       await ensureSingleDisplay(id)

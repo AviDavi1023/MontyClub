@@ -82,6 +82,7 @@ async function ensureCollectionsMigrated(): Promise<void> {
           display: col.display || false,
           accepting: col.accepting !== false, // Default to true for legacy collections
           renewal_enabled: col.renewalEnabled || false,
+          status_enabled: col.statusEnabled !== undefined ? col.statusEnabled : true,
         })
     }
 
@@ -111,6 +112,7 @@ export async function listCollections(): Promise<RegistrationCollection[]> {
     display: row.display,
     accepting: row.accepting,
     renewalEnabled: row.renewal_enabled,
+    statusEnabled: row.status_enabled,
   }))
 }
 
@@ -135,6 +137,7 @@ export async function getCollectionById(id: string): Promise<RegistrationCollect
     display: data.display,
     accepting: data.accepting,
     renewalEnabled: data.renewal_enabled,
+    statusEnabled: data.status_enabled,
   }
 }
 
@@ -181,6 +184,7 @@ export async function getAcceptingCollections(): Promise<RegistrationCollection[
     display: row.display,
     accepting: row.accepting,
     renewalEnabled: row.renewal_enabled,
+    statusEnabled: row.status_enabled,
   }))
 }
 
@@ -196,6 +200,7 @@ export async function createCollection(col: RegistrationCollection): Promise<voi
       display: col.display || false,
       accepting: col.accepting || false,
       renewal_enabled: col.renewalEnabled || false,
+      status_enabled: col.statusEnabled !== undefined ? col.statusEnabled : true,
     })
 
   if (error) throw error
@@ -212,6 +217,7 @@ export async function updateCollection(id: string, updates: Partial<Registration
   if (updates.display !== undefined) dbUpdates.display = updates.display
   if (updates.accepting !== undefined) dbUpdates.accepting = updates.accepting
   if (updates.renewalEnabled !== undefined) dbUpdates.renewal_enabled = updates.renewalEnabled
+  if (updates.statusEnabled !== undefined) dbUpdates.status_enabled = updates.statusEnabled
 
   dbUpdates.updated_at = new Date().toISOString()
 

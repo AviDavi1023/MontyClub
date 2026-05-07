@@ -44,6 +44,8 @@ export interface RegistrationCollection {
   accepting?: boolean
   // renewalEnabled: this collection's renewal form is available (admin shares link)
   renewalEnabled?: boolean
+  // statusEnabled: whether the UI shows status tag and status filters for this collection
+  statusEnabled?: boolean
 }
 
 export interface ClubRegistration {

@@ -28,7 +28,8 @@ export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
             </h3>
           </div>
 
-          <span
+          {Boolean((club as any).__showStatus !== false) && (
+            <span
             className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${
               club.active
                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
@@ -37,6 +38,7 @@ export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
           >
             {club.active ? 'Open' : 'Closed'}
           </span>
+          )}
         </div>
 
         {club.announcement && (

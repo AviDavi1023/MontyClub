@@ -25,6 +25,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
   const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(initialAnnouncementsEnabled)
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
+  const [displayCollectionStatusEnabled, setDisplayCollectionStatusEnabled] = useState<boolean>(true)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   // Start with filters hidden on mobile and medium screens (where they wrap 2x2), visible on large+ screens
@@ -115,6 +116,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
         try {
           const s = await settingsResp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
+          setDisplayCollectionStatusEnabled(s.statusUIEnabled !== false)
           if (s.clubDataSource === 'excel' || s.clubDataSource === 'collection') {
             setClubDataSource(s.clubDataSource)
           }
@@ -760,6 +762,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
             onToggle={() => setShowFilters(false)}
             showToggle={true}
             canClear={hasActiveFilters}
+            showStatus={displayCollectionStatusEnabled}
           />
         )}
       </div>
@@ -902,7 +905,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {visibleClubs.map(club => (
-                <ClubCard key={club.id} club={club} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} />
+                  {(() => { const c = { ...club }; (c as any).__showStatus = displayCollectionStatusEnabled; return <ClubCard key={club.id} club={c} hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} /> })()}
               ))}
             </div>
           </>

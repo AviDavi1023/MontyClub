@@ -25,6 +25,8 @@ interface AdminSidebarProps {
   catalogStatus?: { exists: boolean; generatedAt?: string; clubCount?: number } | null
   isOpen?: boolean
   onClose?: () => void
+  statusUIEnabled?: boolean
+  onToggleStatusUI?: () => void
 }
 
 export function AdminSidebar({ 
@@ -37,7 +39,9 @@ export function AdminSidebar({
   publishingCatalog = false,
   catalogStatus,
   isOpen = false,
-  onClose
+  onClose,
+  statusUIEnabled = true,
+  onToggleStatusUI,
 }: AdminSidebarProps) {
   const menuItems = [
     { 
@@ -210,6 +214,27 @@ export function AdminSidebar({
               </button>
               <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-0.5 px-1 leading-tight">
                 Advanced: Use only if you need to refresh admin view without publishing
+              </p>
+            </div>
+          )}
+
+          {/* Global Status UI Toggle */}
+          {onToggleStatusUI && (
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700/50">
+              <button
+                onClick={onToggleStatusUI}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+                  statusUIEnabled
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+                title={statusUIEnabled ? 'Click to hide Open/Closed status tags from public catalog' : 'Click to show Open/Closed status tags in public catalog'}
+              >
+                <div className={`h-3 w-3 rounded-full ${statusUIEnabled ? 'bg-green-600 dark:bg-green-400' : 'bg-gray-400 dark:bg-gray-500'}`} />
+                <span>{statusUIEnabled ? 'Status UI: On' : 'Status UI: Off'}</span>
+              </button>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-1 px-1 leading-tight">
+                Toggle visibility of Open/Closed status tags across the catalog
               </p>
             </div>
           )}
