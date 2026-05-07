@@ -169,8 +169,18 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
         }
       } catch {}
     }
+
+    const onSettingsUpdate = () => {
+      try {
+        const statusLocal = localStorage.getItem('settings:statusUIEnabled')
+        if (statusLocal === 'true' || statusLocal === 'false') {
+          setDisplayCollectionStatusEnabled(statusLocal === 'true')
+        }
+      } catch {}
+    }
     if (typeof window !== 'undefined') {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
+      window.addEventListener('settings-updated', onSettingsUpdate)
     }
 
     // Listen for club data source changes (Excel/Collection)
@@ -200,6 +210,10 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
           if (typeof e.newValue === 'string') {
             setAnnouncementsEnabled(e.newValue === 'true')
           }
+        } else if (e.key === 'settings:statusUIEnabled') {
+          if (typeof e.newValue === 'string') {
+            setDisplayCollectionStatusEnabled(e.newValue === 'true')
+          }
         } else if (e.key === 'montyclub:clubDataSource') {
           loadClubs(true)
         }
@@ -217,6 +231,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       cleanupClubs()
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
+        window.removeEventListener('settings-updated', onSettingsUpdate)
         window.removeEventListener('storage', onStorage)
       }
       if (dataSourceChannel) dataSourceChannel.close()
@@ -231,6 +246,10 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       const override = localStorage.getItem('settings:announcementsEnabled')
       if (override === 'true' || override === 'false') {
         setAnnouncementsEnabled(override === 'true')
+      }
+      const statusOverride = localStorage.getItem('settings:statusUIEnabled')
+      if (statusOverride === 'true' || statusOverride === 'false') {
+        setDisplayCollectionStatusEnabled(statusOverride === 'true')
       }
       const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
       if (primary) {
@@ -905,13 +924,12 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {visibleClubs.map(club => {
-                const c = { ...club }
-                (c as any).__showStatus = displayCollectionStatusEnabled
                 return (
                   <ClubCard 
                     key={club.id} 
-                    club={c} 
+                    club={club} 
                     hasPendingAnnouncement={localPendingAnnouncements[club.id] !== undefined} 
+                    showStatus={displayCollectionStatusEnabled}
                   />
                 )
               })}

@@ -11,9 +11,10 @@ import { slugifyName } from '@/lib/slug'
 interface ClubCardProps {
   club: Club
   hasPendingAnnouncement?: boolean
+  showStatus?: boolean
 }
 
-export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
+export function ClubCard({ club, hasPendingAnnouncement, showStatus = true }: ClubCardProps) {
   const searchParams = useSearchParams()
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
   const slug = slugifyName(club.name)
@@ -28,7 +29,7 @@ export function ClubCard({ club, hasPendingAnnouncement }: ClubCardProps) {
             </h3>
           </div>
 
-          {Boolean((club as any).__showStatus !== false) && (
+          {showStatus && (
             <span
             className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${
               club.active

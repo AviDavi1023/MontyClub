@@ -68,6 +68,7 @@ export function AdminPanel() {
   const [showStatistics, setShowStatistics] = useState(false)
   const statisticsRef = useRef<HTMLDivElement | null>(null)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean | null>(null)
+  const [statusUIEnabled, setStatusUIEnabled] = useState<boolean>(true)
   const [savingSettings, setSavingSettings] = useState(false)
   const [refreshingCache, setRefreshingCache] = useState(false)
   const [publishingCatalog, setPublishingCatalog] = useState(false)
@@ -183,6 +184,10 @@ export function AdminPanel() {
             setAnnouncementsEnabled(true)
           }
         }).catch(() => setAnnouncementsEnabled(true))
+      }
+      const statusLocal = localStorage.getItem('settings:statusUIEnabled')
+      if (statusLocal === 'true' || statusLocal === 'false') {
+        setStatusUIEnabled(statusLocal === 'true')
       }
     } catch {
       setAnnouncementsEnabled(true)
@@ -524,6 +529,10 @@ export function AdminPanel() {
     }
     const nextStatus = !statusUIEnabled
     setStatusUIEnabled(nextStatus)
+    try {
+      localStorage.setItem('settings:statusUIEnabled', String(nextStatus))
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { statusUIEnabled: nextStatus } }))
+    } catch {}
 
     try {
       const resp = await fetch('/api/settings', {
@@ -553,6 +562,10 @@ export function AdminPanel() {
     } catch (err: any) {
       showToast(err.message || 'Failed to update status UI setting', 'error')
       setStatusUIEnabled(!nextStatus)
+      try {
+        localStorage.setItem('settings:statusUIEnabled', String(!nextStatus))
+        window.dispatchEvent(new CustomEvent('settings-updated', { detail: { statusUIEnabled: !nextStatus } }))
+      } catch {}
     }
   }
 
@@ -2519,6 +2532,7 @@ export function AdminPanel() {
       if (!resp.ok) throw new Error('Failed to fetch settings')
       const data = await resp.json()
       const serverEnabled = data.announcementsEnabled !== false
+      const serverStatusEnabled = data.statusUIEnabled !== false
       
       // Check if we have a pending optimistic update in localStorage
       // If localStorage differs from server, trust localStorage (optimistic update in progress)
@@ -2538,8 +2552,10 @@ export function AdminPanel() {
       
       // No conflict - use server value as source of truth
       setAnnouncementsEnabled(serverEnabled)
+      setStatusUIEnabled(serverStatusEnabled)
       try {
         localStorage.setItem('settings:announcementsEnabled', String(serverEnabled))
+        localStorage.setItem('settings:statusUIEnabled', String(serverStatusEnabled))
       } catch (e) {}
     } catch (err) {
       console.error('Error fetching settings:', err)
