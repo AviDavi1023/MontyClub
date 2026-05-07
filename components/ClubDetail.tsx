@@ -20,7 +20,15 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
   const [copied, setCopied] = useState(false)
   const [hasPendingAnnouncement, setHasPendingAnnouncement] = useState(false)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
-  const [statusUIEnabled, setStatusUIEnabled] = useState(true)
+  const [statusUIEnabled, setStatusUIEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const override = localStorage.getItem('settings:statusUIEnabled')
+      if (override === 'true') return true
+      if (override === 'false') return false
+    } catch {}
+    return true
+  })
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
 
   // Check if this club has a pending announcement in localStorage

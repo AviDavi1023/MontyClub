@@ -14,7 +14,15 @@ interface ScoredClub {
 }
 
 function SimilarClubsComponent({ currentClub, allClubs }: SimilarClubsProps) {
-  const [statusUIEnabled, setStatusUIEnabled] = useState(true)
+  const [statusUIEnabled, setStatusUIEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const override = localStorage.getItem('settings:statusUIEnabled')
+      if (override === 'true') return true
+      if (override === 'false') return false
+    } catch {}
+    return true
+  })
 
   // Load global status UI setting
   useEffect(() => {
