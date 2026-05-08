@@ -8,27 +8,21 @@ import { SimilarClubs } from '@/components/SimilarClubs'
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { slugifyName } from '@/lib/slug'
+import { useStatusUIEnabled } from '@/lib/hooks/useStatusUIEnabled'
 
 interface ClubDetailProps {
   club: Club
   allClubs: Club[]
+  initialStatusUIEnabled?: boolean
 }
 
-export function ClubDetail({ club, allClubs }: ClubDetailProps) {
+export function ClubDetail({ club, allClubs, initialStatusUIEnabled = true }: ClubDetailProps) {
   const searchParams = useSearchParams()
   const queryString = searchParams?.toString() ? `/?${searchParams.toString()}` : '/'
   const [copied, setCopied] = useState(false)
   const [hasPendingAnnouncement, setHasPendingAnnouncement] = useState(false)
   const [announcementsEnabled, setAnnouncementsEnabled] = useState(true)
-  const [statusUIEnabled, setStatusUIEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true
-    try {
-      const override = localStorage.getItem('settings:statusUIEnabled')
-      if (override === 'true') return true
-      if (override === 'false') return false
-    } catch {}
-    return true
-  })
+  const statusUIEnabled = useStatusUIEnabled(initialStatusUIEnabled)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
 
   // Check if this club has a pending announcement in localStorage
@@ -54,7 +48,6 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
         if (resp.ok) {
           const s = await resp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
-          setStatusUIEnabled(s.statusUIEnabled !== false)
         }
       }).catch(() => {})
       // Listen for storage events to update enabled flag
@@ -63,9 +56,6 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
           if (!e.key) return
           if (e.key === 'settings:announcementsEnabled' && typeof e.newValue === 'string') {
             setAnnouncementsEnabled(e.newValue === 'true')
-          }
-          if (e.key === 'settings:statusUIEnabled' && typeof e.newValue === 'string') {
-            setStatusUIEnabled(e.newValue === 'true')
           }
         } catch {}
       }
@@ -289,7 +279,7 @@ export function ClubDetail({ club, allClubs }: ClubDetailProps) {
       </div>
 
       {/* Similar Clubs */}
-      <SimilarClubs currentClub={club} allClubs={allClubs} />
+      <SimilarClubs currentClub={club} allClubs={allClubs} showStatus={statusUIEnabled} />
     </div>
   )
 }

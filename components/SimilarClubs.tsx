@@ -1,10 +1,11 @@
-import { memo, useMemo, useState, useEffect } from 'react'
+import { memo, useMemo } from 'react'
 import { Club } from '@/types/club'
 import { ClubCard } from '@/components/ClubCard'
 
 interface SimilarClubsProps {
   currentClub: Club
   allClubs: Club[]
+  showStatus?: boolean
 }
 
 interface ScoredClub {
@@ -13,48 +14,8 @@ interface ScoredClub {
   reasons: string[]
 }
 
-function SimilarClubsComponent({ currentClub, allClubs }: SimilarClubsProps) {
-  const [statusUIEnabled, setStatusUIEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true
-    try {
-      const override = localStorage.getItem('settings:statusUIEnabled')
-      if (override === 'true') return true
-      if (override === 'false') return false
-    } catch {}
-    return true
-  })
+function SimilarClubsComponent({ currentClub, allClubs, showStatus = true }: SimilarClubsProps) {
 
-  // Load global status UI setting
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return
-      // Try localStorage first for quick override
-      try {
-        const override = localStorage.getItem('settings:statusUIEnabled')
-        if (override === 'true' || override === 'false') {
-          setStatusUIEnabled(override === 'true')
-        }
-      } catch {}
-      // Load server setting
-      fetch('/api/settings', { cache: 'no-store' }).then(async (resp) => {
-        if (resp.ok) {
-          const s = await resp.json()
-          setStatusUIEnabled(s.statusUIEnabled !== false)
-        }
-      }).catch(() => {})
-      // Listen for storage events to sync setting changes
-      const onStorage = (e: StorageEvent) => {
-        try {
-          if (e.key === 'settings:statusUIEnabled' && typeof e.newValue === 'string') {
-            setStatusUIEnabled(e.newValue === 'true')
-          }
-        } catch {}
-      }
-      window.addEventListener('storage', onStorage)
-      return () => window.removeEventListener('storage', onStorage)
-    } catch {}
-  }, [])
-  
   // Category hierarchy for related clubs (groups of similar categories)
   const categoryRelations = useMemo(() => new Map<string, Set<string>>([
     ['Academic', new Set(['Academic', 'STEM', 'Education', 'Debate/Political'])],
@@ -212,7 +173,7 @@ function SimilarClubsComponent({ currentClub, allClubs }: SimilarClubsProps) {
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {similarClubs.map(club => (
-          <ClubCard key={club.id} club={club} showStatus={statusUIEnabled} />
+          <ClubCard key={club.id} club={club} showStatus={showStatus} />
         ))}
       </div>
     </div>
@@ -225,6 +186,7 @@ export const SimilarClubs = memo(SimilarClubsComponent, (prevProps, nextProps) =
   // This prevents unnecessary re-renders on every parent render
   return (
     prevProps.currentClub.id === nextProps.currentClub.id &&
-    prevProps.allClubs.length === nextProps.allClubs.length
+    prevProps.allClubs.length === nextProps.allClubs.length &&
+    prevProps.showStatus === nextProps.showStatus
   )
 })

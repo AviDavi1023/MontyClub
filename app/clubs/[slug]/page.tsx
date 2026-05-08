@@ -5,6 +5,7 @@ import { ClubDetailSkeleton } from '@/components/ClubDetailSkeleton'
 import { Header } from '@/components/Header'
 import { slugifyName } from '@/lib/slug'
 import { fetchClubs } from '@/lib/clubs'
+import { readData } from '@/lib/runtime-store'
 
 // Don't generate static params - let Next.js handle this dynamically
 export const dynamicParams = true
@@ -13,7 +14,10 @@ export const revalidate = 0
 
 async function ClubContent({ slug }: { slug: string }) {
   try {
-    const clubs = await fetchClubs()
+    const [clubs, settings] = await Promise.all([
+      fetchClubs(),
+      readData('settings', { statusUIEnabled: true }),
+    ])
     
     // If no clubs available, check if we have any data at all
     if (!clubs || clubs.length === 0) {
@@ -33,7 +37,7 @@ async function ClubContent({ slug }: { slug: string }) {
       notFound()
     }
 
-    return <ClubDetail club={club} allClubs={clubs} />
+    return <ClubDetail club={club} allClubs={clubs} initialStatusUIEnabled={settings?.statusUIEnabled !== false} />
   } catch (error) {
     console.error('Error in ClubContent:', error)
     notFound()

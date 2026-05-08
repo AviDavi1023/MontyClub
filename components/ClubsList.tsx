@@ -13,19 +13,21 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { createDomainListener } from '@/lib/broadcast'
 import { SkeletonGrid, SkeletonTable } from '@/components/SkeletonLoader'
 import { EmptyState, LoadingState, Chip, Button } from '@/components/ui'
+import { useStatusUIEnabled } from '@/lib/hooks/useStatusUIEnabled'
 
 interface ClubsListProps {
   initialClubs?: Club[]
   initialAnnouncementsEnabled?: boolean
+  initialStatusUIEnabled?: boolean
 }
 
-export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: ClubsListProps = {}) {
+export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true, initialStatusUIEnabled = true }: ClubsListProps = {}) {
   const [clubs, setClubs] = useState<Club[]>(initialClubs || [])
   const [loading, setLoading] = useState(!initialClubs || initialClubs.length === 0)
   const [localPendingAnnouncements, setLocalPendingAnnouncements] = useState<Record<string, string>>({})
   const [announcementsEnabled, setAnnouncementsEnabled] = useState<boolean>(initialAnnouncementsEnabled)
   const [clubDataSource, setClubDataSource] = useState<'excel' | 'collection'>('excel')
-  const [displayCollectionStatusEnabled, setDisplayCollectionStatusEnabled] = useState<boolean>(true)
+  const displayCollectionStatusEnabled = useStatusUIEnabled(initialStatusUIEnabled)
   const ANNOUNCEMENTS_PENDING_KEY = 'montyclub:pendingAnnouncements'
   const ANNOUNCEMENTS_BACKUP_KEY = 'montyclub:pendingAnnouncements:backup'
   // Start with filters hidden on mobile and medium screens (where they wrap 2x2), visible on large+ screens
@@ -116,7 +118,6 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
         try {
           const s = await settingsResp.json()
           setAnnouncementsEnabled(s.announcementsEnabled !== false)
-          setDisplayCollectionStatusEnabled(s.statusUIEnabled !== false)
           if (s.clubDataSource === 'excel' || s.clubDataSource === 'collection') {
             setClubDataSource(s.clubDataSource)
           }
@@ -170,17 +171,8 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       } catch {}
     }
 
-    const onSettingsUpdate = () => {
-      try {
-        const statusLocal = localStorage.getItem('settings:statusUIEnabled')
-        if (statusLocal === 'true' || statusLocal === 'false') {
-          setDisplayCollectionStatusEnabled(statusLocal === 'true')
-        }
-      } catch {}
-    }
     if (typeof window !== 'undefined') {
       window.addEventListener('announcements-updated', onAnnouncementUpdate)
-      window.addEventListener('settings-updated', onSettingsUpdate)
     }
 
     // Listen for club data source changes (Excel/Collection)
@@ -210,10 +202,6 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
           if (typeof e.newValue === 'string') {
             setAnnouncementsEnabled(e.newValue === 'true')
           }
-        } else if (e.key === 'settings:statusUIEnabled') {
-          if (typeof e.newValue === 'string') {
-            setDisplayCollectionStatusEnabled(e.newValue === 'true')
-          }
         } else if (e.key === 'montyclub:clubDataSource') {
           loadClubs(true)
         }
@@ -231,7 +219,6 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       cleanupClubs()
       if (typeof window !== 'undefined') {
         window.removeEventListener('announcements-updated', onAnnouncementUpdate)
-        window.removeEventListener('settings-updated', onSettingsUpdate)
         window.removeEventListener('storage', onStorage)
       }
       if (dataSourceChannel) dataSourceChannel.close()
@@ -246,10 +233,6 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       const override = localStorage.getItem('settings:announcementsEnabled')
       if (override === 'true' || override === 'false') {
         setAnnouncementsEnabled(override === 'true')
-      }
-      const statusOverride = localStorage.getItem('settings:statusUIEnabled')
-      if (statusOverride === 'true' || statusOverride === 'false') {
-        setDisplayCollectionStatusEnabled(statusOverride === 'true')
       }
       const primary = localStorage.getItem(ANNOUNCEMENTS_PENDING_KEY)
       if (primary) {
@@ -361,7 +344,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
       }
 
       // Status filter
-      if (filters.status) {
+      if (displayCollectionStatusEnabled && filters.status) {
         // status values are 'open' or 'closed'
         if (filters.status === 'open' && !club.active) return false
         if (filters.status === 'closed' && club.active) return false
@@ -371,7 +354,17 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
 
       return true
     })
-  }, [clubs, filters, searchInput])
+  }, [clubs, filters, searchInput, displayCollectionStatusEnabled])
+
+  // If status UI is hidden, remove status filter from state/URL so hidden logic never affects results.
+  useEffect(() => {
+    if (displayCollectionStatusEnabled) return
+    if (!filtersRef.current.status) return
+    const nextFilters = { ...filtersRef.current, status: '' }
+    setFilters(nextFilters)
+    filtersRef.current = nextFilters
+    updateQueryParams(nextFilters)
+  }, [displayCollectionStatusEnabled])
 
   const categories = useMemo(() => {
     const uniqueCategories = [...new Set(clubs.map(club => club.category))].filter(Boolean)
@@ -575,7 +568,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
   // Reset visible clubs when filters/sort/search/view change
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE)
-  }, [ITEMS_PER_PAGE, filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput])
+  }, [ITEMS_PER_PAGE, filters.sort, filters.search, filters.category, filters.meetingDay, filters.meetingFrequency, filters.status, searchInput, displayCollectionStatusEnabled])
 
   // Progressive reveal instead of page-based pagination
   const visibleClubs = sortedClubs.slice(0, visibleCount)
@@ -629,7 +622,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
     meetingDays.forEach((d: string) => params.append('meetingDay', d))
     const meetingFrequencies = Array.isArray(newFilters.meetingFrequency) ? newFilters.meetingFrequency : (newFilters.meetingFrequency ? [newFilters.meetingFrequency] : [])
     meetingFrequencies.forEach((f: string) => params.append('meetingFrequency', f))
-    if (newFilters.status) params.set('status', newFilters.status)
+    if (displayCollectionStatusEnabled && newFilters.status) params.set('status', newFilters.status)
     if (newFilters.sort && newFilters.sort !== 'relevant') params.set('sort', newFilters.sort)
     const newUrl = params.toString() ? `/?${params.toString()}` : '/'
     router.replace(newUrl)
@@ -694,6 +687,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
   const hasActiveFilters = searchInput !== '' || 
     Object.entries(filters).some(([key, value]) => {
       if (key === 'search' || key === 'sort') return false
+      if (key === 'status' && !displayCollectionStatusEnabled) return false
       if (Array.isArray(value)) return value.length > 0
       if (typeof value === 'string') return value !== ''
       return false
@@ -761,7 +755,12 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-medium"
           >
             <Filter className="h-4 w-4" />
-            <span>Show Filters <span className="text-gray-500 dark:text-gray-400">(Category, Day, Frequency, Status)</span></span>
+            <span>
+              Show Filters{' '}
+              <span className="text-gray-500 dark:text-gray-400">
+                {displayCollectionStatusEnabled ? '(Category, Day, Frequency, Status)' : '(Category, Day, Frequency)'}
+              </span>
+            </span>
             <ChevronDown className="h-4 w-4" />
             {hasActiveFilters && (
               <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
@@ -827,7 +826,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
                 }}
               />
             ))}
-            {filters.status && (
+            {displayCollectionStatusEnabled && filters.status && (
               <Chip
                 key="status"
                 label={`Status: ${filters.status === 'open' ? 'Open' : 'Closed'}`}
@@ -937,7 +936,7 @@ export function ClubsList({ initialClubs, initialAnnouncementsEnabled = true }: 
           </>
         ) : (
           <>
-            <ClubsTable clubs={visibleClubs} pendingAnnouncements={localPendingAnnouncements} />
+            <ClubsTable clubs={visibleClubs} pendingAnnouncements={localPendingAnnouncements} showStatus={displayCollectionStatusEnabled} />
           </>
         )}
 

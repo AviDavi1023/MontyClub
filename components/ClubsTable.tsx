@@ -10,9 +10,10 @@ import { slugifyName } from '@/lib/slug'
 interface ClubsTableProps {
   clubs: Club[]
   pendingAnnouncements?: Record<string, string>
+  showStatus?: boolean
 }
 
-export function ClubsTable({ clubs, pendingAnnouncements = {} }: ClubsTableProps) {
+export function ClubsTable({ clubs, pendingAnnouncements = {}, showStatus = true }: ClubsTableProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryString = searchParams?.toString() ? `?${searchParams.toString()}` : ''
@@ -32,9 +33,11 @@ export function ClubsTable({ clubs, pendingAnnouncements = {} }: ClubsTableProps
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Club Name
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Status
-            </th>
+            {showStatus && (
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Status
+              </th>
+            )}
             <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Category
             </th>
@@ -91,15 +94,17 @@ export function ClubsTable({ clubs, pendingAnnouncements = {} }: ClubsTableProps
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  club.active 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-                }`}>
-                  {club.active ? 'Open' : 'Closed'}
-                </span>
-              </td>
+              {showStatus && (
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    club.active 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                  }`}>
+                    {club.active ? 'Open' : 'Closed'}
+                  </span>
+                </td>
+              )}
               <td className="px-4 py-3 whitespace-nowrap">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{club.category}</span>
               </td>

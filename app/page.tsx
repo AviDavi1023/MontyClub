@@ -15,13 +15,15 @@ export default async function HomePage() {
   // (uses in-memory cache when warm – effectively free after the first request)
   let initialClubs: Club[] = []
   let initialAnnouncementsEnabled = true
+  let initialStatusUIEnabled = true
   try {
     const [clubs, settings] = await Promise.all([
       fetchClubs(),
-      readData('settings', { announcementsEnabled: true }),
+      readData('settings', { announcementsEnabled: true, statusUIEnabled: true }),
     ])
     initialClubs = clubs
     initialAnnouncementsEnabled = settings?.announcementsEnabled !== false
+    initialStatusUIEnabled = settings?.statusUIEnabled !== false
   } catch {
     // Fall through – ClubsList will fetch on the client as fallback
   }
@@ -43,6 +45,7 @@ export default async function HomePage() {
           <ClubsList
             initialClubs={initialClubs}
             initialAnnouncementsEnabled={initialAnnouncementsEnabled}
+            initialStatusUIEnabled={initialStatusUIEnabled}
           />
         </Suspense>
       </main>
